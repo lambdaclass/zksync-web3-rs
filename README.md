@@ -4,9 +4,9 @@
 ### Installation
 
 ```
-git clone git@github.com:lambdaclass/zksync_era_playground.git
-cd zksync_era_playground
-cargo install --path .
+git clone git@github.com:lambdaclass/zksync-web3-rs.git
+cd zksync-web3-rs
+make cli
 ```
 
 ### Usage
