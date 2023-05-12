@@ -11,17 +11,16 @@ pub(crate) struct GetContract {
     pub contract: String,
 }
 
-pub(crate) async fn run(args: GetContract, config: ZKSyncWeb3Config) {
+pub(crate) async fn run(args: GetContract, config: ZKSyncWeb3Config) -> eyre::Result<()> {
     let provider = Provider::try_from(format!(
         "http://{host}:{port}",
         host = config.host,
         port = config.port
-    ))
-    .unwrap()
+    ))?
     .interval(std::time::Duration::from_millis(10));
     let contract = provider
-        .get_code(args.contract.parse::<Address>().unwrap(), None)
-        .await
-        .unwrap();
+        .get_code(args.contract.parse::<Address>()?, None)
+        .await?;
     log::info!("{:#?}", contract);
+    Ok(())
 }

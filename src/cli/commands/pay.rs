@@ -25,14 +25,13 @@ pub(crate) struct Pay {
     pub private_key: Wallet<SigningKey>,
 }
 
-pub(crate) async fn run(args: Pay, config: ZKSyncWeb3Config) {
+pub(crate) async fn run(args: Pay, config: ZKSyncWeb3Config) -> eyre::Result<()> {
     let signer = Wallet::with_chain_id(args.private_key, CHAIN_ID);
     let provider = Provider::try_from(format!(
         "http://{host}:{port}",
         host = config.host,
         port = config.port
-    ))
-    .unwrap()
+    ))?
     .interval(std::time::Duration::from_millis(10))
     .with_signer(signer);
 
@@ -41,17 +40,13 @@ pub(crate) async fn run(args: Pay, config: ZKSyncWeb3Config) {
         .to(args.to)
         .value(args.amount);
     let mut transaction: TypedTransaction = payment_request.into();
-    provider
-        .fill_transaction(&mut transaction, None)
-        .await
-        .unwrap();
+    provider.fill_transaction(&mut transaction, None).await?;
 
     let payment_response: TransactionReceipt =
         SignerMiddleware::send_transaction(&provider, transaction, None)
-            .await
-            .unwrap()
-            .await
-            .unwrap()
-            .unwrap();
+            .await?
+            .await?
+            .context("No pending transaction")?;
     log::info!("{:?}", payment_response);
+    Ok(())
 }

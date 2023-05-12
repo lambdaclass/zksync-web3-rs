@@ -18,30 +18,35 @@ pub(crate) struct Deploy {
     pub private_key: String,
 }
 
-pub(crate) async fn run(args: Deploy, config: ZKSyncWeb3Config) {
+pub(crate) async fn run(args: Deploy, config: ZKSyncWeb3Config) -> eyre::Result<()> {
     let paths = ProjectPathsConfig::builder().build_with_root(args.contract);
     let project = Project::builder()
         .paths(paths)
         .set_auto_detect(true)
         .no_artifacts()
-        .build()
-        .unwrap();
-    let compilation_output = project.compile().unwrap();
-    let contract = compilation_output.find_first("Counter").unwrap().clone();
+        .build()?;
+    let compilation_output = project.compile()?;
+    let contract = compilation_output
+        .find_first("Counter")
+        .context("contract not found")?
+        .clone();
     let (abi, bytecode, _) = contract.into_parts();
-    let mut wallet = args.private_key.parse::<Wallet<SigningKey>>().unwrap();
+    let mut wallet = args.private_key.parse::<Wallet<SigningKey>>()?;
     wallet = Wallet::with_chain_id(wallet, CHAIN_ID);
     let provider = Provider::try_from(format!(
         "http://{host}:{port}",
         host = config.host,
         port = config.port
-    ))
-    .unwrap()
+    ))?
     .interval(std::time::Duration::from_millis(10));
     let client = Arc::new(SignerMiddleware::new(provider, wallet));
-    let factory = ContractFactory::new(abi.unwrap(), bytecode.unwrap(), client);
-    let deployer = factory.deploy(()).unwrap();
-    let (deployed_contract, _transaction_receipt) =
-        deployer.clone().send_with_receipt().await.unwrap();
+    let factory = ContractFactory::new(
+        abi.context("contract has no abi")?,
+        bytecode.context("contract has no bytecode")?,
+        client,
+    );
+    let deployer = factory.deploy(())?;
+    let (deployed_contract, _transaction_receipt) = deployer.clone().send_with_receipt().await?;
     log::info!("{:#?}", deployed_contract.address());
+    Ok(())
 }

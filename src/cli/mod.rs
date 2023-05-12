@@ -34,15 +34,15 @@ enum ZKSyncWeb3Command {
     Pay(Pay),
 }
 
-pub(crate) async fn start() -> eyre::Result<()> {
+pub async fn start() -> eyre::Result<()> {
     let ZKSyncWeb3 { command, config } = ZKSyncWeb3::parse();
     match command {
-        ZKSyncWeb3Command::Deploy(args) => deploy::run(args, config).await,
-        ZKSyncWeb3Command::Call(args) => call::run(args, config).await,
-        ZKSyncWeb3Command::GetContract(args) => get_contract::run(args, config).await,
-        ZKSyncWeb3Command::GetTransaction(args) => get_transaction::run(args, config).await,
-        ZKSyncWeb3Command::Balance(args) => account_balance::run(args, config).await,
-        ZKSyncWeb3Command::Pay(args) => pay::run(args, config).await,
+        ZKSyncWeb3Command::Deploy(args) => deploy::run(args, config).await?,
+        ZKSyncWeb3Command::Call(args) => call::run(args, config).await?,
+        ZKSyncWeb3Command::GetContract(args) => get_contract::run(args, config).await?,
+        ZKSyncWeb3Command::GetTransaction(args) => get_transaction::run(args, config).await?,
+        ZKSyncWeb3Command::Balance(args) => account_balance::run(args, config).await?,
+        ZKSyncWeb3Command::Pay(args) => pay::run(args, config).await?,
     };
 
     Ok(())
