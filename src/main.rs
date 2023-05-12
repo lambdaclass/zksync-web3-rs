@@ -1,4 +1,4 @@
-mod cli;
+use zksync_web3_rs::cli;
 
 #[tokio::main]
 async fn main() {

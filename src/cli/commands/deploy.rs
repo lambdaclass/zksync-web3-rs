@@ -1,12 +1,13 @@
 use crate::cli::{commands::CHAIN_ID, ZKSyncWeb3Config};
-use clap::Args;
-use ethers::{
+use crate::{
     prelude::{k256::ecdsa::SigningKey, ContractFactory, SignerMiddleware},
     providers::Provider,
     signers::Signer,
     signers::Wallet,
     solc::{Artifact, Project, ProjectPathsConfig},
 };
+use clap::Args;
+use eyre::ContextCompat;
 use std::{path::PathBuf, sync::Arc};
 
 #[derive(Args)]

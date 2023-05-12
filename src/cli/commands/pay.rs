@@ -1,5 +1,5 @@
-use clap::Args;
-use ethers::{
+use crate::cli::ZKSyncWeb3Config;
+use crate::{
     prelude::{k256::ecdsa::SigningKey, MiddlewareBuilder, SignerMiddleware},
     providers::{Middleware, Provider},
     signers::{Signer, Wallet},
@@ -8,8 +8,8 @@ use ethers::{
         TransactionReceipt, U256,
     },
 };
-
-use crate::cli::ZKSyncWeb3Config;
+use clap::Args;
+use eyre::ContextCompat;
 
 use super::CHAIN_ID;
 

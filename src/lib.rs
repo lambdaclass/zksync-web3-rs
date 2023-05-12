@@ -66,6 +66,9 @@ pub mod prelude {
     pub use super::solc::*;
 }
 
+// TODO: This should be visible only for this crate and not for the library users.
+pub mod cli;
+
 // For macro expansions only, not public API.
 #[allow(unused_extern_crates)]
 extern crate self as zkethers;

@@ -1,10 +1,9 @@
-use clap::Args;
-use ethers::{
+use crate::cli::ZKSyncWeb3Config;
+use crate::{
     providers::{Middleware, Provider},
     types::Address,
 };
-
-use crate::cli::ZKSyncWeb3Config;
+use clap::Args;
 
 #[derive(Args)]
 pub(crate) struct GetContract {

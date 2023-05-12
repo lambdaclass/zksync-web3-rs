@@ -1,6 +1,5 @@
 use crate::cli::{commands::CHAIN_ID, ZKSyncWeb3Config};
-use clap::Args;
-use ethers::{
+use crate::{
     prelude::{k256::ecdsa::SigningKey, MiddlewareBuilder, SignerMiddleware},
     providers::{Middleware, Provider},
     signers::Signer,
@@ -11,6 +10,8 @@ use ethers::{
     },
     utils::keccak256,
 };
+use clap::Args;
+use eyre::ContextCompat;
 
 // TODO: Optional parameters were omitted, they should be added in the future.
 #[derive(Args)]
