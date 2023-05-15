@@ -11,6 +11,7 @@ tokio = { version = "1", features = ["macros"] }
 hex = "0.4"
 eyre = "0.6"
 clap = { version = "4.2.7", features = ["derive"] }
+serde_json = { vesion = "1" }
 
 log = "0.4"
 env_logger = "0.10"
