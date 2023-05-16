@@ -46,7 +46,7 @@ pub async fn start() -> eyre::Result<()> {
         ZKSyncWeb3Command::Pay(args) => pay::run(args, config).await?,
         ZKSyncWeb3Command::Compile(args) => {
             let _ = compile::run(args)?;
-        },
+        }
     };
 
     Ok(())

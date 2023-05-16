@@ -1,11 +1,11 @@
 use super::output::ZKCompilationOutput;
-use crate::{compile::traits::ZKProject, cli::commands, solc::Project};
+use crate::{cli::commands, compile::traits::ZKProject, solc::Project};
 
 impl ZKProject for Project {
     fn compile_zk(&self) -> ZKCompilationOutput {
-        let args = commands::CompileArgs { 
-            solc: Some(self.solc.clone().solc), 
-            combined_json: Some(String::from("abi")), 
+        let args = commands::CompileArgs {
+            solc: Some(self.solc.clone().solc),
+            combined_json: Some(String::from("abi")),
             standard_json: None,
         };
         commands::compile::run(args).unwrap()
