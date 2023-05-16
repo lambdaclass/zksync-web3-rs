@@ -1,5 +1,5 @@
-use super::output::ZkCompilationOutput;
+use super::output::ZKCompilationOutput;
 
-pub trait ZkProject {
-    fn compile_zk(&self) -> ZkCompilationOutput;
+pub trait ZKProject {
+    fn compile_zk(&self) -> ZKCompilationOutput;
 }

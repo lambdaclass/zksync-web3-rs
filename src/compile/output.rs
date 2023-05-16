@@ -36,7 +36,7 @@ pub struct ContractOutput {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct ZkCompilationOutput {
+pub struct ZKCompilationOutput {
     pub contracts: HashMap<String, ContractOutput>,
     pub version: String,
     pub zk_version: String,
