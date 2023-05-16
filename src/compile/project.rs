@@ -1,24 +1,14 @@
-use crate::compile::traits::ZkProject;
-use crate::solc::Project;
-use std::{path::Path, process::Command};
-
 use super::output::ZkCompilationOutput;
+use crate::{compile::traits::ZkProject, cli::commands, solc::Project};
 
 impl ZkProject for Project {
     fn compile_zk(&self) -> ZkCompilationOutput {
-        let mut compile_command = Command::new("./zksolc");
-        let dir = Path::new("./src/compile").canonicalize().unwrap();
-
-        compile_command
-            .arg("--solc")
-            .arg("./solc-macos")
-            .arg("--combined-json")
-            .arg("abi")
-            .arg("--")
-            .arg("test_contracts/Test.sol");
-        compile_command.current_dir(dir);
-        let compilation_output = compile_command.output().expect("Compilation failed");
-        serde_json::from_slice(&compilation_output.stdout).unwrap()
+        let args = commands::CompileArgs { 
+            solc: self.solc.clone().solc, 
+            combined_json: Some(String::from("abi")), 
+            standard_json: None,
+        };
+        commands::compile::run(args).unwrap()
     }
 }
 
