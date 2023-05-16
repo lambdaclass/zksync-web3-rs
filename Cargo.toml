@@ -15,3 +15,4 @@ serde_json = { vesion = "1" }
 
 log = "0.4"
 env_logger = "0.10"
+serde = "1.0.163"

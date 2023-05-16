@@ -1,7 +1,5 @@
-use std::{process::Output, path::PathBuf};
-
-use serde_json::Value;
+use super::output::ZkCompilationOutput;
 
 pub trait ZkProject {
-    fn compile_zk(&self) -> Value;
+    fn compile_zk(&self) -> ZkCompilationOutput;
 }

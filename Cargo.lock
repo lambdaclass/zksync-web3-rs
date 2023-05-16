@@ -3776,6 +3776,7 @@ dependencies = [
  "eyre",
  "hex",
  "log",
+ "serde",
  "serde_json",
  "tokio",
 ]

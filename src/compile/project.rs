@@ -1,14 +1,17 @@
 use crate::compile::traits::ZkProject;
 use crate::solc::Project;
-use std::{process::{Command, Output}, path::Path};
-use serde_json::Value;
+use std::{
+    path::Path,
+    process::{Command},
+};
+
+use super::output::ZkCompilationOutput;
 
 impl ZkProject for Project {
-    fn compile_zk(&self) -> Value {
+    fn compile_zk(&self) -> ZkCompilationOutput {
         let mut compile_command = Command::new("./zksolc");
         let dir = Path::new("./src/compile").canonicalize().unwrap();
-        println!("{:?}", dir);
-        
+
         compile_command
             .arg("--solc")
             .arg("./solc-macos")
@@ -16,7 +19,7 @@ impl ZkProject for Project {
             .arg("abi")
             .arg("--")
             .arg("test_contracts/Test.sol");
-        compile_command.current_dir(dir.to_str().unwrap().to_string());
+        compile_command.current_dir(dir);
         let compilation_output = compile_command.output().expect("Compilation failed");
         serde_json::from_slice(&compilation_output.stdout).unwrap()
     }
@@ -31,6 +34,6 @@ mod test {
     fn test() {
         let project = Project::builder().build().unwrap();
         let output = project.compile_zk();
-        println!("{}", output["contracts"]);
+        println!("{:?}", output);
     }
 }
