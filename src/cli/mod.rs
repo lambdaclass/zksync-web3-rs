@@ -44,7 +44,9 @@ pub async fn start() -> eyre::Result<()> {
         ZKSyncWeb3Command::GetTransaction(args) => get_transaction::run(args, config).await?,
         ZKSyncWeb3Command::Balance(args) => account_balance::run(args, config).await?,
         ZKSyncWeb3Command::Pay(args) => pay::run(args, config).await?,
-        ZKSyncWeb3Command::Compile(args) => compile::run(args).await?,
+        ZKSyncWeb3Command::Compile(args) => {
+            let _ = compile::run(args)?;
+        },
     };
 
     Ok(())

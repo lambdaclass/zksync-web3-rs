@@ -1,7 +1,7 @@
 use clap::Parser;
 use std::path::PathBuf;
 
-use crate::compile::output::ZkCompilationOutput;
+use crate::compile::output::ZKCompilationOutput;
 
 #[derive(Parser)]
 pub struct CompileArgs {
@@ -13,8 +13,8 @@ pub struct CompileArgs {
     pub standard_json: Option<String>,
 }
 
-pub(crate) async fn run(args: CompileArgs) -> eyre::Result<()> {
-    let mut command = tokio::process::Command::new("src/compile/zksolc");
+pub(crate) fn run(args: CompileArgs) -> eyre::Result<ZKCompilationOutput> {
+    let mut command = std::process::Command::new("src/compile/zksolc");
 
     let mut unresolved_command = command.arg("--solc").arg(args.solc);
 
@@ -51,12 +51,11 @@ pub(crate) async fn run(args: CompileArgs) -> eyre::Result<()> {
         .arg("--")
         .arg("src/compile/test_contracts/Test.sol");
 
-    let compilation_output = unresolved_command.output().await?;
+    let command_output = unresolved_command.output()?;
 
-    log::info!(
-        "{:?}",
-        serde_json::from_slice::<ZkCompilationOutput>(&compilation_output.stdout)?
-    );
+    let compilation_output: ZKCompilationOutput = serde_json::from_slice(&command_output.stdout)?;
 
-    Ok(())
+    log::info!("{compilation_output:?}");
+
+    Ok(compilation_output)
 }
