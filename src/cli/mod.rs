@@ -1,11 +1,11 @@
 pub(crate) mod commands;
 use clap::{command, Args, Parser, Subcommand};
 use commands::{
-    account_balance, call, deploy, get_contract, get_transaction, pay, AccountBalance, Call,
-    Deploy, GetContract, GetTransaction, Pay,
+    account_balance, call, compile, deploy, get_contract, get_transaction, pay, AccountBalance,
+    Call, CompileArgs, Deploy, GetContract, GetTransaction, Pay,
 };
 
-const VERSION_STRING: &str = env!("CARGO_PKG_VERSION");
+pub const VERSION_STRING: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Parser)]
 #[command(name="zksync-web3-cli", author, version=VERSION_STRING, about, long_about = None)]
@@ -32,6 +32,7 @@ enum ZKSyncWeb3Command {
     GetTransaction(GetTransaction),
     Balance(AccountBalance),
     Pay(Pay),
+    Compile(CompileArgs),
 }
 
 pub async fn start() -> eyre::Result<()> {
@@ -43,6 +44,7 @@ pub async fn start() -> eyre::Result<()> {
         ZKSyncWeb3Command::GetTransaction(args) => get_transaction::run(args, config).await?,
         ZKSyncWeb3Command::Balance(args) => account_balance::run(args, config).await?,
         ZKSyncWeb3Command::Pay(args) => pay::run(args, config).await?,
+        ZKSyncWeb3Command::Compile(args) => compile::run(args).await?,
     };
 
     Ok(())
