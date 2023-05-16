@@ -4,7 +4,7 @@ use crate::{compile::traits::ZKProject, cli::commands, solc::Project};
 impl ZKProject for Project {
     fn compile_zk(&self) -> ZKCompilationOutput {
         let args = commands::CompileArgs { 
-            solc: self.solc.clone().solc, 
+            solc: Some(self.solc.clone().solc), 
             combined_json: Some(String::from("abi")), 
             standard_json: None,
         };

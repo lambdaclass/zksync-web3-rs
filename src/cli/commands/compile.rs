@@ -6,7 +6,7 @@ use crate::compile::output::ZKCompilationOutput;
 #[derive(Parser)]
 pub struct CompileArgs {
     #[clap(long, name = "PATH_TO_SOLC")]
-    pub solc: PathBuf,
+    pub solc: Option<PathBuf>,
     #[clap(long, name = "COMBINED_JSON")]
     pub combined_json: Option<String>,
     #[clap(long, name = "STANDARD_JSON")]
@@ -14,9 +14,15 @@ pub struct CompileArgs {
 }
 
 pub(crate) fn run(args: CompileArgs) -> eyre::Result<ZKCompilationOutput> {
-    let mut command = std::process::Command::new("src/compile/zksolc");
+    let mut command = &mut std::process::Command::new("src/compile/zksolc");
 
-    let mut unresolved_command = command.arg("--solc").arg(args.solc);
+    if let Some(solc) = args.solc {
+        command = command.arg("--solc").arg(solc);
+    } else if let Ok(solc) = std::env::var("SOLC_PATH") {
+        command = command.arg("--solc").arg(solc);
+    } else {
+        eyre::bail!("no solc path provided");
+    }
 
     const VALID_COMBINED_JSON_ARGS: [&str; 10] = [
         "abi",
@@ -33,25 +39,22 @@ pub(crate) fn run(args: CompileArgs) -> eyre::Result<ZKCompilationOutput> {
 
     if let Some(combined_json_arg) = args.combined_json {
         if !VALID_COMBINED_JSON_ARGS.contains(&combined_json_arg.as_str()) {
-            return Err(eyre::eyre!(
-                "Invalid combined-json argument: {}",
-                combined_json_arg
-            ));
+            eyre::bail!("Invalid combined-json argument: {combined_json_arg}");
         }
-        unresolved_command = unresolved_command
+        command = command
             .arg("--combined-json")
             .arg(combined_json_arg);
     }
 
     if args.standard_json.is_some() {
-        unresolved_command = unresolved_command.arg("--standard-json");
+        command = command.arg("--standard-json");
     }
 
-    unresolved_command = unresolved_command
+    command = command
         .arg("--")
         .arg("src/compile/test_contracts/Test.sol");
 
-    let command_output = unresolved_command.output()?;
+    let command_output = command.output()?;
 
     let compilation_output: ZKCompilationOutput = serde_json::from_slice(&command_output.stdout)?;
 
