@@ -26,8 +26,7 @@ pub struct ContractFunctionOutput {
 
 // TODO check correct fields of Factory Deps
 #[derive(Serialize, Deserialize, Debug)]
-pub struct FactoryDepsOutput {
-}
+pub struct FactoryDepsOutput {}
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "kebab-case")]

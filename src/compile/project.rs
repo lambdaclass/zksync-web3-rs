@@ -1,9 +1,6 @@
 use crate::compile::traits::ZkProject;
 use crate::solc::Project;
-use std::{
-    path::Path,
-    process::{Command},
-};
+use std::{path::Path, process::Command};
 
 use super::output::ZkCompilationOutput;
 
