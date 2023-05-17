@@ -1,10 +1,13 @@
+use std::path::Path;
+
 use super::output::ZKCompilationOutput;
 use crate::{cli::commands, compile::traits::ZKProject, solc::Project};
 
 impl ZKProject for Project {
     fn compile_zk(&self) -> ZKCompilationOutput {
         let args = commands::CompileArgs {
-            solc: Some(self.solc.clone().solc),
+            // TODO find a way to avoid having the solc compiler on this folder
+            solc: Path::new("./src/compile/solc-macos").canonicalize().ok(),
             combined_json: Some(String::from("abi")),
             standard_json: None,
         };
