@@ -1,5 +1,5 @@
 use clap::Parser;
-use std::path::PathBuf;
+use std::{path::PathBuf};
 
 use crate::compile::output::ZKCompilationOutput;
 
@@ -9,13 +9,12 @@ pub struct CompileArgs {
     pub solc: Option<PathBuf>,
     #[clap(long, name = "COMBINED_JSON")]
     pub combined_json: Option<String>,
-    #[clap(long, name = "STANDARD_JSON")]
-    pub standard_json: Option<String>,
+    #[clap(long, action)]
+    pub standard_json: bool,
 }
 
 pub(crate) fn run(args: CompileArgs) -> eyre::Result<ZKCompilationOutput> {
     let mut command = &mut std::process::Command::new("src/compile/zksolc");
-
     if let Some(solc) = args.solc {
         command = command.arg("--solc").arg(solc);
     } else if let Ok(solc) = std::env::var("SOLC_PATH") {
@@ -44,7 +43,7 @@ pub(crate) fn run(args: CompileArgs) -> eyre::Result<ZKCompilationOutput> {
         command = command.arg("--combined-json").arg(combined_json_arg);
     }
 
-    if args.standard_json.is_some() {
+    if args.standard_json {
         command = command.arg("--standard-json");
     }
 
@@ -53,7 +52,6 @@ pub(crate) fn run(args: CompileArgs) -> eyre::Result<ZKCompilationOutput> {
         .arg("src/compile/test_contracts/test/src/Test.sol");
 
     let command_output = command.output()?;
-
     let compilation_output: ZKCompilationOutput = serde_json::from_slice(&command_output.stdout)?;
 
     log::info!("{compilation_output:?}");
