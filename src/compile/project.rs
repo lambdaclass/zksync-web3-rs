@@ -1,4 +1,4 @@
-use std::path::{Path};
+use std::path::Path;
 
 use super::output::ZKCompilationOutput;
 use crate::{cli::commands, compile::traits::ZKProject, solc::Project};
@@ -19,7 +19,9 @@ impl ZKProject for Project {
 mod test {
     use super::*;
     use crate::solc::Project;
-    use ethers::solc::{artifacts::StandardJsonCompilerInput, CompilerInput, ProjectPathsConfig, Solc};
+    use ethers::solc::{
+        artifacts::StandardJsonCompilerInput, CompilerInput, ProjectPathsConfig, Solc,
+    };
 
     #[test]
     fn test_compile_zk() {
@@ -49,7 +51,9 @@ mod test {
     fn test_compile_files() {
         let solc = Solc::new("./src/compile/solc-macos");
         let project = Project::builder().solc(solc).build().unwrap();
-        let output = project.compile_files(vec!["./src/compile/test_contracts/test/src/Test.sol"].into_iter()).unwrap();
+        let output = project
+            .compile_files(vec!["./src/compile/test_contracts/test/src/Test.sol"].into_iter())
+            .unwrap();
         println!("{output:?}");
     }
 }

@@ -1,5 +1,5 @@
 use clap::Parser;
-use std::{path::PathBuf};
+use std::path::PathBuf;
 
 use crate::compile::output::ZKCompilationOutput;
 
