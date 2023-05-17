@@ -19,7 +19,7 @@ impl ZKProject for Project {
 mod test {
     use super::*;
     use crate::solc::Project;
-    use ethers::solc::{CompilerInput, ProjectPathsConfig, artifacts::StandardJsonCompilerInput};
+    use ethers::solc::{artifacts::StandardJsonCompilerInput, CompilerInput, ProjectPathsConfig};
 
     #[test]
     fn test_compile_zk() {
@@ -30,7 +30,8 @@ mod test {
 
     #[test]
     fn test_standard_json_input() {
-        let paths = ProjectPathsConfig::builder().build_with_root("./src/compile/test_contracts/test");
+        let paths =
+            ProjectPathsConfig::builder().build_with_root("./src/compile/test_contracts/test");
         println!("PATHS: {paths:?}");
         let sources = paths.read_input_files().unwrap();
         println!("SOURCES: {sources:?}");
@@ -38,6 +39,9 @@ mod test {
         let compiler_input = binding.first().unwrap();
         println!("COMPILER INPUT: {compiler_input:?}");
         let ret = StandardJsonCompilerInput::from(compiler_input.clone());
-        println!("STANDARD JSON COMPILER INPUT: {:?}", serde_json::to_vec(&ret).unwrap());
+        println!(
+            "STANDARD JSON COMPILER INPUT: {:?}",
+            serde_json::to_vec(&ret).unwrap()
+        );
     }
 }

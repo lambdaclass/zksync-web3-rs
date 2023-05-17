@@ -48,7 +48,9 @@ pub(crate) fn run(args: CompileArgs) -> eyre::Result<ZKCompilationOutput> {
         command = command.arg("--standard-json");
     }
 
-    command = command.arg("--").arg("src/compile/test_contracts/test/src/Test.sol");
+    command = command
+        .arg("--")
+        .arg("src/compile/test_contracts/test/src/Test.sol");
 
     let command_output = command.output()?;
 
