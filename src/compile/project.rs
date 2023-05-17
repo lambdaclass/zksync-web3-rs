@@ -19,7 +19,7 @@ impl ZKProject for Project {
 mod test {
     use super::*;
     use crate::solc::Project;
-    use ethers::solc::{artifacts::StandardJsonCompilerInput, CompilerInput, ProjectPathsConfig};
+    use ethers::solc::{artifacts::StandardJsonCompilerInput, CompilerInput, ProjectPathsConfig, Solc};
 
     #[test]
     fn test_compile_zk() {
@@ -43,5 +43,13 @@ mod test {
             "STANDARD JSON COMPILER INPUT: {:?}",
             serde_json::to_vec(&ret).unwrap()
         );
+    }
+
+    #[test]
+    fn test_compile_files() {
+        let solc = Solc::new("./src/compile/solc-macos");
+        let project = Project::builder().solc(solc).build().unwrap();
+        let output = project.compile_files(vec!["./src/compile/test_contracts/test/src/Test.sol"].into_iter());
+        println!("{output:?}");
     }
 }
