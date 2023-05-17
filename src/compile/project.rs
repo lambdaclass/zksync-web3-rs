@@ -8,7 +8,7 @@ impl ZKProject for Project {
         let args = commands::CompileArgs {
             // TODO find a way to avoid having the solc compiler on this folder
             solc: Path::new("./src/compile/solc-macos").canonicalize().ok(),
-            combined_json: Some(String::from("abi")),
+            combined_json: Some(String::from("abi,bin")),
             standard_json: false,
         };
         commands::compile::run(args).unwrap()
@@ -49,7 +49,7 @@ mod test {
     fn test_compile_files() {
         let solc = Solc::new("./src/compile/solc-macos");
         let project = Project::builder().solc(solc).build().unwrap();
-        let output = project.compile_files(vec!["./src/compile/test_contracts/test/src/Test.sol"].into_iter());
+        let output = project.compile_files(vec!["./src/compile/test_contracts/test/src/Test.sol"].into_iter()).unwrap();
         println!("{output:?}");
     }
 }
