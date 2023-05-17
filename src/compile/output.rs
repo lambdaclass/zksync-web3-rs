@@ -48,22 +48,18 @@ pub struct ContractFunctionOutput {
     pub sol_struct_type: String,
 }
 
-// TODO check correct fields of Factory Deps
-#[derive(Serialize, Deserialize, Debug)]
-pub struct FactoryDepsOutput {}
-
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "kebab-case")]
 pub struct AbiCompiledOutput {
     pub abi: Vec<ContractFunctionOutput>,
-    pub factory_deps: FactoryDepsOutput,
+    pub factory_deps: HashMap<String, String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "kebab-case")]
 pub struct BinCompiledOutput {
     pub bin: String,
-    pub factory_deps: FactoryDepsOutput,
+    pub factory_deps: HashMap<String, String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
