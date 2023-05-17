@@ -3,6 +3,13 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
+#[serde(untagged)]
+pub enum ContractOutput {
+    AbiCompiledOutput(AbiCompiledOutput),
+    BinCompiledOutput(BinCompiledOutput)
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct FunctionArgsTypesOutput {
     pub internal_type: String,
@@ -30,8 +37,15 @@ pub struct FactoryDepsOutput {}
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "kebab-case")]
-pub struct ContractOutput {
+pub struct AbiCompiledOutput {
     pub abi: Vec<ContractFunctionOutput>,
+    pub factory_deps: FactoryDepsOutput,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "kebab-case")]
+pub struct BinCompiledOutput {
+    pub bin: String,
     pub factory_deps: FactoryDepsOutput,
 }
 
