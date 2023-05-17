@@ -3,10 +3,27 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
-#[serde(untagged)]
-pub enum ContractOutput {
-    AbiCompiledOutput(AbiCompiledOutput),
-    BinCompiledOutput(BinCompiledOutput)
+pub struct ContractOutput {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    abi: Option<ContractFunctionOutput>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    bin: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    metadata: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    devdoc: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    userdoc: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", rename = "kebab-case")]
+    storage_layout: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    ast: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    asm: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", rename = "kebab-case")]
+    bin_runtime: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    hashes: Option<HashMap<String, String>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
