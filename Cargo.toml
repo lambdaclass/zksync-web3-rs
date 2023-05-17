@@ -8,11 +8,17 @@ edition = "2021"
 [dependencies]
 ethers = { version = "2.0.4", features = ["rustls"] }
 tokio = { version = "1", features = ["macros", "process"] }
-hex = "0.4"
-eyre = "0.6"
 clap = { version = "4.2.7", features = ["derive"] }
-serde_json = { vesion = "1" }
 
+# Serialization
+serde = "1.0.163"
+serde_json = { vesion = "1" }
+hex = "0.4"
+
+# Error handling
+eyre = "0.6" # CLI error handling
+thiserror = "1.0.40" # Library error handling
+
+# Logging
 log = "0.4"
 env_logger = "0.10"
-serde = "1.0.163"
