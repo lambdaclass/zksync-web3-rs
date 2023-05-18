@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use super::{output::ZKCompilationOutput, errors::ZKCompilerError};
+use super::{errors::ZKCompilerError, output::ZKCompilationOutput};
 use crate::{cli::commands, compile::traits::ZKProject, solc::Project};
 
 impl ZKProject for Project {
