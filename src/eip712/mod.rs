@@ -119,4 +119,12 @@ mod tests {
                 .unwrap()
         );
     }
+
+    #[tokio::test]
+    #[ignore = "not yet implemented"]
+    async fn test_call_transaction() {}
+
+    #[tokio::test]
+    #[ignore = "not yet implemented"]
+    async fn test_deploy_transaction() {}
 }
