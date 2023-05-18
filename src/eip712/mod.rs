@@ -1,9 +1,6 @@
-use ethers::{
-    providers::Middleware,
-    types::{
-        transaction::eip712::{EIP712Domain, Eip712, Eip712DomainType, Eip712Error},
-        Bytes, H160, U256,
-    },
+use ethers::types::{
+    transaction::eip712::{EIP712Domain, Eip712, Eip712Error},
+    Address, Bytes, U256,
 };
 use serde::{Deserialize, Serialize};
 
