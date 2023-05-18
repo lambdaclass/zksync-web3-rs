@@ -1,3 +1,4 @@
-pub(crate) mod output;
-pub(crate) mod project;
+pub mod errors;
+pub mod output;
+pub mod project;
 pub mod traits;
