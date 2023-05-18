@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ContractOutput {
     #[serde(skip_serializing_if = "Option::is_none")]
-    abi: Option<ContractFunctionOutput>,
+    abi: Option<Vec<ContractFunctionOutput>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     bin: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -24,6 +24,8 @@ pub struct ContractOutput {
     bin_runtime: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     hashes: Option<HashMap<String, String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    factory_deps: Option<HashMap<String, String>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -46,20 +48,6 @@ pub struct ContractFunctionOutput {
     pub state_mutability: String,
     #[serde(rename = "type")]
     pub sol_struct_type: String,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "kebab-case")]
-pub struct AbiCompiledOutput {
-    pub abi: Vec<ContractFunctionOutput>,
-    pub factory_deps: HashMap<String, String>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "kebab-case")]
-pub struct BinCompiledOutput {
-    pub bin: String,
-    pub factory_deps: HashMap<String, String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
