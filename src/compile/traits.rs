@@ -1,5 +1,5 @@
-use super::output::ZKCompilationOutput;
+use super::{output::ZKCompilationOutput, errors::ZKCompilerError};
 
 pub trait ZKProject {
-    fn compile_zk(&self) -> eyre::Result<ZKCompilationOutput>;
+    fn compile_zk(&self) -> Result<ZKCompilationOutput, ZKCompilerError>;
 }

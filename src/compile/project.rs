@@ -1,17 +1,17 @@
 use std::path::Path;
 
-use super::output::ZKCompilationOutput;
+use super::{output::ZKCompilationOutput, errors::ZKCompilerError};
 use crate::{cli::commands, compile::traits::ZKProject, solc::Project};
 
 impl ZKProject for Project {
-    fn compile_zk(&self) -> eyre::Result<ZKCompilationOutput> {
+    fn compile_zk(&self) -> Result<ZKCompilationOutput, ZKCompilerError> {
         let args = commands::CompileArgs {
             // TODO find a way to avoid having the solc compiler on this folder
             solc: Path::new("./src/compile/solc-macos").canonicalize().ok(),
             combined_json: Some(String::from("abi,bin")),
             standard_json: false,
         };
-        commands::compile::run(args)
+        commands::compile::run(args).map_err(|e| ZKCompilerError::CompilationError(e.to_string()))
     }
 }
 
