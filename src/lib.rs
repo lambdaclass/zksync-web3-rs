@@ -37,3 +37,35 @@
     clippy::module_name_repetitions,
     clippy::let_underscore_must_use
 )]
+
+pub use ethers::addressbook;
+pub use ethers::contract;
+pub use ethers::{core, core::{abi, types, utils}};
+pub use ethers::etherscan;
+pub use ethers::middleware;
+pub use ethers::providers;
+pub use ethers::signers;
+pub use ethers::solc;
+
+/// Easy imports of frequently used type definitions and traits.
+pub mod prelude {
+    pub use super::addressbook::contract;
+
+    pub use super::contract::*;
+
+    pub use super::core::{types::*, *};
+
+    pub use super::etherscan::*;
+
+    pub use super::middleware::*;
+
+    pub use super::providers::*;
+
+    pub use super::signers::*;
+
+    pub use super::solc::*;
+}
+
+// For macro expansions only, not public API.
+#[allow(unused_extern_crates)]
+extern crate self as zkethers;
