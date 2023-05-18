@@ -12,7 +12,7 @@ clap = { version = "4.2.7", features = ["derive"] }
 
 # Serialization
 serde = "1.0.163"
-serde_json = { vesion = "1" }
+serde_json = { version = "1" }
 hex = "0.4"
 
 # Error handling
