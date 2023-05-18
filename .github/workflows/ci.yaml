@@ -58,9 +58,9 @@ jobs:
 
       - name: Run clippy
         run: make clippy
-        
+
   test:
-    name: Test (Ubuntu)
+    name: Test
     runs-on: ubuntu-latest
     env:
       CARGO_TERM_COLOR: always
