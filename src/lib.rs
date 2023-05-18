@@ -40,12 +40,15 @@
 
 pub use ethers::addressbook;
 pub use ethers::contract;
-pub use ethers::{core, core::{abi, types, utils}};
 pub use ethers::etherscan;
 pub use ethers::middleware;
 pub use ethers::providers;
 pub use ethers::signers;
 pub use ethers::solc;
+pub use ethers::{
+    core,
+    core::{abi, types, utils},
+};
 
 /// Easy imports of frequently used type definitions and traits.
 pub mod prelude {
@@ -65,6 +68,9 @@ pub mod prelude {
 
     pub use super::solc::*;
 }
+
+// TODO: This should be visible only for this crate and not for the library users.
+pub mod cli;
 
 // For macro expansions only, not public API.
 #[allow(unused_extern_crates)]

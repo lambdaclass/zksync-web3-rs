@@ -1,0 +1,2 @@
+cli:
+	cargo install --path .
