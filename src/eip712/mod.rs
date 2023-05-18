@@ -1,11 +1,15 @@
-use ethers::{types::{transaction::eip712::{Eip712, Eip712DomainType, EIP712Domain, Eip712Error}, U256, H160, Bytes}, providers::Middleware};
-use serde::{Serialize, Deserialize};
+use ethers::{
+    providers::Middleware,
+    types::{
+        transaction::eip712::{EIP712Domain, Eip712, Eip712DomainType, Eip712Error},
+        Bytes, H160, U256,
+    },
+};
+use serde::{Deserialize, Serialize};
 
 mod utils;
 
-pub struct Eip712TransactionRequest {
-
-}
+pub struct Eip712TransactionRequest {}
 
 impl Into<Eip712SignInput> for Eip712TransactionRequest {
     fn into(self) -> Eip712SignInput {
@@ -28,7 +32,7 @@ pub struct Eip712SignInput {
     pub value: Option<U256>,
     pub data: Option<Bytes>,
     pub factory_deps: Option<Vec<Bytes>>,
-    pub paymaster_input: Option<Bytes>
+    pub paymaster_input: Option<Bytes>,
 }
 
 impl Eip712 for Eip712SignInput {
@@ -50,7 +54,7 @@ impl Eip712 for Eip712SignInput {
     }
 
     /// The 32-byte hash of the bytecode of a zkSync contract is calculated in the following way:
-    /// 
+    ///
     /// * The first 2 bytes denote the version of bytecode hash format and are currently equal to [1,0].
     /// * The second 2 bytes denote the length of the bytecode in 32-byte words.
     /// * The rest of the 28-byte (i.e. 28 low big-endian bytes) are equal to the last 28 bytes of the sha256 hash of the contract's bytecode.
@@ -65,8 +69,11 @@ impl Eip712 for Eip712SignInput {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethers::{signers::{Signer, Wallet}, providers::{Middleware, Provider}, prelude::k256::ecdsa::SigningKey};
-
+    use ethers::{
+        prelude::k256::ecdsa::SigningKey,
+        providers::{Middleware, Provider},
+        signers::{Signer, Wallet},
+    };
 
     #[tokio::test]
     async fn test_pay_transaction() {
@@ -87,8 +94,13 @@ mod tests {
             paymaster_input: None,
         };
 
-        let mut wallet = "0x28a574ab2de8a00364d5dd4b07c4f2f574ef7fcc2a86a197f65abaec836d1959".parse::<Wallet<SigningKey>>().unwrap();
-        wallet = Wallet::with_chain_id(wallet, tx_sign_input.domain().unwrap().chain_id.unwrap().as_u64());
+        let mut wallet = "0x28a574ab2de8a00364d5dd4b07c4f2f574ef7fcc2a86a197f65abaec836d1959"
+            .parse::<Wallet<SigningKey>>()
+            .unwrap();
+        wallet = Wallet::with_chain_id(
+            wallet,
+            tx_sign_input.domain().unwrap().chain_id.unwrap().as_u64(),
+        );
 
         let provider = Provider::try_from(format!(
             "http://{host}:{port}",
@@ -99,6 +111,12 @@ mod tests {
 
         let signature = wallet.sign_typed_data(&tx_sign_input).await.unwrap();
 
-        println!("{:?}", provider.send_raw_transaction(signature.to_vec().into()).await.unwrap());
+        println!(
+            "{:?}",
+            provider
+                .send_raw_transaction(signature.to_vec().into())
+                .await
+                .unwrap()
+        );
     }
 }
