@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 
 mod utils;
 
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all(serialize = "camelCase", deserialize = "camelCase"))]
 pub struct Eip712TransactionRequest {}
 
 impl Into<Eip712SignInput> for Eip712TransactionRequest {
