@@ -37,7 +37,10 @@ pub(crate) fn run(args: CompileArgs) -> eyre::Result<ZKCompilationOutput> {
     ];
 
     if let Some(combined_json_arg) = args.combined_json {
-        if !VALID_COMBINED_JSON_ARGS.contains(&combined_json_arg.as_str()) {
+        let valid_args = combined_json_arg
+            .split(',')
+            .all(|arg| VALID_COMBINED_JSON_ARGS.contains(&arg));
+        if !valid_args {
             eyre::bail!("Invalid combined-json argument: {combined_json_arg}");
         }
         command = command.arg("--combined-json").arg(combined_json_arg);
