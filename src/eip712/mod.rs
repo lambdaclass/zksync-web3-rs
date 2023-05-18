@@ -10,6 +10,22 @@ mod utils;
 #[serde(rename_all(serialize = "camelCase", deserialize = "camelCase"))]
 pub struct Eip712TransactionRequest {}
 
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all(serialize = "camelCase", deserialize = "camelCase"))]
+pub struct Eip712Meta {
+    pub gas_per_pubdata: Option<U256>,
+    pub factory_deps: Option<Bytes>,
+    pub custom_signature: Bytes,
+    pub paymaster_params: PaymasterParams,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all(serialize = "camelCase", deserialize = "camelCase"))]
+pub struct PaymasterParams {
+    pub paymaster: Address,
+    pub paymaster_input: Bytes,
+}
+
 impl Into<Eip712SignInput> for Eip712TransactionRequest {
     fn into(self) -> Eip712SignInput {
         todo!()
