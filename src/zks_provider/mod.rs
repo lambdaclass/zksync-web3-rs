@@ -1,5 +1,8 @@
 use async_trait::async_trait;
-use ethers::providers::{JsonRpcClient, Provider, ProviderError};
+use ethers::{
+    providers::{JsonRpcClient, Provider, ProviderError},
+    types::Address,
+};
 use serde::Serialize;
 use std::fmt::Debug;
 
@@ -14,6 +17,9 @@ pub trait ZKSProvider {
     async fn estimate_fee<T>(&self, transaction: T) -> Result<Fee, ProviderError>
     where
         T: Debug + Serialize + Send + Sync;
+
+    /// Returns the address where the paymaster contract is deployed.
+    async fn get_testnet_paymaster(&self) -> Result<Address, ProviderError>;
 }
 
 #[async_trait]
@@ -24,24 +30,31 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
     {
         self.request("zks_estimateFee", [transaction]).await
     }
+
+    async fn get_testnet_paymaster(&self) -> Result<Address, ProviderError> {
+        self.request("zks_getTestnetPaymaster", ()).await
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::zks_provider::ZKSProvider;
-    use ethers::providers::Provider;
+    use ethers::{providers::Provider, types::Address};
     use serde::{Deserialize, Serialize};
 
-    #[tokio::test]
-    async fn test_estimate_fee() {
-        let provider = Provider::try_from(format!(
+    fn get_local_provider() -> Provider<ethers::providers::Http> {
+        Provider::try_from(format!(
             "http://{host}:{port}",
             host = "65.108.204.116",
             port = 3_050_i32
         ))
         .unwrap()
-        .interval(std::time::Duration::from_millis(10));
+        .interval(std::time::Duration::from_millis(10))
+    }
 
+    #[tokio::test]
+    async fn test_estimate_fee() {
+        let provider = get_local_provider();
         #[derive(Serialize, Deserialize, Debug)]
         struct TestTransaction {
             from: String,
@@ -61,5 +74,15 @@ mod tests {
         assert_eq!(estimated_fee.gas_per_pubdata_limit.as_u64(), 66);
         assert_eq!(estimated_fee.max_fee_per_gas.as_u64(), 250000000);
         assert_eq!(estimated_fee.max_priority_fee_per_gas.as_u64(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_get_testnet_paymaster() {
+        let provider = get_local_provider();
+        let expected_address: Address = "0x4cccf49428918845022048757f8c9af961fa9a90"
+            .parse()
+            .unwrap();
+        let testnet_paymaster = provider.get_testnet_paymaster().await.unwrap();
+        assert_eq!(testnet_paymaster, expected_address);
     }
 }
