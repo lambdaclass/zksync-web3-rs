@@ -25,3 +25,9 @@ thiserror = "1.0.40" # Library error handling
 # Logging
 log = "0.4"
 env_logger = "0.10"
+
+# Examples
+
+[[example]]
+name = "simple_payment"
+path = "examples/simple_payment/main.rs"
