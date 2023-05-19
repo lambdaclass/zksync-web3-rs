@@ -46,7 +46,7 @@ pub(crate) async fn run(args: Pay, config: ZKSyncWeb3Config) -> eyre::Result<()>
     let fee = provider.estimate_fee(payment_request.clone()).await?;
     payment_request = payment_request.max_priority_fee_per_gas(fee.max_priority_fee_per_gas);
     payment_request = payment_request.max_fee_per_gas(fee.max_fee_per_gas);
-    
+
     let mut transaction: TypedTransaction = payment_request.into();
     provider.fill_transaction(&mut transaction, None).await?;
     log::debug!("Transaction request: {:?}", transaction);
@@ -65,7 +65,7 @@ pub(crate) async fn run(args: Pay, config: ZKSyncWeb3Config) -> eyre::Result<()>
             .await?
             .await?
             .context("No pending transaction")?;
-    
+
     log::info!("{:#?}", payment_response.transaction_hash);
 
     log::debug!(
