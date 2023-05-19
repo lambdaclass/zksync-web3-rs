@@ -21,7 +21,6 @@ impl ZKProject {
             combined_json: Some(String::from("abi,bin")),
             standard_json: false,
         };
-        commands::compile::run(args)
-            .map_err(|e| ZKCompilerError::CompilationError(e.to_string()))
+        commands::compile::run(args).map_err(|e| ZKCompilerError::CompilationError(e.to_string()))
     }
 }
