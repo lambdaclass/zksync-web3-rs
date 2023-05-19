@@ -52,9 +52,9 @@ To run the payment transaction example using EIP1559 transactions on zkSync Era,
 make simple_payment HOST=<host> PORT=<port> AMOUNT=<amount_to_transfer> SENDER_ADDRESS=<sender> RECEIVER_ADDRESS=<receiver> PRIVATE_KEY=<pk> NETWORK=<net>
 ```
 
-- `HOST`: The IP address or hostname of the L1 node where zkSync is running.
-- `PORT`: The port number used to connect to the L1 node (usually `8545`).
-- `AMOUNT`: The amount to transfer, specified in wei. For example, if you want to transfer 1 ETH, specify `1000000000000000000` (which is 10^18 wei).
+- `HOST`: The IP address or hostname of the node.
+- `PORT`: The port number of the node.
+- `AMOUNT`: The amount to transfer.
 - `SENDER_ADDRESS`: The address of the sender's Ethereum account, represented in hexadecimal format with the `0x` prefix. For example, `0x123abc...`.
 - `RECEIVER_ADDRESS`: The address of the receiver's Ethereum account, represented in hexadecimal format with the `0x` prefix. For example, `0x456def...`.
 - `PRIVATE_KEY`: The private key of an Ethereum account with sufficient funds to perform the transaction, represented in hexadecimal format with the `0x` prefix.
@@ -75,7 +75,6 @@ Feel free to experiment with different configurations and explore other function
 If you have any questions or need further assistance, don't hesitate to reach out to the repository's community or maintainers.
 
 Happy coding!
-
 
 ## CLI
 ### Installation
