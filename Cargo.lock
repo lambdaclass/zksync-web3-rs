@@ -3598,7 +3598,8 @@ dependencies = [
 name = "zksync-web3-rs"
 version = "0.1.0"
 dependencies = [
- "clap",
+ "async-trait",
+ "clap 4.2.7",
  "env_logger",
  "ethers",
  "eyre",
