@@ -1,5 +1,80 @@
 # zksync-web3-rs
 
+## Table of Contents
+
+- [Getting Started with zkSync Web3 SDK](#getting-started-with-zksync-web3-sdk)
+    - [Prerequisites](#prerequisites)
+    - [Clone the Repository](#clone-the-repository)
+    - [Running the Payment Transaction Example](#running-the-payment-transaction-example)
+    - [Conclusion](#conclusion)
+- [CLI](#cli)
+    - [Installation](#installation)
+    - [Usage](#usage)
+        - [`zksync-web3-cli deploy`](#zksync-web3-cli-deploy)
+        - [`zksync-web3-cli call`](#zksync-web3-cli-call)
+        - [`zksync-web3-cli get-contract`](#zksync-web3-cli-get-contract)
+        - [`zksync-web3-cli get-transaction`](#zksync-web3-cli-get-transaction)
+        - [`zksync-web3-cli balance`](#zksync-web3-cli-balance)
+        - [`zksync-web3-cli pay`](#zksync-web3-cli-pay)
+        - [`zksync-web3-cli compile`](#zksync-web3-cli-compile)
+
+
+## Getting Started with zkSync Web3 SDK
+
+The `zksync-web3-rs` SDK is meant for developers who want to develop on zkSync Era's testnet using Rust code. This guide will walk you through the process of getting started with the SDK and running a payment transaction example using EIP1559 transactions on zkSync Era.
+
+### Prerequisites
+
+Before you begin, make sure you have the following prerequisites:
+
+- Rust: Ensure that Rust is installed on your system. You can install Rust by following the instructions at [https://www.rust-lang.org/tools/install](https://www.rust-lang.org/tools/install).
+
+- Git: Install Git on your system if you haven't already. You can find installation instructions at [https://git-scm.com/book/en/v2/Getting-Started-Installing-Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git).
+
+### Clone the Repository
+
+To get started, clone the `zksync-web3-rs` repository from GitHub. Open a terminal or command prompt and execute the following commands:
+
+```bash
+git clone https://github.com/lambdaclass/zksync-web3-rs.git
+cd zksync-web3-rs
+```
+
+### Step by step explanation [WIP]
+
+### Running the Payment Transaction Example
+
+The example payment transaction code can be found in the `main.rs` file located in the `examples/simple_payment` directory of the repository. To run the payment transaction example using EIP1559 transactions on zkSync Era, run the following command:
+
+```bash
+make simple_payment HOST=<host> PORT=<port> AMOUNT=<amount_to_transfer> SENDER_ADDRESS=<sender> RECEIVER_ADDRESS=<receiver> PRIVATE_KEY=<pk> NETWORK=<net>
+```
+
+- `HOST`: The IP address or hostname of the L1 node where zkSync is running.
+- `PORT`: The port number used to connect to the L1 node (usually `8545`).
+- `AMOUNT`: The amount to transfer, specified in wei. For example, if you want to transfer 1 ETH, specify `1000000000000000000` (which is 10^18 wei).
+- `SENDER_ADDRESS`: The address of the sender's Ethereum account, represented in hexadecimal format with the `0x` prefix. For example, `0x123abc...`.
+- `RECEIVER_ADDRESS`: The address of the receiver's Ethereum account, represented in hexadecimal format with the `0x` prefix. For example, `0x456def...`.
+- `PRIVATE_KEY`: The private key of an Ethereum account with sufficient funds to perform the transaction, represented in hexadecimal format with the `0x` prefix.
+- `NETWORK`: The network you want to connect to. There are two options: `era` which will connect to the L2 node and `eth` which will connect to the L1 node.
+
+**Note:** Ensure that you have properly configured the environment variables or provided the required values as command-line arguments.
+
+This command executes the `simple_payment` binary using the provided Makefile.
+
+### Conclusion
+
+Congratulations! You have successfully completed the "Getting Started" guide for the `zksync-web3-rs` SDK. You have learned how to send a simple payment transaction example using EIP1559 transactions on zkSync Era.
+
+By exploring the example code and the repository's documentation, you can further enhance your understanding of interacting with zkSync Era's testnet using the `zksync-web3-rs` SDK.
+
+Feel free to experiment with different configurations and explore other functionalities provided by the SDK.
+
+If you have any questions or need further assistance, don't hesitate to reach out to the repository's community or maintainers.
+
+Happy coding!
+
+
 ## CLI
 ### Installation
 
