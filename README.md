@@ -42,9 +42,11 @@ cd zksync-web3-rs
 
 ### Step by step explanation [WIP]
 
+The example payment transaction code can be found in the `main.rs` file located in the `examples/simple_payment` directory of the repository.
+
 ### Running the Payment Transaction Example
 
-The example payment transaction code can be found in the `main.rs` file located in the `examples/simple_payment` directory of the repository. To run the payment transaction example using EIP1559 transactions on zkSync Era, run the following command:
+To run the payment transaction example using EIP1559 transactions on zkSync Era, run the following command:
 
 ```bash
 make simple_payment HOST=<host> PORT=<port> AMOUNT=<amount_to_transfer> SENDER_ADDRESS=<sender> RECEIVER_ADDRESS=<receiver> PRIVATE_KEY=<pk> NETWORK=<net>
