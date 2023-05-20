@@ -32,20 +32,26 @@ pub struct TokenInfo {
 
 pub type BlockRange = Vec<String>;
 
+// TODO: Complete struct.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct L1BatchDetails;
 
+// TODO: Complete struct.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Proof;
 
+// TODO: Complete struct.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Transaction;
 
+// TODO: Complete struct.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TransactionDetails;
 
+// TODO: Complete struct.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TracerConfig;
 
+// TODO: Complete struct.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DebugTrace;

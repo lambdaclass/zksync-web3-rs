@@ -10,7 +10,7 @@ pub mod types;
 use types::Fee;
 
 use self::types::{
-    BlockDetails, BlockRange, BridgeContracts, DebugTrace, L1BatchDetails, TokenInfo, TracerConfig,
+    BlockDetails, BlockRange, BridgeContracts, L1BatchDetails, TokenInfo,
     Transaction, TransactionDetails,
 };
 
@@ -84,7 +84,7 @@ pub trait ZKSProvider {
     ) -> Result<Option<TransactionDetails>, ProviderError>;
 
     /// Returns the latest L1 batch number.
-    async fn get_latest_l1_batch_number(&self) -> Result<u32, ProviderError>;
+    async fn get_l1_batch_number(&self) -> Result<u32, ProviderError>;
 
     /// Returns the chain id of the underlying L1.
     async fn get_l1_chain_id(&self) -> Result<u64, ProviderError>;
@@ -104,20 +104,21 @@ pub trait ZKSProvider {
     // async fn debug_trace_transaction(&self, hash: H256, options: TracerConfig) -> Result<DebugTrace, ProviderError>;
 }
 
+// TODO: we need to figure out how to implement the methods that are commented.
 #[async_trait]
 impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
-    async fn estimate_fee<T>(&self, request: T) -> Result<Fee, ProviderError>
+    async fn estimate_fee<T>(&self, transaction: T) -> Result<Fee, ProviderError>
     where
         T: Debug + Serialize + Send + Sync,
     {
-        self.request("zks_estimateFee", [request]).await
+        self.request("zks_estimateFee", [transaction]).await
     }
 
-    async fn estimate_gas_l1_to_l2<T>(&self, request: T) -> Result<U256, ProviderError>
+    async fn estimate_gas_l1_to_l2<T>(&self, transaction: T) -> Result<U256, ProviderError>
     where
         T: Debug + Serialize + Send + Sync,
     {
-        self.request("zks_estimateGasL1ToL2", [request]).await
+        self.request("zks_estimateGasL1ToL2", [transaction]).await
     }
 
     async fn get_all_account_balances(
@@ -190,8 +191,8 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
         self.request("zks_getTransactionDetails", [hash]).await
     }
 
-    async fn get_latest_l1_batch_number(&self) -> Result<u32, ProviderError> {
-        self.request("zks_getLatestU256", ()).await
+    async fn get_l1_batch_number(&self) -> Result<u32, ProviderError> {
+        self.request("zks_L1BatchNumber", ()).await
     }
 
     async fn get_l1_chain_id(&self) -> Result<u64, ProviderError> {
