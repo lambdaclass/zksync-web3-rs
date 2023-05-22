@@ -152,8 +152,8 @@ impl Eip712 for Eip712SignInput {
 
 #[cfg(test)]
 mod tests {
-    use crate::zks_provider::ZKSProvider;
     use super::*;
+    use crate::zks_provider::ZKSProvider;
     use ethers::{
         prelude::k256::ecdsa::SigningKey,
         providers::{Middleware, Provider},
@@ -253,7 +253,7 @@ mod tests {
 
         let signature = wallet.sign_typed_data(&tx_sign_input).await.unwrap();
 
-        println!("{:#?}", signature);
+        println!("{:#?}", signature.to_vec());
 
         println!(
             "{:?}",
