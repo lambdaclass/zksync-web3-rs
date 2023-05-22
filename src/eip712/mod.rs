@@ -6,20 +6,40 @@ use serde::{Deserialize, Serialize};
 
 mod utils;
 
-#[derive(Serialize, Deserialize)]
+// TODO: Not all the fields are optional. This was copied from the JS implementation.
+#[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all(serialize = "camelCase", deserialize = "camelCase"))]
-pub struct Eip712TransactionRequest {}
-
-#[derive(Serialize, Deserialize)]
-#[serde(rename_all(serialize = "camelCase", deserialize = "camelCase"))]
-pub struct Eip712Meta {
-    pub gas_per_pubdata: Option<U256>,
-    pub factory_deps: Option<Bytes>,
-    pub custom_signature: Bytes,
-    pub paymaster_params: PaymasterParams,
+pub struct Eip712TransactionRequest {
+    pub to: Option<Address>,
+    pub from: Option<Address>,
+    pub nonce: U256,
+    pub gas_limit: Option<U256>,
+    pub gas_price: Option<U256>,
+    pub data: Option<Bytes>,
+    pub value: Option<U256>,
+    pub chain_id: u64,
+    pub r#type: U256,
+    pub access_list: Option<AccessList>,
+    pub max_priority_fee_per_gas: Option<U256>,
+    pub max_fee_per_gas: Option<U256>,
+    pub custom_data: Option<Eip712Meta>,
+    pub ccip_read_enabled: Option<bool>,
 }
 
-#[derive(Serialize, Deserialize)]
+// TODO: Implement Default for Eip712TransactionRequest.
+// impl Default for Eip712TransactionRequest {}
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all(serialize = "camelCase", deserialize = "camelCase"))]
+pub struct Eip712Meta {
+    pub gas_per_pubdata: U256,
+    pub factory_deps: Option<Vec<Bytes>>,
+    // TODO: Is this field optional?
+    pub custom_signature: Option<Bytes>,
+    // TODO: Is this field optional?
+    pub paymaster_params: Option<PaymasterParams>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all(serialize = "camelCase", deserialize = "camelCase"))]
 pub struct PaymasterParams {
     pub paymaster: Address,
@@ -32,18 +52,23 @@ impl Into<Eip712SignInput> for Eip712TransactionRequest {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+        eip712_sign_input
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 #[serde(rename_all(serialize = "camelCase", deserialize = "camelCase"))]
 pub struct Eip712SignInput {
     pub tx_type: U256,
-    pub from: Option<U256>,
-    pub to: Option<U256>,
+    pub from: Option<Address>,
+    pub to: Option<Address>,
     pub gas_limit: Option<U256>,
-    pub gas_per_pubdata_byte_limit: U256,
+    // NOTE: this value must be set after calling ZKSProvider::estimate_fee method.
+    pub gas_per_pubdata_byte_limit: Option<U256>,
     pub max_fee_per_gas: Option<U256>,
     pub max_priority_fee_per_gas: Option<U256>,
-    pub paymaster: Option<U256>,
-    pub nonce: Option<U256>,
+    pub paymaster: Option<Address>,
+    pub nonce: U256,
     pub value: Option<U256>,
     pub data: Option<Bytes>,
     pub factory_deps: Option<Vec<Bytes>>,
