@@ -74,10 +74,33 @@ impl Eip712 for Eip712SignInput {
     /// * The second 2 bytes denote the length of the bytecode in 32-byte words.
     /// * The rest of the 28-byte (i.e. 28 low big-endian bytes) are equal to the last 28 bytes of the sha256 hash of the contract's bytecode.
     fn struct_hash(&self) -> Result<[u8; 32], Self::Error> {
-        let bytecode_hash_format_version;
-        let bytecode_length;
-        let bytecode_hash;
-        todo!()
+        let step_1: [u8; 2] = 0x71_u16.to_be_bytes();
+        let step_2: [u8; 2] = ((self
+            .factory_deps
+            .clone()
+            .ok_or_else(|| return Eip712Error::FailedToEncodeStruct)?[0]
+            .len()
+            / 2
+            % 32) as u16)
+            .to_be_bytes();
+        let step_3: [u8; 28] = sha2::Sha256::digest(
+            &self
+                .factory_deps
+                .clone()
+                .ok_or_else(|| return Eip712Error::FailedToEncodeStruct)?[0],
+        )
+        .into_iter()
+        .skip(4)
+        .collect::<Vec<u8>>()
+        .try_into()
+        .unwrap();
+
+        let mut contract_hash: [u8; 32] = [0; 32];
+        contract_hash[..2].clone_from_slice(&step_1);
+        contract_hash[2..4].clone_from_slice(&step_2);
+        contract_hash[4..].clone_from_slice(&step_3);
+
+        Ok(contract_hash)
     }
 }
 
