@@ -1,8 +1,12 @@
 use ethers::types::{
-    transaction::eip712::{EIP712Domain, Eip712, Eip712Error},
+    transaction::{
+        eip2930::AccessList,
+        eip712::{EIP712Domain, Eip712, Eip712Error},
+    },
     Address, Bytes, U256,
 };
 use serde::{Deserialize, Serialize};
+use sha2::Digest;
 
 mod utils;
 
