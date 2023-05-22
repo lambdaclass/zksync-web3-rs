@@ -127,7 +127,6 @@ impl Eip712 for Eip712SignInput {
             .clone()
             .ok_or_else(|| return Eip712Error::FailedToEncodeStruct)?[0]
             .len()
-            / 2
             % 32) as u16)
             .to_be_bytes();
         let step_3: [u8; 28] = sha2::Sha256::digest(
