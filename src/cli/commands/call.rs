@@ -1,4 +1,4 @@
-use crate::cli::{commands::CHAIN_ID, ZKSyncWeb3Config};
+use crate::cli::{commands::L1_CHAIN_ID, ZKSyncWeb3Config};
 use crate::{
     prelude::{k256::ecdsa::SigningKey, MiddlewareBuilder, SignerMiddleware},
     providers::{Middleware, Provider},
@@ -49,7 +49,7 @@ pub(crate) async fn run(args: Call, config: ZKSyncWeb3Config) -> eyre::Result<()
     .interval(std::time::Duration::from_millis(10));
     if let Some(pk) = args.private_key {
         let mut signer = pk.parse::<Wallet<SigningKey>>()?;
-        signer = Wallet::with_chain_id(signer, CHAIN_ID);
+        signer = Wallet::with_chain_id(signer, L1_CHAIN_ID);
         let provider = provider.clone().with_signer(signer);
         provider.fill_transaction(&mut transaction, None).await?;
         let response: TransactionReceipt =

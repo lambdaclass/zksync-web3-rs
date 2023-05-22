@@ -71,6 +71,8 @@ pub mod prelude {
 
 // TODO: This should be visible only for this crate and not for the library users.
 pub mod cli;
+pub mod compile;
+pub mod zks_provider;
 
 // For macro expansions only, not public API.
 #[allow(unused_extern_crates)]
