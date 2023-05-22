@@ -11,7 +11,6 @@ pub struct Fee {
 
 impl Copy for Fee {}
 
-// TODO: Complete struct.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct BlockDetails {
