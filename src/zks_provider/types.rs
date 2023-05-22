@@ -42,6 +42,7 @@ pub struct BaseSystemContractsHashes {
 impl Copy for BaseSystemContractsHashes {}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct BridgeContracts {
     pub l1_erc20_default_bridge: Address,
     pub l2_erc20_default_bridge: Address,

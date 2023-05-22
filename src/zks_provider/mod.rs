@@ -1,6 +1,8 @@
 use async_trait::async_trait;
 use ethers::{
-    providers::{JsonRpcClient, Provider, ProviderError},
+    prelude::SignerMiddleware,
+    providers::{JsonRpcClient, Middleware, Provider, ProviderError},
+    signers::Signer,
     types::{Address, H256, U256},
 };
 use serde::Serialize;
@@ -146,6 +148,150 @@ pub trait ZKSProvider {
         hash: H256,
         options: TracerConfig,
     ) -> Result<DebugTrace, ProviderError>;
+}
+
+#[async_trait]
+impl<M: Middleware + ZKSProvider, S: Signer> ZKSProvider for SignerMiddleware<M, S> {
+    async fn estimate_fee<T>(&self, transaction: T) -> Result<Fee, ProviderError>
+    where
+        T: Debug + Serialize + Send + Sync,
+    {
+        self.inner().estimate_fee(transaction).await
+    }
+
+    async fn estimate_gas_l1_to_l2<T>(&self, transaction: T) -> Result<U256, ProviderError>
+    where
+        T: Debug + Serialize + Send + Sync,
+    {
+        self.inner().estimate_gas_l1_to_l2(transaction).await
+    }
+
+    async fn get_all_account_balances(
+        &self,
+        address: Address,
+    ) -> Result<HashMap<Address, U256>, ProviderError> {
+        self.inner().get_all_account_balances(address).await
+    }
+
+    async fn get_block_details(&self, block: u32) -> Result<BlockDetails, ProviderError> {
+        self.inner().get_block_details(block).await
+    }
+
+    async fn get_bridge_contracts(&self) -> Result<BridgeContracts, ProviderError> {
+        self.inner().get_bridge_contracts().await
+    }
+
+    async fn get_bytecode_by_hash(&self, hash: H256) -> Result<Option<Vec<u8>>, ProviderError> {
+        self.inner().get_bytecode_by_hash(hash).await
+    }
+
+    async fn get_confirmed_tokens(
+        &self,
+        from: u32,
+        limit: u8,
+    ) -> Result<Vec<TokenInfo>, ProviderError> {
+        self.inner().get_confirmed_tokens(from, limit).await
+    }
+
+    async fn get_l1_batch_block_range(&self, batch_id: u32) -> Result<BlockRange, ProviderError> {
+        self.inner().get_l1_batch_block_range(batch_id).await
+    }
+
+    async fn get_l1_batch_details(&self, batch_id: u32) -> Result<L1BatchDetails, ProviderError> {
+        self.inner().get_l1_batch_details(batch_id).await
+    }
+
+    async fn get_l2_to_l1_log_proof(
+        &self,
+        tx_hash: H256,
+        l2_to_l1_log_index: Option<u64>,
+    ) -> Result<Option<Proof>, ProviderError> {
+        self.inner()
+            .get_l2_to_l1_log_proof(tx_hash, l2_to_l1_log_index)
+            .await
+    }
+
+    async fn get_l2_to_l1_msg_proof(
+        &self,
+        block: u32,
+        sender: Address,
+        msg: H256,
+        l2_log_position: Option<u64>,
+    ) -> Result<Option<Proof>, ProviderError> {
+        self.inner()
+            .get_l2_to_l1_msg_proof(block, sender, msg, l2_log_position)
+            .await
+    }
+
+    async fn get_main_contract(&self) -> Result<Address, ProviderError> {
+        self.inner().get_main_contract().await
+    }
+
+    async fn get_raw_block_transactions(
+        &self,
+        block: u32,
+    ) -> Result<Vec<Transaction>, ProviderError> {
+        self.inner().get_raw_block_transactions(block).await
+    }
+
+    async fn get_testnet_paymaster(&self) -> Result<Address, ProviderError> {
+        self.inner().get_testnet_paymaster().await
+    }
+
+    async fn get_token_price(&self, address: Address) -> Result<String, ProviderError> {
+        self.inner().get_token_price(address).await
+    }
+
+    async fn get_transaction_details(
+        &self,
+        hash: H256,
+    ) -> Result<Option<TransactionDetails>, ProviderError> {
+        self.inner().get_transaction_details(hash).await
+    }
+
+    async fn get_l1_batch_number(&self) -> Result<U256, ProviderError> {
+        self.inner().get_l1_batch_number().await
+    }
+
+    async fn get_l1_chain_id(&self) -> Result<U256, ProviderError> {
+        self.inner().get_l1_chain_id().await
+    }
+
+    async fn debug_trace_block_by_hash(
+        &self,
+        hash: H256,
+        options: TracerConfig,
+    ) -> Result<DebugTrace, ProviderError> {
+        ZKSProvider::debug_trace_block_by_hash(self.inner(), hash, options).await
+    }
+
+    async fn debug_trace_block_by_number(
+        &self,
+        block: U256,
+        options: TracerConfig,
+    ) -> Result<DebugTrace, ProviderError> {
+        ZKSProvider::debug_trace_block_by_number(self.inner(), block, options).await
+    }
+
+    async fn debug_trace_call<T>(
+        &self,
+        request: T,
+        block: U256,
+        options: TracerConfig,
+    ) -> Result<DebugTrace, ProviderError>
+    where
+        T: Debug + Serialize + Send + Sync,
+    {
+        ZKSProvider::debug_trace_call(self.inner(), request, block, options).await
+    }
+
+    async fn debug_trace_transaction(
+        &self,
+        hash: H256,
+        options: TracerConfig,
+    ) -> Result<DebugTrace, ProviderError> {
+        ZKSProvider::debug_trace_transaction(self.inner(), hash, options).await
+    }
 }
 
 #[async_trait]
@@ -305,10 +451,14 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
 mod tests {
     use crate::zks_provider::ZKSProvider;
     use ethers::{
+        prelude::{k256::ecdsa::SigningKey, MiddlewareBuilder, SignerMiddleware},
         providers::{Middleware, Provider},
+        signers::{Signer, Wallet},
         types::{Address, H256, U256},
     };
     use serde::{Deserialize, Serialize};
+
+    const L2_CHAIN_ID: u64 = 270;
 
     fn local_provider() -> Provider<ethers::providers::Http> {
         Provider::try_from(format!(
@@ -320,8 +470,18 @@ mod tests {
         .interval(std::time::Duration::from_millis(10))
     }
 
+    fn local_signer() -> SignerMiddleware<Provider<ethers::providers::Http>, Wallet<SigningKey>> {
+        let signer = Wallet::with_chain_id(
+            "0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110"
+                .parse::<Wallet<SigningKey>>()
+                .unwrap(),
+            L2_CHAIN_ID,
+        );
+        local_provider().with_signer(signer)
+    }
+
     #[tokio::test]
-    async fn test_estimate_fee() {
+    async fn test_provider_estimate_fee() {
         let provider = local_provider();
         #[derive(Serialize, Deserialize, Debug)]
         struct TestTransaction {
@@ -345,7 +505,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_testnet_paymaster() {
+    async fn test_provider_get_testnet_paymaster() {
         let provider = local_provider();
         let expected_address: Address = "0x4cccf49428918845022048757f8c9af961fa9a90"
             .parse()
@@ -355,7 +515,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_estimate_gas_l1_to_l2() {
+    async fn test_provider_estimate_gas_l1_to_l2() {
         let provider = local_provider();
         #[derive(Serialize, Deserialize, Debug)]
         struct TestTransaction {
@@ -377,7 +537,7 @@ mod tests {
 
     #[tokio::test]
     // TODO: This test is flacky. It could fail in the future.
-    async fn test_get_all_account_balances() {
+    async fn test_provider_get_all_account_balances() {
         let provider = local_provider();
         let address: Address = "0xbd29a1b981925b94eec5c4f1125af02a2ec4d1ca"
             .parse()
@@ -400,7 +560,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_block_details() {
+    async fn test_provider_get_block_details() {
         let provider = local_provider();
         let block = 2;
 
@@ -408,14 +568,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_bridge_contracts() {
+    async fn test_provider_get_bridge_contracts() {
         let provider = local_provider();
 
         assert!(provider.get_bridge_contracts().await.is_ok());
     }
 
     #[tokio::test]
-    async fn test_get_bytecode_by_hash() {
+    async fn test_provider_get_bytecode_by_hash() {
         let provider = local_provider();
         let invalid_hash = H256::default();
         let valid_hash: H256 = "0x7641711d8997f701a4d5929b6661185aeb5ae1fdff33288b6b5df1c05135cfc9"
@@ -428,7 +588,7 @@ mod tests {
 
     #[tokio::test]
     #[ignore = "fix"]
-    async fn test_get_confirmed_tokens() {
+    async fn test_provider_get_confirmed_tokens() {
         let provider = local_provider();
         let from = 0;
         let limit = 10;
@@ -438,7 +598,7 @@ mod tests {
 
     // TODO: This test is flacky. It could fail in the future.
     #[tokio::test]
-    async fn test_get_l1_batch_block_range() {
+    async fn test_provider_get_l1_batch_block_range() {
         let provider = local_provider();
         let batch = 1;
 
@@ -446,7 +606,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_l1_batch_details() {
+    async fn test_provider_get_l1_batch_details() {
         let provider = local_provider();
         let batch = 1;
 
@@ -454,25 +614,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_l2_to_l1_log_proof() {
+    async fn test_provider_get_l2_to_l1_log_proof() {
         let provider = local_provider();
         let tx_hash: H256 = "0xac9cf301af3b11760feb9d84283513f993dcd29de6e5fd28a8f41b1c7c0469ed"
             .parse()
             .unwrap();
 
-        println!(
-            "{:?}",
-            provider
-                .get_l2_to_l1_log_proof(tx_hash, None)
-                .await
-                .unwrap()
-                .unwrap()
-        );
         assert!(provider.get_l2_to_l1_log_proof(tx_hash, None).await.is_ok());
     }
 
     // #[tokio::test]
-    // async fn test_get_l2_to_l1_msg_proof() {
+    // async fn test_provider_get_l2_to_l1_msg_proof() {
     //     let provider = local_provider();
     //     let block = 2;
     //     let sender = /* create an address object */;
@@ -482,7 +634,7 @@ mod tests {
     // }
 
     #[tokio::test]
-    async fn test_get_main_contract() {
+    async fn test_provider_get_main_contract() {
         let provider = local_provider();
         let expected_address: Address = "0x7e9549ad6911839bd256672ca14cec0760add9fd"
             .parse()
@@ -496,19 +648,15 @@ mod tests {
     // TODO: This test is flacky. It could fail in the future. We should create a
     // transaction, send it, and the assert that the details match.
     #[tokio::test]
-    async fn test_get_raw_block_transactions() {
+    async fn test_provider_get_raw_block_transactions() {
         let provider = local_provider();
         let block = 1;
 
-        println!(
-            "{:?}",
-            provider.get_raw_block_transactions(block).await.unwrap()
-        );
         assert!(provider.get_raw_block_transactions(block).await.is_ok());
     }
 
     #[tokio::test]
-    async fn test_get_token_price() {
+    async fn test_provider_get_token_price() {
         let provider = local_provider();
         let address: Address = "0x0000000000000000000000000000000000000000"
             .parse()
@@ -520,7 +668,7 @@ mod tests {
     // TODO: This test is flacky. It could fail in the future. We should create a
     // transaction, send it, and the assert that the details match.
     #[tokio::test]
-    async fn test_get_transaction_details() {
+    async fn test_provider_get_transaction_details() {
         let provider = local_provider();
         let hash: H256 = "0xac9cf301af3b11760feb9d84283513f993dcd29de6e5fd28a8f41b1c7c0469ed"
             .parse()
@@ -530,21 +678,21 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_l1_batch_number() {
+    async fn test_provider_get_l1_batch_number() {
         let provider = local_provider();
 
         assert!(provider.get_l1_batch_number().await.is_ok());
     }
 
     #[tokio::test]
-    async fn test_get_l1_chain_id() {
+    async fn test_provider_get_l1_chain_id() {
         let provider = local_provider();
 
         assert!(provider.get_l1_chain_id().await.is_ok());
     }
 
     // #[tokio::test]
-    // async fn test_debug_trace_block_by_hash() {
+    // async fn test_provider_debug_trace_block_by_hash() {
     //     let provider = local_provider();
     //     let hash = /* create a hash object */;
     //     let options = /* create a tracer config object */;
@@ -553,7 +701,7 @@ mod tests {
     // }
 
     // #[tokio::test]
-    // async fn test_debug_trace_block_by_number() {
+    // async fn test_provider_debug_trace_block_by_number() {
     //     let provider = local_provider();
     //     let block = /* create a block object */;
     //     let options = /* create a tracer config object */;
@@ -562,7 +710,7 @@ mod tests {
     // }
 
     // #[tokio::test]
-    // async fn test_debug_trace_call() {
+    // async fn test_provider_debug_trace_call() {
     //     let provider = local_provider();
     //     let request = /* create a request object */;
     //     let block = /* create a block object */;
@@ -572,8 +720,256 @@ mod tests {
     // }
 
     // #[tokio::test]
-    // async fn test_debug_trace_transaction() {
+    // async fn test_provider_debug_trace_transaction() {
     //     let provider = local_provider();
+    //     let hash = /* create a hash object */;
+    //     let options = /* create a tracer config object */;
+
+    //     assert!(provider.debug_trace_transaction(hash, options).await.is_ok());
+    // }
+
+    #[tokio::test]
+    async fn test_signer_estimate_fee() {
+        let provider = local_signer();
+        #[derive(Serialize, Deserialize, Debug)]
+        struct TestTransaction {
+            from: String,
+            to: String,
+            data: String,
+        }
+
+        let transaction = TestTransaction {
+            from: "0x1111111111111111111111111111111111111111".to_owned(),
+            to: "0x2222222222222222222222222222222222222222".to_owned(),
+            data: "0x608060405234801561001057600080fd5b50610228806100206000396000f3fe608060405234801561001057600080fd5b506004361061002b5760003560e01c80639146769014610030575b600080fd5b61003861004e565b6040516100459190610170565b60405180910390f35b60606000805461005d906101c1565b80601f0160208091040260200160405190810160405280929190818152602001828054610089906101c1565b80156100d65780601f106100ab576101008083540402835291602001916100d6565b820191906000526020600020905b8154815290600101906020018083116100b957829003601f168201915b5050505050905090565b600081519050919050565b600082825260208201905092915050565b60005b8381101561011a5780820151818401526020810190506100ff565b60008484015250505050565b6000601f19601f8301169050919050565b6000610142826100e0565b61014c81856100eb565b935061015c8185602086016100fc565b61016581610126565b840191505092915050565b6000602082019050818103600083015261018a8184610137565b905092915050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052602260045260246000fd5b600060028204905060018216806101d957607f821691505b6020821081036101ec576101eb610192565b5b5091905056fea26469706673582212203d7f62ad5ef1f9670aa630c438f1a75844e1d2cfaf92e6985c698b7009e3dfa864736f6c63430008140033".to_owned(),
+        };
+
+        let estimated_fee = provider.estimate_fee(transaction).await.unwrap();
+
+        assert_eq!(estimated_fee.gas_limit, U256::from(162_436_i32));
+        assert_eq!(estimated_fee.gas_per_pubdata_limit, U256::from(66_i32));
+        assert_eq!(estimated_fee.max_fee_per_gas, U256::from(250_000_000_i32));
+        assert_eq!(estimated_fee.max_priority_fee_per_gas, U256::from(0_i32));
+    }
+
+    #[tokio::test]
+    async fn test_signer_get_testnet_paymaster() {
+        let provider = local_signer();
+        let expected_address: Address = "0x4cccf49428918845022048757f8c9af961fa9a90"
+            .parse()
+            .unwrap();
+        let testnet_paymaster = provider.get_testnet_paymaster().await.unwrap();
+        assert_eq!(testnet_paymaster, expected_address);
+    }
+
+    #[tokio::test]
+    async fn test_signer_estimate_gas_l1_to_l2() {
+        let provider = local_signer();
+        #[derive(Serialize, Deserialize, Debug)]
+        struct TestTransaction {
+            from: String,
+            to: String,
+            data: String,
+        }
+
+        let transaction = TestTransaction {
+            from: "0x1111111111111111111111111111111111111111".to_owned(),
+            to: "0x2222222222222222222222222222222222222222".to_owned(),
+            data: "0x608060405234801561001057600080fd5b50610228806100206000396000f3fe608060405234801561001057600080fd5b506004361061002b5760003560e01c80639146769014610030575b600080fd5b61003861004e565b6040516100459190610170565b60405180910390f35b60606000805461005d906101c1565b80601f0160208091040260200160405190810160405280929190818152602001828054610089906101c1565b80156100d65780601f106100ab576101008083540402835291602001916100d6565b820191906000526020600020905b8154815290600101906020018083116100b957829003601f168201915b5050505050905090565b600081519050919050565b600082825260208201905092915050565b60005b8381101561011a5780820151818401526020810190506100ff565b60008484015250505050565b6000601f19601f8301169050919050565b6000610142826100e0565b61014c81856100eb565b935061015c8185602086016100fc565b61016581610126565b840191505092915050565b6000602082019050818103600083015261018a8184610137565b905092915050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052602260045260246000fd5b600060028204905060018216806101d957607f821691505b6020821081036101ec576101eb610192565b5b5091905056fea26469706673582212203d7f62ad5ef1f9670aa630c438f1a75844e1d2cfaf92e6985c698b7009e3dfa864736f6c63430008140033".to_owned(),
+        };
+
+        let estimated_fee = provider.estimate_gas_l1_to_l2(transaction).await.unwrap();
+
+        assert_eq!(estimated_fee, U256::from(36_768_868_i32));
+    }
+
+    #[tokio::test]
+    // TODO: This test is flacky. It could fail in the future.
+    async fn test_signer_get_all_account_balances() {
+        let provider = local_signer();
+        let address: Address = "0xbd29a1b981925b94eec5c4f1125af02a2ec4d1ca"
+            .parse()
+            .unwrap();
+        let balance = provider.get_balance(address, None).await.unwrap();
+
+        let balances = provider.get_all_account_balances(address).await.unwrap();
+
+        assert_eq!(
+            balances
+                .get(
+                    &"0x0000000000000000000000000000000000000000"
+                        .parse::<Address>()
+                        .unwrap()
+                )
+                .unwrap()
+                .clone(),
+            balance
+        );
+    }
+
+    #[tokio::test]
+    async fn test_signer_get_block_details() {
+        let provider = local_signer();
+        let block = 2;
+
+        assert!(provider.get_block_details(block).await.is_ok())
+    }
+
+    #[tokio::test]
+    async fn test_signer_get_bridge_contracts() {
+        let provider = local_signer();
+
+        assert!(provider.get_bridge_contracts().await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_signer_get_bytecode_by_hash() {
+        let provider = local_signer();
+        let invalid_hash = H256::default();
+        let valid_hash: H256 = "0x7641711d8997f701a4d5929b6661185aeb5ae1fdff33288b6b5df1c05135cfc9"
+            .parse()
+            .unwrap();
+
+        assert!(provider.get_bytecode_by_hash(invalid_hash).await.is_err());
+        assert!(provider.get_bytecode_by_hash(valid_hash).await.is_err());
+    }
+
+    #[tokio::test]
+    #[ignore = "fix"]
+    async fn test_signer_get_confirmed_tokens() {
+        let provider = local_signer();
+        let from = 0;
+        let limit = 10;
+
+        assert!(provider.get_confirmed_tokens(from, limit).await.is_ok());
+    }
+
+    // TODO: This test is flacky. It could fail in the future.
+    #[tokio::test]
+    async fn test_signer_get_l1_batch_block_range() {
+        let provider = local_signer();
+        let batch = 1;
+
+        assert!(provider.get_l1_batch_block_range(batch).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_signer_get_l1_batch_details() {
+        let provider = local_signer();
+        let batch = 1;
+
+        assert!(provider.get_l1_batch_details(batch).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_signer_get_l2_to_l1_log_proof() {
+        let provider = local_signer();
+        let tx_hash: H256 = "0xac9cf301af3b11760feb9d84283513f993dcd29de6e5fd28a8f41b1c7c0469ed"
+            .parse()
+            .unwrap();
+
+        assert!(provider.get_l2_to_l1_log_proof(tx_hash, None).await.is_ok());
+    }
+
+    // #[tokio::test]
+    // async fn test_signer_get_l2_to_l1_msg_proof() {
+    //     let provider = local_signer();
+    //     let block = 2;
+    //     let sender = /* create an address object */;
+    //     let msg = /* create a hash object */;
+
+    //     assert!(provider.get_l2_to_l1_msg_proof(block, sender, msg, None).await.is_ok());
+    // }
+
+    #[tokio::test]
+    async fn test_signer_get_main_contract() {
+        let provider = local_signer();
+        let expected_address: Address = "0x7e9549ad6911839bd256672ca14cec0760add9fd"
+            .parse()
+            .unwrap();
+
+        let main_contract = provider.get_main_contract().await.unwrap();
+
+        assert_eq!(main_contract, expected_address);
+    }
+
+    // TODO: This test is flacky. It could fail in the future. We should create a
+    // transaction, send it, and the assert that the details match.
+    #[tokio::test]
+    async fn test_signer_get_raw_block_transactions() {
+        let provider = local_signer();
+        let block = 1;
+
+        assert!(provider.get_raw_block_transactions(block).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_signer_get_token_price() {
+        let provider = local_signer();
+        let address: Address = "0x0000000000000000000000000000000000000000"
+            .parse()
+            .unwrap();
+
+        assert!(provider.get_token_price(address).await.is_ok());
+    }
+
+    // TODO: This test is flacky. It could fail in the future. We should create a
+    // transaction, send it, and the assert that the details match.
+    #[tokio::test]
+    async fn test_signer_get_transaction_details() {
+        let provider = local_signer();
+        let hash: H256 = "0xac9cf301af3b11760feb9d84283513f993dcd29de6e5fd28a8f41b1c7c0469ed"
+            .parse()
+            .unwrap();
+
+        assert!(provider.get_transaction_details(hash).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_signer_get_l1_batch_number() {
+        let provider = local_signer();
+
+        assert!(provider.get_l1_batch_number().await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_signer_get_l1_chain_id() {
+        let provider = local_signer();
+
+        assert!(provider.get_l1_chain_id().await.is_ok());
+    }
+
+    // #[tokio::test]
+    // async fn test_signer_debug_trace_block_by_hash() {
+    //     let provider = local_signer();
+    //     let hash = /* create a hash object */;
+    //     let options = /* create a tracer config object */;
+
+    //     assert!(provider.debug_trace_block_by_hash(hash, options).await.is_ok());
+    // }
+
+    // #[tokio::test]
+    // async fn test_signer_debug_trace_block_by_number() {
+    //     let provider = local_signer();
+    //     let block = /* create a block object */;
+    //     let options = /* create a tracer config object */;
+
+    //     assert!(provider.debug_trace_block_by_number(block, options).await.is_ok());
+    // }
+
+    // #[tokio::test]
+    // async fn test_signer_debug_trace_call() {
+    //     let provider = local_signer();
+    //     let request = /* create a request object */;
+    //     let block = /* create a block object */;
+    //     let options = /* create a tracer config object */;
+
+    //     assert!(provider.debug_trace_call(request, block, options).await.is_ok());
+    // }
+
+    // #[tokio::test]
+    // async fn test_signer_debug_trace_transaction() {
+    //     let provider = local_signer();
     //     let hash = /* create a hash object */;
     //     let options = /* create a tracer config object */;
 
