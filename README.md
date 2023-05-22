@@ -21,7 +21,11 @@
 
 ## Getting Started with zkSync Web3 SDK
 
-The `zksync-web3-rs` SDK is meant for developers who want to develop on zkSync Era's testnet using Rust code. This guide will walk you through the process of getting started with the SDK and running a payment transaction example using EIP1559 transactions on zkSync Era.
+While most of the existing SDKs should work out of the box, deploying smart contracts or using unique zkSync features, like account abstraction, requires providing additional fields to those that Ethereum transactions have by default.
+
+To provide easy access to all of the features of zkSync Era, the `zksync-web3-rs` Rust SDK was created, which is made in a way that has an interface very similar to those of [ethers](https://docs.ethers.io/v5/). In fact, ethers is a peer dependency of our library and most of the objects exported by `zksync-web3-rs` (e.g. `Provider` etc.) inherit from the corresponding `ethers` objects and override only the fields that need to be changed.
+
+The library is made in such a way that after replacing `ethers` with `zksync-web3-rs` most client apps will work out of box.
 
 ### Prerequisites
 
@@ -31,7 +35,114 @@ Before you begin, make sure you have the following prerequisites:
 
 - Git: Install Git on your system if you haven't already. You can find installation instructions at [https://git-scm.com/book/en/v2/Getting-Started-Installing-Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git).
 
-### Clone the Repository
+- zkSync CLI (only if you want to run a localnet): Install the zkSync CLI on your system
+  ```bash
+  git clone https://github.com/lambdaclass/zksync-cli.git
+  cd zksync-cli
+  npm i -g && npm run build
+  zksync-cli localnet up
+  ```
+
+### Adding dependencies
+
+Add the following dependencies to your `Cargo.toml` file:
+
+```bash
+zksync-web3-rs = { git = "https://www.github.com/lambdaclass/zksync-web3-rs" }
+```
+
+### First steps
+
+In the following steps, we will show you how to create a payment transaction using the `zksync-web3-rs` library.
+
+#### Importing dependencies
+
+Import the `zksync-web3-rs` library into your project by adding the following line to the top of your `main.rs` file:
+
+```rust
+use zksync-web3-rs as zksync;
+```
+
+#### Creating a Wallet
+
+To create a wallet, you need to provide the private key of the Ethereum account that will be used to sign the transaction. You can create a wallet using the following code:
+
+> We set the chain id to 270 because we are using the zkSync Era node. If you want to use the mainnet, you should set the chain id to 9.
+> https://era.zksync.io/docs/api/hardhat/testing.html#connect-wallet-to-local-nodes
+
+```rust
+let private_key = "0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110";
+let zksync_era_chain_id = 270;
+
+let wallet = zksync::Wallet::with_chain_id(private_key, zksync_era_chain_id);
+```
+
+#### Connecting to the zkSync Network
+
+To connect to the zkSync network, you need to provide the URL of the zkSync node. You can connect to the zkSync network using the following code:
+
+```rust
+let provider = Provider::try_from("http://<HOST>:<PORT>").unwrap();
+```
+
+#### Creating a Payment Transaction
+
+To create a payment transaction, you need to provide the sender's address, the receiver's address, and the amount to transfer. You can create a payment transaction using the following code:
+
+```rust
+let sender_address = "0x36615Cf349d7F6344891B1e7CA7C72883F5dc049";
+let receiver_address = "0xa61464658AfeAf65CccaaFD3a512b69A83B77618";
+let amount_to_transfer = U256::from(1);
+
+let mut payment_request = Eip1559TransactionRequest::new()
+    .from(sender_address)
+    .to(receiver_address)
+    .value(amount_to_transfer);
+
+let fee = provider
+    .estimate_fee(payment_request.clone())
+    .await
+    .unwrap();
+
+payment_request = payment_request.max_priority_fee_per_gas(fee.max_priority_fee_per_gas);
+payment_request = payment_request.max_fee_per_gas(fee.max_fee_per_gas);
+
+let transaction: TypedTransaction = payment_request.into();
+```
+
+#### Sending the Transaction
+
+To send the transaction, you need to provide the wallet and the transaction. You can send the transaction using the following code:
+
+> In case you are wondering, the transaction is signed in the `send_transaction` method.
+
+```rust
+let signer = provider.with_signer(wallet);
+
+let payment_response: TransactionReceipt =
+    SignerMiddleware::send_transaction(&signer_middleware, transaction, None)
+        .await
+        .unwrap()
+        .await
+        .unwrap()
+        .unwrap();
+```
+
+#### Checking zkSync account balance
+
+```rust
+let sender_balance = provider
+    .get_balance(sender_address, None)
+    .await
+    .unwrap()
+    .unwrap();
+```
+
+### Simple Transfer Example
+
+There's an executable example involving the previous steps in the `examples` folder. To run the example, follow the steps below:
+
+#### Clone the Repository
 
 To get started, clone the `zksync-web3-rs` repository from GitHub. Open a terminal or command prompt and execute the following commands:
 
@@ -40,11 +151,15 @@ git clone https://github.com/lambdaclass/zksync-web3-rs.git
 cd zksync-web3-rs
 ```
 
-### Step by step explanation [WIP]
+#### Run a zkSync localnet
 
-The example payment transaction code can be found in the `main.rs` file located in the `examples/simple_payment` directory of the repository.
+To run the zkSync localnet, execute the following command:
 
-### Running the Payment Transaction Example
+```bash
+zksync-cli localnet up
+```
+
+#### Run the Simple Transfer Example
 
 To run the payment transaction example using EIP1559 transactions on zkSync Era, run the following command:
 
