@@ -36,6 +36,9 @@ pub trait ZKSProvider {
     ) -> Result<HashMap<Address, U256>, ProviderError>;
 
     /// Returns additional zkSync-specific information about the L2 block.
+    /// * `committed`: The batch is closed and the state transition it creates exists on layer 1.
+    /// * `proven`: The batch proof has been created, submitted, and accepted on layer 1.
+    /// * `executed`: The batch state transition has been executed on L1; meaning the root state has been updated.
     async fn get_block_details(&self, block: u32) -> Result<BlockDetails, ProviderError>;
 
     /// Returns L1/L2 addresses of default bridges.
@@ -44,7 +47,11 @@ pub trait ZKSProvider {
     /// Returns bytecode of a transaction given by its hash.
     async fn get_bytecode_by_hash(&self, hash: H256) -> Result<Option<Vec<u8>>, ProviderError>;
 
-    /// Returns [address, symbol, name, and decimal] information of all tokens within a range of ids.
+    /// Returns [address, symbol, name, and decimal] information of all tokens within a range of ids given by parameters `from` and `limit`.
+    ///
+    /// **Confirmed** in the method name means the method returns any token bridged to zkSync via the official bridge.
+    ///
+    /// > This method is mainly used by the zkSync team as it relates to a database query where the primary keys relate to the given ids.
     async fn get_confirmed_tokens(
         &self,
         from: u32,
@@ -52,19 +59,27 @@ pub trait ZKSProvider {
     ) -> Result<Vec<TokenInfo>, ProviderError>;
 
     /// Returns the range of blocks contained within a batch given by batch number.
+    ///
+    /// The range is given by beginning/end block numbers in hexadecimal.
     async fn get_l1_batch_block_range(&self, batch: u32) -> Result<BlockRange, ProviderError>;
 
     /// Returns data pertaining to a given batch.
     async fn get_l1_batch_details(&self, batch: u32) -> Result<L1BatchDetails, ProviderError>;
 
-    /// Returns the proof for the corresponding L2 to L1 log.
+    /// Given a transaction hash, and an index of the L2 to L1 log produced within the
+    /// transaction, it returns the proof for the corresponding L2 to L1 log.
+    ///
+    /// The index of the log that can be obtained from the transaction receipt (it
+    /// includes a list of every log produced by the transaction).
     async fn get_l2_to_l1_log_proof(
         &self,
         tx_hash: H256,
         l2_to_l1_log_index: Option<u64>,
     ) -> Result<Option<Proof>, ProviderError>;
 
-    /// Returns the proof for the message sent via the L1Messenger system contract.
+    /// Given a block, a sender, a message, and an optional message log index in the
+    /// block containing the L1->L2 message, it returns the proof for the message sent
+    /// via the L1Messenger system contract.
     async fn get_l2_to_l1_msg_proof(
         &self,
         block: u32,
@@ -82,7 +97,8 @@ pub trait ZKSProvider {
         block: u32,
     ) -> Result<Vec<Transaction>, ProviderError>;
 
-    /// Returns the address of the testnet paymaster.
+    /// Returns the address of the [testnet paymaster](https://era.zksync.io/docs/dev/developer-guides/aa.html#testnet-paymaster): the paymaster that is available
+    /// on testnets and enables paying fees in ERC-20 compatible tokens.
     async fn get_testnet_paymaster(&self) -> Result<Address, ProviderError>;
 
     /// Returns the price of a given token in USD.
@@ -124,7 +140,7 @@ pub trait ZKSProvider {
     where
         T: Debug + Serialize + Send + Sync;
 
-    /// Returns a debug trace of a specific transaction given by its transaction hash.
+    /// Uses the EVM's callTracer to return a debug trace of a specific transaction given by its transaction hash.
     async fn debug_trace_transaction(
         &self,
         hash: H256,
