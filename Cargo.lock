@@ -3599,7 +3599,7 @@ name = "zksync-web3-rs"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "clap 4.2.7",
+ "clap",
  "env_logger",
  "ethers",
  "eyre",
