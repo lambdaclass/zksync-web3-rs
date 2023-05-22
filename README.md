@@ -82,7 +82,7 @@ let wallet = zksync::Wallet::with_chain_id(private_key, zksync_era_chain_id);
 To connect to the zkSync network, you need to provide the URL of the zkSync node. You can connect to the zkSync network using the following code:
 
 ```rust
-let provider = Provider::try_from("http://<HOST>:<PORT>").unwrap();
+let provider = zksync::Provider::try_from("http://<HOST>:<PORT>").unwrap();
 ```
 
 #### Creating a Payment Transaction
@@ -94,7 +94,7 @@ let sender_address = "0x36615Cf349d7F6344891B1e7CA7C72883F5dc049";
 let receiver_address = "0xa61464658AfeAf65CccaaFD3a512b69A83B77618";
 let amount_to_transfer = U256::from(1);
 
-let mut payment_request = Eip1559TransactionRequest::new()
+let mut payment_request = zksync::Eip1559TransactionRequest::new()
     .from(sender_address)
     .to(receiver_address)
     .value(amount_to_transfer);
@@ -107,7 +107,7 @@ let fee = provider
 payment_request = payment_request.max_priority_fee_per_gas(fee.max_priority_fee_per_gas);
 payment_request = payment_request.max_fee_per_gas(fee.max_fee_per_gas);
 
-let transaction: TypedTransaction = payment_request.into();
+let transaction: zksync::TypedTransaction = payment_request.into();
 ```
 
 #### Sending the Transaction
@@ -119,8 +119,8 @@ To send the transaction, you need to provide the wallet and the transaction. You
 ```rust
 let signer = provider.with_signer(wallet);
 
-let payment_response: TransactionReceipt =
-    SignerMiddleware::send_transaction(&signer_middleware, transaction, None)
+let payment_response: zksync::TransactionReceipt =
+    zksync::SignerMiddleware::send_transaction(&signer_middleware, transaction, None)
         .await
         .unwrap()
         .await
