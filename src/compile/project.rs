@@ -1,6 +1,6 @@
-use std::path::Path;
 use super::{errors::ZKCompilerError, output::ZKCompilationOutput};
 use crate::{cli::commands, compile::constants, solc::Project};
+use std::path::Path;
 
 pub struct ZKProject {
     pub base_project: Project,

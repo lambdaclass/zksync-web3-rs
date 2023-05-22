@@ -1,6 +1,6 @@
+use crate::compile::{constants, output::ZKCompilationOutput};
 use clap::Parser;
 use std::path::PathBuf;
-use crate::compile::{constants, output::ZKCompilationOutput};
 
 #[derive(Parser)]
 pub struct CompileArgs {
