@@ -1,7 +1,6 @@
 use clap::Parser;
 use std::path::PathBuf;
-
-use crate::compile::output::ZKCompilationOutput;
+use crate::compile::{constants, output::ZKCompilationOutput};
 
 #[derive(Parser)]
 pub struct CompileArgs {
@@ -14,7 +13,7 @@ pub struct CompileArgs {
 }
 
 pub(crate) fn run(args: CompileArgs) -> eyre::Result<ZKCompilationOutput> {
-    let mut command = &mut std::process::Command::new("src/compile/zksolc");
+    let mut command = &mut std::process::Command::new(constants::ZK_SOLC_PATH);
     if let Some(solc) = args.solc {
         command = command.arg("--solc").arg(solc);
     } else if let Ok(solc) = std::env::var("SOLC_PATH") {

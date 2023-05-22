@@ -21,4 +21,5 @@ pub(crate) use compile::CompileArgs;
 
 // It is set so that the transaction is replay-protected (EIP-155)
 // https://era.zksync.io/docs/api/hardhat/testing.html#connect-wallet-to-local-nodes
-const CHAIN_ID: u64 = 9;
+const L1_CHAIN_ID: u64 = 9;
+const L2_CHAIN_ID: u64 = 270;

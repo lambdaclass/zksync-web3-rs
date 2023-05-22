@@ -7,8 +7,11 @@ edition = "2021"
 
 [dependencies]
 ethers = { version = "2.0.4", features = ["rustls"] }
-tokio = { version = "1", features = ["macros", "process"] }
 clap = { version = "4.2.7", features = ["derive"] }
+
+# Async
+tokio = { version = "1", features = ["macros", "process"] }
+async-trait = "0.1.68"
 
 # Serialization
 serde = "1.0.163"

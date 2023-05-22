@@ -1,4 +1,4 @@
-use crate::cli::{commands::CHAIN_ID, ZKSyncWeb3Config};
+use crate::cli::{commands::L1_CHAIN_ID, ZKSyncWeb3Config};
 use crate::{
     prelude::{k256::ecdsa::SigningKey, ContractFactory, SignerMiddleware},
     providers::Provider,
@@ -32,7 +32,7 @@ pub(crate) async fn run(args: Deploy, config: ZKSyncWeb3Config) -> eyre::Result<
         .clone();
     let (abi, bytecode, _) = contract.into_parts();
     let mut wallet = args.private_key.parse::<Wallet<SigningKey>>()?;
-    wallet = Wallet::with_chain_id(wallet, CHAIN_ID);
+    wallet = Wallet::with_chain_id(wallet, L1_CHAIN_ID);
     let provider = Provider::try_from(format!(
         "http://{host}:{port}",
         host = config.host,
