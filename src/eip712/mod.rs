@@ -153,31 +153,96 @@ impl Eip712 for Eip712SignInput {
 
 #[cfg(test)]
 mod tests {
+    use crate::zks_provider::ZKSProvider;
     use super::*;
     use ethers::{
         prelude::k256::ecdsa::SigningKey,
         providers::{Middleware, Provider},
         signers::{Signer, Wallet},
+        utils::keccak256,
     };
 
     #[tokio::test]
-    async fn test_pay_transaction() {
-        let mut tx = Eip712TransactionRequest {};
-        let mut tx_sign_input = Eip712SignInput {
-            tx_type: utils::EIP712_TX_TYPE.into(),
-            from: None,
-            to: None,
+    #[ignore = "not yet implemented"]
+    async fn test_pay_transaction() {}
+
+    #[tokio::test]
+    #[ignore = "not yet implemented"]
+    async fn test_call_transaction() {}
+
+    #[tokio::test]
+    async fn test_deploy_transaction() {
+        /* Connect to node */
+
+        let provider = Provider::try_from(format!(
+            "http://{host}:{port}",
+            host = "65.108.204.116",
+            port = 3050
+        ))
+        .unwrap();
+
+        /* Create Transaction */
+
+        let mut tx = Eip712TransactionRequest {
+            r#type: utils::EIP712_TX_TYPE.into(),
+            from: "0xbd29A1B981925B94eEc5c4F1125AF02a2Ec4d1cA".parse().ok(),
+            // The ContractFactory contract address.
+            to: "0xa61464658AfeAf65CccaaFD3a512b69A83B77618".parse().ok(),
+            nonce: U256::default(),
             gas_limit: None,
-            gas_per_pubdata_byte_limit: utils::DEFAULT_GAS_PER_PUBDATA_LIMIT.into(),
-            max_fee_per_gas: None,
-            max_priority_fee_per_gas: None,
-            paymaster: None,
-            nonce: None,
+            gas_price: None,
             value: None,
             data: None,
-            factory_deps: None,
-            paymaster_input: None,
+            // TODO: Use the constant.
+            chain_id: 270,
+            access_list: None,
+            max_priority_fee_per_gas: None,
+            max_fee_per_gas: None,
+            custom_data: None,
+            ccip_read_enabled: None,
         };
+
+        let fee = provider.estimate_fee(tx.clone()).await.unwrap();
+        tx.max_priority_fee_per_gas = Some(fee.max_priority_fee_per_gas);
+        tx.max_fee_per_gas = Some(fee.max_fee_per_gas);
+        tx.gas_limit = Some(fee.gas_limit);
+
+        // Build data
+        let build_data = |function_signature: &str| -> eyre::Result<Vec<u8>> {
+            // See https://docs.soliditylang.org/en/latest/abi-spec.html#examples
+            // TODO: Support all kind of function calls and return cast
+            // (nowadays we only support empty function calls).
+            Ok(keccak256(function_signature.as_bytes())
+                .get(0..4)
+                .unwrap()
+                .to_vec())
+        };
+
+        tx.data = Some(build_data("create()").unwrap().into());
+
+        // Build custom data
+        let paymaster_contract = provider.get_testnet_paymaster().await.unwrap();
+        let paymaster_contract_bytecode =
+            provider.get_code(paymaster_contract, None).await.unwrap();
+
+        let custom_data = Eip712Meta {
+            gas_per_pubdata: U256::from(0),
+            factory_deps: Some(vec![paymaster_contract_bytecode]),
+            custom_signature: None,
+            paymaster_params: None,
+        };
+
+        tx.custom_data = Some(custom_data);
+
+        /* Create Sign Input */
+
+        let mut tx_sign_input: Eip712SignInput = tx.clone().into();
+        tx_sign_input.gas_per_pubdata_byte_limit = Some(fee.gas_per_pubdata_limit);
+
+        println!("TX: {:#?}", tx);
+        println!("TX_INPUT: {:#?}", tx_sign_input);
+
+        /* Create Wallet */
 
         let mut wallet = "0x28a574ab2de8a00364d5dd4b07c4f2f574ef7fcc2a86a197f65abaec836d1959"
             .parse::<Wallet<SigningKey>>()
@@ -187,14 +252,9 @@ mod tests {
             tx_sign_input.domain().unwrap().chain_id.unwrap().as_u64(),
         );
 
-        let provider = Provider::try_from(format!(
-            "http://{host}:{port}",
-            host = "65.108.204.116",
-            port = 3050
-        ))
-        .unwrap();
-
         let signature = wallet.sign_typed_data(&tx_sign_input).await.unwrap();
+
+        println!("{:#?}", signature);
 
         println!(
             "{:?}",
@@ -204,12 +264,4 @@ mod tests {
                 .unwrap()
         );
     }
-
-    #[tokio::test]
-    #[ignore = "not yet implemented"]
-    async fn test_call_transaction() {}
-
-    #[tokio::test]
-    #[ignore = "not yet implemented"]
-    async fn test_deploy_transaction() {}
 }
