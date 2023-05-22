@@ -1,4 +1,4 @@
-use ethers::types::{Address, H256, U256};
+use ethers::types::{Address, Bytes, H256, U256};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -12,7 +12,7 @@ pub struct Fee {
 impl Copy for Fee {}
 
 // TODO: Complete struct.
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct BlockDetails {
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
@@ -32,30 +32,6 @@ pub struct BlockDetails {
     pub root_hash: H256,
     pub status: String,
     pub timestamp: u128,
-}
-
-impl Clone for BlockDetails {
-    fn clone(&self) -> Self {
-        Self {
-            base_system_contracts_hashes: self.base_system_contracts_hashes,
-            commit_tx_hash: self.commit_tx_hash,
-            committed_at: self.committed_at.clone(),
-            execute_tx_hash: self.execute_tx_hash,
-            executed_at: self.executed_at.clone(),
-            l1_batch_number: self.l1_batch_number,
-            l1_gas_price: self.l1_gas_price,
-            l1_tx_count: self.l1_tx_count,
-            l2_fair_gas_price: self.l2_fair_gas_price,
-            l2_tx_count: self.l2_tx_count,
-            number: self.number,
-            operator_address: self.operator_address,
-            prove_tx_hash: self.prove_tx_hash,
-            proven_at: self.proven_at.clone(),
-            root_hash: self.root_hash,
-            status: self.status.clone(),
-            timestamp: self.timestamp,
-        }
-    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -85,19 +61,88 @@ pub type BlockRange = Vec<String>;
 
 // TODO: Complete struct.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct L1BatchDetails;
+#[serde(rename_all = "camelCase")]
+pub struct L1BatchDetails {
+    pub base_system_contracts_hashes: BaseSystemContractsHashes,
+    pub commit_tx_hash: H256,
+    pub committed_at: String,
+    pub execute_tx_hash: H256,
+    pub executed_at: String,
+    pub l1_gas_price: u128,
+    pub l1_tx_count: u128,
+    pub l2_fair_gas_price: u128,
+    pub l2_tx_count: u128,
+    pub number: u128,
+    pub prove_tx_hash: H256,
+    pub proven_at: String,
+    pub root_hash: H256,
+    pub status: String,
+    pub timestamp: u128,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct Proof {
+    pub id: u64,
+    pub proof: Vec<String>,
+    pub root: String,
+}
 
 // TODO: Complete struct.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Proof;
+pub struct Transaction {
+    pub common_data: CommonData,
+    pub execute: Execute,
+    pub received_timestamp_ms: u64,
+}
 
-// TODO: Complete struct.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Transaction;
+pub struct CommonData {
+    #[serde(rename = "L1")]
+    pub l1: L1,
+}
 
-// TODO: Complete struct.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct TransactionDetails;
+#[serde(rename_all = "camelCase")]
+pub struct L1 {
+    pub canonical_tx_hash: H256,
+    pub deadline_block: u64,
+    pub eth_block: u64,
+    pub eth_hash: H256,
+    pub full_fee: U256,
+    pub gas_limit: U256,
+    pub gas_per_pubdata_limit: U256,
+    pub layer2_tip_fee: U256,
+    pub max_fee_per_gas: U256,
+    pub op_processing_type: String,
+    pub priority_queue_type: String,
+    pub refund_recipient: Address,
+    pub sender: Address,
+    pub serial_id: u64,
+    pub to_mint: U256,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct Execute {
+    pub calldata: Bytes,
+    pub contract_address: Address,
+    pub factory_deps: Vec<Vec<u8>>,
+    pub value: U256,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct TransactionDetails {
+    pub eth_commit_tx_hash: H256,
+    pub eth_execute_tx_hash: H256,
+    pub eth_prove_tx_hash: H256,
+    pub fee: U256,
+    pub initiator_address: Address,
+    pub is_l1_originated: bool,
+    pub received_at: String,
+    pub status: String,
+}
 
 // TODO: Complete struct.
 #[derive(Serialize, Deserialize, Debug, Clone)]

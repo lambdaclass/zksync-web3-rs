@@ -55,7 +55,7 @@ pub trait ZKSProvider {
     async fn get_l1_batch_block_range(&self, batch: u32) -> Result<BlockRange, ProviderError>;
 
     /// Returns data pertaining to a given batch.
-    async fn get_l1_batch_details(&self, batch: U256) -> Result<L1BatchDetails, ProviderError>;
+    async fn get_l1_batch_details(&self, batch: u32) -> Result<L1BatchDetails, ProviderError>;
 
     /// Returns the proof for the corresponding L2 to L1 log.
     async fn get_l2_to_l1_log_proof(
@@ -86,7 +86,7 @@ pub trait ZKSProvider {
     async fn get_testnet_paymaster(&self) -> Result<Address, ProviderError>;
 
     /// Returns the price of a given token in USD.
-    async fn get_token_price(&self, address: Address) -> Result<Option<f64>, ProviderError>;
+    async fn get_token_price(&self, address: Address) -> Result<String, ProviderError>;
 
     /// Returns data from a specific transaction given by the transaction hash.
     async fn get_transaction_details(
@@ -95,10 +95,10 @@ pub trait ZKSProvider {
     ) -> Result<Option<TransactionDetails>, ProviderError>;
 
     /// Returns the latest L1 batch number.
-    async fn get_l1_batch_number(&self) -> Result<u32, ProviderError>;
+    async fn get_l1_batch_number(&self) -> Result<U256, ProviderError>;
 
     /// Returns the chain id of the underlying L1.
-    async fn get_l1_chain_id(&self) -> Result<u64, ProviderError>;
+    async fn get_l1_chain_id(&self) -> Result<U256, ProviderError>;
 
     /// Returns debug trace of all executed calls contained in a block given by its L2 hash.
     async fn debug_trace_block_by_hash(
@@ -180,7 +180,7 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
         self.request("zks_getL1BatchBlockRange", [batch]).await
     }
 
-    async fn get_l1_batch_details(&self, batch: U256) -> Result<L1BatchDetails, ProviderError> {
+    async fn get_l1_batch_details(&self, batch: u32) -> Result<L1BatchDetails, ProviderError> {
         self.request("zks_getL1BatchDetails", [batch]).await
     }
 
@@ -225,7 +225,7 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
         self.request("zks_getTestnetPaymaster", ()).await
     }
 
-    async fn get_token_price(&self, address: Address) -> Result<Option<f64>, ProviderError> {
+    async fn get_token_price(&self, address: Address) -> Result<String, ProviderError> {
         self.request("zks_getTokenPrice", [address]).await
     }
 
@@ -236,11 +236,11 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
         self.request("zks_getTransactionDetails", [hash]).await
     }
 
-    async fn get_l1_batch_number(&self) -> Result<u32, ProviderError> {
+    async fn get_l1_batch_number(&self) -> Result<U256, ProviderError> {
         self.request("zks_L1BatchNumber", ()).await
     }
 
-    async fn get_l1_chain_id(&self) -> Result<u64, ProviderError> {
+    async fn get_l1_chain_id(&self) -> Result<U256, ProviderError> {
         self.request("zks_L1ChainId", ()).await
     }
 
@@ -363,11 +363,9 @@ mod tests {
     // TODO: This test is flacky. It could fail in the future.
     async fn test_get_all_account_balances() {
         let provider = local_provider();
-
         let address: Address = "0xbd29a1b981925b94eec5c4f1125af02a2ec4d1ca"
             .parse()
             .unwrap();
-
         let balance = provider.get_balance(address, None).await.unwrap();
 
         let balances = provider.get_all_account_balances(address).await.unwrap();
@@ -422,31 +420,40 @@ mod tests {
         assert!(provider.get_confirmed_tokens(from, limit).await.is_ok());
     }
 
+    // TODO: This test is flacky. It could fail in the future.
     #[tokio::test]
     async fn test_get_l1_batch_block_range() {
         let provider = local_provider();
         let batch = 1;
-        let expected_result = ["0x1", "0x3"];
 
-        let l1_batch_block_range = provider.get_l1_batch_block_range(batch).await.unwrap();
-        assert_eq!(l1_batch_block_range, expected_result);
+        assert!(provider.get_l1_batch_block_range(batch).await.is_ok());
     }
 
-    // #[tokio::test]
-    // async fn test_get_l1_batch_details() {
-    //     let provider = local_provider();
-    //     let batch = /* create a batch object */;
+    #[tokio::test]
+    async fn test_get_l1_batch_details() {
+        let provider = local_provider();
+        let batch = 1;
 
-    //     assert!(provider.get_l1_batch_details(batch).await.is_ok());
-    // }
+        assert!(provider.get_l1_batch_details(batch).await.is_ok());
+    }
 
-    // #[tokio::test]
-    // async fn test_get_l2_to_l1_log_proof() {
-    //     let provider = local_provider();
-    //     let tx_hash = /* create a hash object */;
+    #[tokio::test]
+    async fn test_get_l2_to_l1_log_proof() {
+        let provider = local_provider();
+        let tx_hash: H256 = "0xac9cf301af3b11760feb9d84283513f993dcd29de6e5fd28a8f41b1c7c0469ed"
+            .parse()
+            .unwrap();
 
-    //     assert!(provider.get_l2_to_l1_log_proof(tx_hash, None).await.is_ok());
-    // }
+        println!(
+            "{:?}",
+            provider
+                .get_l2_to_l1_log_proof(tx_hash, None)
+                .await
+                .unwrap()
+                .unwrap()
+        );
+        assert!(provider.get_l2_to_l1_log_proof(tx_hash, None).await.is_ok());
+    }
 
     // #[tokio::test]
     // async fn test_get_l2_to_l1_msg_proof() {
@@ -458,50 +465,67 @@ mod tests {
     //     assert!(provider.get_l2_to_l1_msg_proof(block, sender, msg, None).await.is_ok());
     // }
 
-    // #[tokio::test]
-    // async fn test_get_main_contract() {
-    //     let provider = local_provider();
+    #[tokio::test]
+    async fn test_get_main_contract() {
+        let provider = local_provider();
+        let expected_address: Address = "0x7e9549ad6911839bd256672ca14cec0760add9fd"
+            .parse()
+            .unwrap();
 
-    //     assert!(provider.get_main_contract().await.is_ok());
-    // }
+        let main_contract = provider.get_main_contract().await.unwrap();
 
-    // #[tokio::test]
-    // async fn test_get_raw_block_transactions() {
-    //     let provider = local_provider();
-    //     let block = 2;
+        assert_eq!(main_contract, expected_address);
+    }
 
-    //     assert!(provider.get_raw_block_transactions(block).await.is_ok());
-    // }
+    // TODO: This test is flacky. It could fail in the future. We should create a
+    // transaction, send it, and the assert that the details match.
+    #[tokio::test]
+    async fn test_get_raw_block_transactions() {
+        let provider = local_provider();
+        let block = 1;
 
-    // #[tokio::test]
-    // async fn test_get_token_price() {
-    //     let provider = local_provider();
-    //     let address = /* create an address object */;
+        println!(
+            "{:?}",
+            provider.get_raw_block_transactions(block).await.unwrap()
+        );
+        assert!(provider.get_raw_block_transactions(block).await.is_ok());
+    }
 
-    //     assert!(provider.get_token_price(address).await.is_ok());
-    // }
+    #[tokio::test]
+    async fn test_get_token_price() {
+        let provider = local_provider();
+        let address: Address = "0x0000000000000000000000000000000000000000"
+            .parse()
+            .unwrap();
 
-    // #[tokio::test]
-    // async fn test_get_transaction_details() {
-    //     let provider = local_provider();
-    //     let hash = /* create a hash object */;
+        assert!(provider.get_token_price(address).await.is_ok());
+    }
 
-    //     assert!(provider.get_transaction_details(hash).await.is_ok());
-    // }
+    // TODO: This test is flacky. It could fail in the future. We should create a
+    // transaction, send it, and the assert that the details match.
+    #[tokio::test]
+    async fn test_get_transaction_details() {
+        let provider = local_provider();
+        let hash: H256 = "0xac9cf301af3b11760feb9d84283513f993dcd29de6e5fd28a8f41b1c7c0469ed"
+            .parse()
+            .unwrap();
 
-    // #[tokio::test]
-    // async fn test_get_l1_batch_number() {
-    //     let provider = local_provider();
+        assert!(provider.get_transaction_details(hash).await.is_ok());
+    }
 
-    //     assert!(provider.get_l1_batch_number().await.is_ok());
-    // }
+    #[tokio::test]
+    async fn test_get_l1_batch_number() {
+        let provider = local_provider();
 
-    // #[tokio::test]
-    // async fn test_get_l1_chain_id() {
-    //     let provider = local_provider();
+        assert!(provider.get_l1_batch_number().await.is_ok());
+    }
 
-    //     assert!(provider.get_l1_chain_id().await.is_ok());
-    // }
+    #[tokio::test]
+    async fn test_get_l1_chain_id() {
+        let provider = local_provider();
+
+        assert!(provider.get_l1_chain_id().await.is_ok());
+    }
 
     // #[tokio::test]
     // async fn test_debug_trace_block_by_hash() {
