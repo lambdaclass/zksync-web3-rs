@@ -52,9 +52,27 @@ pub struct PaymasterParams {
 
 impl Into<Eip712SignInput> for Eip712TransactionRequest {
     fn into(self) -> Eip712SignInput {
-        todo!()
-    }
-}
+        let mut eip712_sign_input = Eip712SignInput::default();
+
+        eip712_sign_input.tx_type = self.r#type;
+        eip712_sign_input.from = self.from;
+        eip712_sign_input.to = self.to;
+        eip712_sign_input.gas_limit = self.gas_limit;
+        eip712_sign_input.max_fee_per_gas = self.max_fee_per_gas;
+        eip712_sign_input.max_priority_fee_per_gas = self.max_priority_fee_per_gas;
+        eip712_sign_input.nonce = self.nonce;
+        eip712_sign_input.value = self.value;
+        eip712_sign_input.data = self.data;
+
+        if let Some(custom_data) = self.custom_data {
+            eip712_sign_input.factory_deps = custom_data.factory_deps;
+            eip712_sign_input.gas_per_pubdata_byte_limit =
+                Some(U256::from(utils::DEFAULT_GAS_PER_PUBDATA_LIMIT));
+            if let Some(paymaster_params) = custom_data.paymaster_params {
+                eip712_sign_input.paymaster = Some(paymaster_params.paymaster);
+                eip712_sign_input.paymaster_input = Some(paymaster_params.paymaster_input);
+            }
+        }
 
         eip712_sign_input
     }
