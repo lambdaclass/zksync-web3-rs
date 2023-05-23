@@ -32,10 +32,11 @@ pub fn hash_bytecode(bytecode: Option<Vec<Bytes>>) -> Result<[u8; 32], Eip712Err
     .try_into()
     .unwrap();
 
-    let mut contract_hash: [u8; 32] = [0; 32];
-    contract_hash[..2].clone_from_slice(&step_1);
-    contract_hash[2..4].clone_from_slice(&step_2);
-    contract_hash[4..].clone_from_slice(&step_3);
+    let contract_hash: [u8; 32] = [&step_1, &step_2, &step_3[..]]
+        .concat()
+        .to_vec()
+        .try_into()
+        .unwrap();
 
     Ok(contract_hash)
 }
