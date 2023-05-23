@@ -106,7 +106,7 @@ impl Eip712 for Eip712SignInput {
         Ok(EIP712Domain {
             name: Some(String::from("zkSync")),
             version: Some(String::from("2")),
-            chain_id: Some(U256::from(9_i32)),
+            chain_id: Some(U256::from(270_i32)),
             verifying_contract: "0xDAbb67b676F5b01FcC8997Cc8439846D0d8078ca".parse().ok(),
             salt: Some([0_u8; 32]),
         })
