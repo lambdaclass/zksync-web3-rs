@@ -1,4 +1,4 @@
-use super::{utils, Eip712SignInput};
+use super::{hash_bytecode, utils, Eip712SignInput};
 use ethers::types::{transaction::eip2930::AccessList, Address, Bytes, U256};
 use serde::{Deserialize, Serialize};
 
@@ -50,14 +50,19 @@ impl Into<Eip712SignInput> for Eip712TransactionRequest {
         eip712_sign_input.from = self.from;
         eip712_sign_input.to = self.to;
         eip712_sign_input.gas_limit = self.gas_limit;
-        eip712_sign_input.max_fee_per_gas = self.max_fee_per_gas;
-        eip712_sign_input.max_priority_fee_per_gas = self.max_priority_fee_per_gas;
+        // TODO create a new constant for default value
+        eip712_sign_input.max_fee_per_gas = self.max_fee_per_gas.or(Some(U256::from("0x0ee6b280")));
+        // TODO create a new constant for default value
+        eip712_sign_input.max_priority_fee_per_gas = self
+            .max_priority_fee_per_gas
+            .or(Some(U256::from("0x0ee6b280")));
         eip712_sign_input.nonce = self.nonce;
         eip712_sign_input.value = self.value;
         eip712_sign_input.data = self.data;
 
         if let Some(custom_data) = self.custom_data {
-            eip712_sign_input.factory_deps = custom_data.factory_deps;
+            eip712_sign_input.factory_deps =
+                Some(hash_bytecode(custom_data.factory_deps).unwrap().to_vec());
             eip712_sign_input.gas_per_pubdata_byte_limit =
                 Some(U256::from(utils::DEFAULT_GAS_PER_PUBDATA_LIMIT));
             if let Some(paymaster_params) = custom_data.paymaster_params {
