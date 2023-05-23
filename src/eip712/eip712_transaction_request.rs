@@ -39,7 +39,7 @@ pub struct Eip712Meta {
 #[serde(rename_all(serialize = "camelCase", deserialize = "camelCase"))]
 pub struct PaymasterParams {
     pub paymaster: Address,
-    pub paymaster_input: Bytes,
+    pub paymaster_input: Vec<u8>,
 }
 
 impl Into<Eip712SignInput> for Eip712TransactionRequest {
@@ -63,6 +63,13 @@ impl Into<Eip712SignInput> for Eip712TransactionRequest {
             if let Some(paymaster_params) = custom_data.paymaster_params {
                 eip712_sign_input.paymaster = Some(paymaster_params.paymaster);
                 eip712_sign_input.paymaster_input = Some(paymaster_params.paymaster_input);
+            } else {
+                eip712_sign_input.paymaster = Some(
+                    "0x0000000000000000000000000000000000000000"
+                        .parse()
+                        .unwrap(),
+                );
+                eip712_sign_input.paymaster_input = Some(vec![0]);
             }
         }
 

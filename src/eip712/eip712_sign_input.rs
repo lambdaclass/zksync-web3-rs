@@ -14,14 +14,16 @@ pub struct Eip712SignInput {
     pub gas_limit: Option<U256>,
     // NOTE: this value must be set after calling ZKSProvider::estimate_fee method.
     pub gas_per_pubdata_byte_limit: Option<U256>,
+    // TODO: This field has a default value or calculation
     pub max_fee_per_gas: Option<U256>,
+    // TODO: This field has a default value or calculation
     pub max_priority_fee_per_gas: Option<U256>,
     pub paymaster: Option<Address>,
     pub nonce: U256,
     pub value: Option<U256>,
     pub data: Option<Bytes>,
     pub factory_deps: Option<Vec<Bytes>>,
-    pub paymaster_input: Option<Bytes>,
+    pub paymaster_input: Option<Vec<u8>>,
 }
 
 impl Eip712 for Eip712SignInput {
@@ -48,13 +50,13 @@ impl Eip712 for Eip712SignInput {
     /// * The second 2 bytes denote the length of the bytecode in 32-byte words.
     /// * The rest of the 28-byte (i.e. 28 low big-endian bytes) are equal to the last 28 bytes of the sha256 hash of the contract's bytecode.
     fn struct_hash(&self) -> Result<[u8; 32], Self::Error> {
-        let step_1: [u8; 2] = 0x71_u16.to_be_bytes();
+        let step_1: [u8; 2] = 0x100_u16.to_be_bytes();
         let step_2: [u8; 2] = ((self
             .factory_deps
             .clone()
             .ok_or_else(|| return Eip712Error::FailedToEncodeStruct)?[0]
             .len()
-            % 32) as u16)
+            / 32) as u16)
             .to_be_bytes();
         let step_3: [u8; 28] = sha2::Sha256::digest(
             &self
