@@ -117,6 +117,14 @@ impl Eip712 for Eip712SignInput {
     }
 
     fn struct_hash(&self) -> Result<[u8; 32], Self::Error> {
-        todo!()
+        let types = eip712_sign_input_types();
+        let type_hash = keccak256(encode_type("zkSync", &types)?);
+        Ok(keccak256(
+            [
+                &type_hash,
+                &encode(&encode_data("zkSync", &json!(self), &types)?)[..],
+            ]
+            .concat(),
+        ))
     }
 }
