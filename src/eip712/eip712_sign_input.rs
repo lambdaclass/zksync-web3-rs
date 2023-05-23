@@ -1,8 +1,15 @@
-use ethers::types::{
-    transaction::eip712::{EIP712Domain, Eip712, Eip712Error},
-    Address, Bytes, U256,
+use ethers::{
+    abi::encode,
+    types::{
+        transaction::eip712::{
+            encode_data, encode_type, EIP712Domain, Eip712, Eip712DomainType, Eip712Error, Types,
+        },
+        Address, Bytes, U256,
+    },
+    utils::keccak256,
 };
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 #[serde(rename_all(serialize = "camelCase", deserialize = "camelCase"))]
