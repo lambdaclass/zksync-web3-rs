@@ -25,6 +25,73 @@ pub struct Eip712SignInput {
     pub paymaster_input: Option<Vec<u8>>,
 }
 
+// FIXME: Cleanup this.
+pub fn eip712_sign_input_types() -> Types {
+    let mut types = Types::new();
+
+    types.insert(
+        "zkSync".to_string(),
+        vec![
+            Eip712DomainType {
+                name: "txType".to_string(),
+                r#type: "uint256".to_string(),
+            },
+            Eip712DomainType {
+                name: "from".to_string(),
+                r#type: "address".to_string(),
+            },
+            Eip712DomainType {
+                name: "to".to_string(),
+                r#type: "address".to_string(),
+            },
+            Eip712DomainType {
+                name: "gasLimit".to_string(),
+                r#type: "uint256".to_string(),
+            },
+            Eip712DomainType {
+                name: "gasPerPubdataByteLimit".to_string(),
+                r#type: "uint256".to_string(),
+            },
+            Eip712DomainType {
+                name: "maxFeePerGas".to_string(),
+                r#type: "uint256".to_string(),
+            },
+            Eip712DomainType {
+                name: "maxPriorityFeePerGas".to_string(),
+                r#type: "uint256".to_string(),
+            },
+            Eip712DomainType {
+                name: "paymaster".to_string(),
+                r#type: "address".to_string(),
+            },
+            Eip712DomainType {
+                name: "nonce".to_string(),
+                r#type: "uint256".to_string(),
+            },
+            Eip712DomainType {
+                name: "value".to_string(),
+                r#type: "uint256".to_string(),
+            },
+            Eip712DomainType {
+                name: "data".to_string(),
+                r#type: "bytes".to_string(),
+            },
+            Eip712DomainType {
+                name: "factoryDeps".to_string(),
+                r#type: "bytes".to_string(),
+            },
+            Eip712DomainType {
+                name: "paymasterInput".to_string(),
+                r#type: "bytes".to_string(),
+            },
+        ],
+    );
+    types.insert("uint256".to_string(), Vec::new());
+    types.insert("bytes".to_string(), Vec::new());
+
+    types
+}
+
 impl Eip712 for Eip712SignInput {
     type Error = Eip712Error;
 
