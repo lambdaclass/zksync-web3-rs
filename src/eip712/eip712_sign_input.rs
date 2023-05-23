@@ -42,11 +42,6 @@ impl Eip712 for Eip712SignInput {
         todo!()
     }
 
-    /// The 32-byte hash of the bytecode of a zkSync contract is calculated in the following way:
-    ///
-    /// * The first 2 bytes denote the version of bytecode hash format and are currently equal to [1,0].
-    /// * The second 2 bytes denote the length of the bytecode in 32-byte words.
-    /// * The rest of the 28-byte (i.e. 28 low big-endian bytes) are equal to the last 28 bytes of the sha256 hash of the contract's bytecode.
     fn struct_hash(&self) -> Result<[u8; 32], Self::Error> {
         todo!()
     }
