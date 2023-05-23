@@ -15,20 +15,31 @@ use serde_json::json;
 #[serde(rename_all(serialize = "camelCase", deserialize = "camelCase"))]
 pub struct Eip712SignInput {
     pub tx_type: U256,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub from: Option<Address>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub to: Option<Address>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub gas_limit: Option<U256>,
     // NOTE: this value must be set after calling ZKSProvider::estimate_fee method.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub gas_per_pubdata_byte_limit: Option<U256>,
     // TODO: This field has a default value or calculation
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub max_fee_per_gas: Option<U256>,
     // TODO: This field has a default value or calculation
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub max_priority_fee_per_gas: Option<U256>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub paymaster: Option<Address>,
     pub nonce: U256,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub value: Option<U256>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub data: Option<Bytes>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub factory_deps: Option<Vec<u8>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub paymaster_input: Option<Vec<u8>>,
 }
 
