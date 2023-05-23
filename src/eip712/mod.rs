@@ -11,7 +11,6 @@ use sha2::Digest;
 mod utils;
 
 // TODO: Not all the fields are optional. This was copied from the JS implementation.
-// TODO: Implement From<&str> for Eip712TransactionRequest.
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 #[serde(rename_all(serialize = "camelCase", deserialize = "camelCase"))]
 pub struct Eip712TransactionRequest {
