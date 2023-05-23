@@ -128,3 +128,95 @@ impl Eip712 for Eip712SignInput {
         ))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        eip712::{
+            eip712_transaction_request::Eip712Meta,
+            utils::{DEFAULT_GAS_PER_PUBDATA_LIMIT, EIP712_TX_TYPE},
+            Eip712TransactionRequest,
+        },
+        zks_provider::ZKSProvider,
+        zks_utils::CONTRACT_DEPLOYER_ADDR,
+    };
+    use ethers::{
+        abi::encode,
+        providers::{Middleware, Provider},
+        utils::keccak256,
+    };
+
+    #[tokio::test]
+    async fn test_eip712() {
+        /* Connect to node */
+
+        let provider = Provider::try_from(format!(
+            "http://{host}:{port}",
+            host = "65.108.204.116",
+            port = 3050
+        ))
+        .unwrap();
+
+        /* Create Transaction */
+
+        let mut tx = Eip712TransactionRequest::default();
+
+        tx.r#type = EIP712_TX_TYPE.into();
+        tx.from = "0xbd29A1B981925B94eEc5c4F1125AF02a2Ec4d1cA".parse().ok();
+        tx.to = CONTRACT_DEPLOYER_ADDR.parse().ok();
+        tx.chain_id = 270.into();
+
+        // let fee = provider.estimate_fee(tx.clone()).await.unwrap();
+
+        // tx.max_priority_fee_per_gas = Some(fee.max_priority_fee_per_gas);
+        // tx.max_fee_per_gas = Some(fee.max_fee_per_gas);
+        // tx.gas_limit = Some(fee.gas_limit);
+
+        // Build data
+        let build_data = |function_signature: &str| -> eyre::Result<Vec<u8>> {
+            // See https://docs.soliditylang.org/en/latest/abi-spec.html#examples
+            // TODO: Support all kind of function calls and return cast
+            // (nowadays we only support empty function calls).
+            Ok(keccak256(function_signature.as_bytes())
+                .get(0..4)
+                .unwrap()
+                .to_vec())
+        };
+
+        tx.data = Some(build_data("create()").unwrap().into());
+
+        // Build custom data
+        let paymaster_contract = provider.get_testnet_paymaster().await.unwrap();
+        let paymaster_contract_bytecode =
+            provider.get_code(paymaster_contract, None).await.unwrap();
+
+        let mut custom_data = Eip712Meta::default();
+        custom_data.factory_deps = Some(vec![paymaster_contract_bytecode]);
+        custom_data.gas_per_pubdata = DEFAULT_GAS_PER_PUBDATA_LIMIT.into();
+
+        tx.custom_data = Some(custom_data);
+
+        /* Create Sign Input */
+
+        let mut tx_sign_input: Eip712SignInput = tx.clone().into();
+
+        tx_sign_input.gas_per_pubdata_byte_limit = Some(DEFAULT_GAS_PER_PUBDATA_LIMIT.into());
+
+        /* Testing */
+
+        let encoded_type = encode_type("zkSync", &eip712_sign_input_types()).unwrap();
+        let type_hash = keccak256(&encoded_type);
+        println!("{:?}", encoded_type);
+        println!("{:?}", type_hash);
+
+        let encoded_data =
+            encode_data("zkSync", &json!(tx_sign_input), &eip712_sign_input_types()).unwrap();
+        println!("{:?}", encoded_data);
+        println!("{:?}", encode(&encoded_data));
+
+        println!("{:?}", tx_sign_input.struct_hash().unwrap());
+
+        println!("{:?}", tx_sign_input.encode_eip712().unwrap());
+    }
+}
