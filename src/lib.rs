@@ -73,6 +73,7 @@ pub mod prelude {
 pub mod cli;
 pub mod compile;
 pub mod zks_provider;
+pub mod zks_signer;
 
 // For macro expansions only, not public API.
 #[allow(unused_extern_crates)]
