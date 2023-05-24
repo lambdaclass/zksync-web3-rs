@@ -159,6 +159,40 @@ mod tests {
     };
 
     #[tokio::test]
+    async fn test_struct_hash() {
+        let expected: [u8; 32] =
+            hex::decode("f4bbabfcf7b40908fd63b07a1db08ea2840ddf4defca49369df60f84b942b0fc")
+                .unwrap()
+                .try_into()
+                .unwrap();
+
+        // Note that I decided against using the utility constants that we have defined elsewhere
+        // in the crate because this test compares an output with an input that should be
+        // independent of any change in the zkSync Era protocol.
+        let sign_input: Eip712SignInput = Eip712SignInput {
+            tx_type: EIP712_TX_TYPE.into(),
+            from: "0x36615Cf349d7F6344891B1e7CA7C72883F5dc049".parse().ok(),
+            to: "0x0000000000000000000000000000000000008006".parse().ok(),
+            gas_limit: Some(0x02f589.into()),
+            gas_per_pubdata_byte_limit: Some(0xc350.into()),
+            max_fee_per_gas: Some(0x0ee6b280.into()),
+            max_priority_fee_per_gas: Some(0x0ee6b280.into()),
+            paymaster: "0x0000000000000000000000000000000000000000".parse().ok(),
+            nonce: 10.into(),
+            value: Some(0.into()),
+            data: Some(hex::decode("9c4d535b00000000000000000000000000000000000000000000000000000000000000000100008f4ba7acf2a15d4d159ee5f98b53b01ddccc75588290280820b725987100000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000094869207468657265210000000000000000000000000000000000000000000000").unwrap().into()),
+            factory_deps: Some(vec![ 1, 0, 0, 143, 75, 167, 172, 242, 161, 93, 77, 21, 158, 229, 249, 139, 83, 176, 29, 220, 204, 117, 88, 130, 144, 40, 8, 32, 183, 37, 152, 113 ]),
+            paymaster_input: Some(Vec::new()),
+        };
+
+        println!("sign_input = {:?}", sign_input);
+
+        let struct_hash = sign_input.struct_hash();
+        assert!(struct_hash.is_ok());
+        assert_eq!(struct_hash.unwrap(), expected);
+    }
+
+    #[tokio::test]
     async fn test_eip712() {
         /* Connect to node */
 
