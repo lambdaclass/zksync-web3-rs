@@ -4,7 +4,7 @@ use super::{
     Eip712SignInput,
 };
 use ethers::{
-    types::{transaction::eip2930::AccessList, Address, Bytes, Signature, U256},
+    types::{transaction::eip2930::AccessList, Address, Bytes, Signature, U256, U64},
     utils::rlp::{Encodable, RlpStream},
 };
 use serde::{Deserialize, Serialize};
@@ -58,11 +58,18 @@ impl Eip712TransactionRequest {
         rlp_opt(&mut stream, &self.data.clone().map(|d| d.0));
         if let Some(signature) = signature {
             // 7
-            stream.append(&signature.v);
+            stream.append(&U64::from(signature.v));
             // 8
             stream.append(&signature.r);
             // 9
             stream.append(&signature.s);
+        } else {
+            // 7, 8, 9 must be set even if no signature is provided.
+            // This should be the case of transaction that have a
+            // custom signature set.
+            stream.append(&"");
+            stream.append(&"");
+            stream.append(&"");
         }
         // 10
         stream.append(&self.chain_id);
@@ -97,8 +104,9 @@ impl Into<Eip712SignInput> for Eip712TransactionRequest {
         eip712_sign_input.data = self.data;
 
         if let Some(custom_data) = self.custom_data {
-            eip712_sign_input.factory_deps =
-                Some(hash_bytecode(custom_data.factory_deps).unwrap().to_vec());
+            eip712_sign_input.factory_deps = Some(vec![hash_bytecode(custom_data.factory_deps)
+                .unwrap()
+                .into()]);
             eip712_sign_input.gas_per_pubdata_byte_limit =
                 Some(U256::from(utils::DEFAULT_GAS_PER_PUBDATA_LIMIT));
             if let Some(paymaster_params) = custom_data.paymaster_params {

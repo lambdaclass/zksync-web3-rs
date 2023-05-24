@@ -1,10 +1,11 @@
+use ethers::types::{transaction::eip712::Eip712Error, Bytes};
+use sha2::Digest;
+
 mod eip712_transaction_request;
 pub use eip712_transaction_request::Eip712TransactionRequest;
 
 mod eip712_sign_input;
 pub use eip712_sign_input::Eip712SignInput;
-use ethers::types::{transaction::eip712::Eip712Error, Bytes};
-use sha2::Digest;
 
 mod utils;
 
@@ -71,11 +72,14 @@ mod tests {
         tx.custom_data = Some(custom_data);
         let tx_sign_input: Eip712SignInput = tx.into();
 
-        let expected_bytecode_hash = [
+        let expected_bytecode_hash = Bytes::from([
             1, 0, 0, 143, 75, 167, 172, 242, 161, 93, 77, 21, 158, 229, 249, 139, 83, 176, 29, 220,
             204, 117, 88, 130, 144, 40, 8, 32, 183, 37, 152, 113,
-        ];
-        assert_eq!(tx_sign_input.factory_deps.unwrap(), expected_bytecode_hash);
+        ]);
+        assert_eq!(
+            tx_sign_input.factory_deps.unwrap(),
+            vec![expected_bytecode_hash]
+        );
     }
 
     // #[tokio::test]
@@ -337,7 +341,7 @@ mod tests {
         println!(
             "{:?}",
             provider
-                .send_raw_transaction(signature.to_vec().into())
+                .send_raw_transaction(Bytes::from([&[0x71], &signature.to_vec()[..]].concat()))
                 .await
                 .unwrap()
         );
