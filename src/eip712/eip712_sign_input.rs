@@ -39,7 +39,7 @@ pub struct Eip712SignInput {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub data: Option<Bytes>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub factory_deps: Option<Vec<u8>>,
+    pub factory_deps: Option<Vec<Bytes>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub paymaster_input: Option<Vec<u8>>,
 }
@@ -49,7 +49,7 @@ pub fn eip712_sign_input_types() -> Types {
     let mut types = Types::new();
 
     types.insert(
-        "zkSync".to_string(),
+        "Transaction".to_string(),
         vec![
             Eip712DomainType {
                 name: "txType".to_string(),
@@ -57,11 +57,11 @@ pub fn eip712_sign_input_types() -> Types {
             },
             Eip712DomainType {
                 name: "from".to_string(),
-                r#type: "address".to_string(),
+                r#type: "uint256".to_string(),
             },
             Eip712DomainType {
                 name: "to".to_string(),
-                r#type: "address".to_string(),
+                r#type: "uint256".to_string(),
             },
             Eip712DomainType {
                 name: "gasLimit".to_string(),
@@ -81,7 +81,7 @@ pub fn eip712_sign_input_types() -> Types {
             },
             Eip712DomainType {
                 name: "paymaster".to_string(),
-                r#type: "address".to_string(),
+                r#type: "uint256".to_string(),
             },
             Eip712DomainType {
                 name: "nonce".to_string(),
@@ -97,7 +97,7 @@ pub fn eip712_sign_input_types() -> Types {
             },
             Eip712DomainType {
                 name: "factoryDeps".to_string(),
-                r#type: "bytes".to_string(),
+                r#type: "bytes32[]".to_string(),
             },
             Eip712DomainType {
                 name: "paymasterInput".to_string(),
@@ -107,6 +107,7 @@ pub fn eip712_sign_input_types() -> Types {
     );
     types.insert("uint256".to_string(), Vec::new());
     types.insert("bytes".to_string(), Vec::new());
+    types.insert("bytes32[]".to_string(), Vec::new());
 
     types
 }
@@ -126,7 +127,7 @@ impl Eip712 for Eip712SignInput {
 
     fn type_hash() -> Result<[u8; 32], Self::Error> {
         Ok(keccak256(encode_type(
-            "zkSync",
+            "Transaction",
             &eip712_sign_input_types(),
         )?))
     }
@@ -137,7 +138,7 @@ impl Eip712 for Eip712SignInput {
             [
                 &type_hash,
                 &encode(&encode_data(
-                    "zkSync",
+                    "Transaction",
                     &json!(self),
                     &eip712_sign_input_types(),
                 )?)[..],
