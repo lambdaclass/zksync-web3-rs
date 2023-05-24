@@ -76,6 +76,5 @@ pub(crate) async fn run(args: Pay, config: ZKSyncWeb3Config) -> eyre::Result<()>
         "Receiver's balance after getting payed: {:?}",
         provider.get_balance(args.to, None).await?
     );
-
     Ok(())
 }
