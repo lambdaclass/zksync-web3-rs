@@ -5,7 +5,7 @@ use super::{
 };
 use ethers::{
     types::{transaction::eip2930::AccessList, Address, Bytes, Signature, U256},
-    utils::rlp::Encodable,
+    utils::rlp::{Encodable, RlpStream},
 };
 use serde::{Deserialize, Serialize};
 
@@ -27,6 +27,55 @@ pub struct Eip712TransactionRequest {
     pub max_fee_per_gas: Option<U256>,
     pub custom_data: Option<Eip712Meta>,
     pub ccip_read_enabled: Option<bool>,
+}
+
+impl Eip712TransactionRequest {
+    pub fn rlp_unsigned(&self) -> Bytes {
+        self.rlp(None)
+    }
+
+    pub fn rlp_signed(&self, signature: Signature) -> Bytes {
+        self.rlp(Some(signature))
+    }
+
+    pub fn rlp(&self, signature: Option<Signature>) -> Bytes {
+        let mut stream = RlpStream::new();
+        stream.begin_unbounded_list();
+
+        // 0
+        stream.append(&self.nonce);
+        // 1
+        rlp_opt(&mut stream, &self.max_priority_fee_per_gas);
+        // 2
+        rlp_opt(&mut stream, &self.max_fee_per_gas);
+        // 3 (supped to be gas)
+        rlp_opt(&mut stream, &self.gas_limit);
+        // 4
+        rlp_opt(&mut stream, &self.to);
+        // 5
+        rlp_opt(&mut stream, &self.value);
+        // 6
+        rlp_opt(&mut stream, &self.data.clone().map(|d| d.0));
+        if let Some(signature) = signature {
+            // 7
+            stream.append(&signature.v);
+            // 8
+            stream.append(&signature.r);
+            // 9
+            stream.append(&signature.s);
+        }
+        // 10
+        stream.append(&self.chain_id);
+        // 11
+        rlp_opt(&mut stream, &self.from);
+        if let Some(meta) = &self.custom_data {
+            // 12, 13, 14, 15
+            meta.rlp_append(&mut stream);
+        }
+
+        stream.finalize_unbounded_list();
+        stream.out().freeze().into()
+    }
 }
 
 impl Into<Eip712SignInput> for Eip712TransactionRequest {
@@ -66,44 +115,6 @@ impl Into<Eip712SignInput> for Eip712TransactionRequest {
         }
 
         eip712_sign_input
-    }
-}
-
-impl Encodable for Eip712TransactionRequest {
-    fn rlp_append(&self, stream: &mut ethers::utils::rlp::RlpStream) {
-        // 0
-        stream.append(&self.nonce);
-        // 1
-        rlp_opt(stream, &self.max_priority_fee_per_gas);
-        // 2
-        rlp_opt(stream, &self.max_fee_per_gas);
-        // 3 (supped to be gas)
-        rlp_opt(stream, &self.gas_limit);
-        // 4
-        rlp_opt(stream, &self.to);
-        // 5
-        rlp_opt(stream, &self.value);
-        // 6
-        rlp_opt(stream, &self.data.clone().map(|d| d.0));
-        if let Some(custom_data) = &self.custom_data {
-            if let Some(custom_signature_bytes) = &custom_data.custom_signature {
-                let custom_signature =
-                    Signature::try_from(&custom_signature_bytes.to_vec()[..]).unwrap();
-                // 7
-                stream.append(&custom_signature.v);
-                // 8
-                stream.append(&custom_signature.r);
-                // 9
-                stream.append(&custom_signature.s);
-            }
-        }
-        // 10
-        stream.append(&self.chain_id);
-        // 11
-        rlp_opt(stream, &self.from);
-        if let Some(meta) = &self.custom_data {
-            meta.rlp_append(stream);
-        }
     }
 }
 
