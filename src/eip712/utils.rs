@@ -1,4 +1,4 @@
-pub const EIP712_TX_TYPE: u64 = 0x71;
+pub const EIP712_TX_TYPE: u8 = 0x71;
 pub const PRIORITY_OPERATION_L2_TX_TYPE: u64 = 0xff;
 
 // The large L2 gas per pubdata to sign. This gas is enough to ensure that
