@@ -1,5 +1,12 @@
-use super::{hash_bytecode, utils, Eip712SignInput};
-use ethers::types::{transaction::eip2930::AccessList, Address, Bytes, U256};
+use super::{
+    hash_bytecode,
+    utils::{self, rlp_opt},
+    Eip712SignInput,
+};
+use ethers::{
+    types::{transaction::eip2930::AccessList, Address, Bytes, Signature, U256},
+    utils::rlp::Encodable,
+};
 use serde::{Deserialize, Serialize};
 
 // TODO: Not all the fields are optional. This was copied from the JS implementation.
@@ -20,26 +27,6 @@ pub struct Eip712TransactionRequest {
     pub max_fee_per_gas: Option<U256>,
     pub custom_data: Option<Eip712Meta>,
     pub ccip_read_enabled: Option<bool>,
-}
-
-// TODO: Implement Default for Eip712TransactionRequest.
-// impl Default for Eip712TransactionRequest {}
-#[derive(Serialize, Deserialize, Clone, Debug, Default)]
-#[serde(rename_all(serialize = "camelCase", deserialize = "camelCase"))]
-pub struct Eip712Meta {
-    pub gas_per_pubdata: U256,
-    pub factory_deps: Option<Vec<Bytes>>,
-    // TODO: Is this field optional?
-    pub custom_signature: Option<Bytes>,
-    // TODO: Is this field optional?
-    pub paymaster_params: Option<PaymasterParams>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-#[serde(rename_all(serialize = "camelCase", deserialize = "camelCase"))]
-pub struct PaymasterParams {
-    pub paymaster: Address,
-    pub paymaster_input: Vec<u8>,
 }
 
 impl Into<Eip712SignInput> for Eip712TransactionRequest {
@@ -79,5 +66,91 @@ impl Into<Eip712SignInput> for Eip712TransactionRequest {
         }
 
         eip712_sign_input
+    }
+}
+
+impl Encodable for Eip712TransactionRequest {
+    fn rlp_append(&self, stream: &mut ethers::utils::rlp::RlpStream) {
+        // 0
+        stream.append(&self.nonce);
+        // 1
+        rlp_opt(stream, &self.max_priority_fee_per_gas);
+        // 2
+        rlp_opt(stream, &self.max_fee_per_gas);
+        // 3 (supped to be gas)
+        rlp_opt(stream, &self.gas_limit);
+        // 4
+        rlp_opt(stream, &self.to);
+        // 5
+        rlp_opt(stream, &self.value);
+        // 6
+        rlp_opt(stream, &self.data.clone().map(|d| d.0));
+        if let Some(custom_data) = &self.custom_data {
+            if let Some(custom_signature_bytes) = &custom_data.custom_signature {
+                let custom_signature =
+                    Signature::try_from(&custom_signature_bytes.to_vec()[..]).unwrap();
+                // 7
+                stream.append(&custom_signature.v);
+                // 8
+                stream.append(&custom_signature.r);
+                // 9
+                stream.append(&custom_signature.s);
+            }
+        }
+        // 10
+        stream.append(&self.chain_id);
+        // 11
+        rlp_opt(stream, &self.from);
+        if let Some(meta) = &self.custom_data {
+            meta.rlp_append(stream);
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[serde(rename_all(serialize = "camelCase", deserialize = "camelCase"))]
+pub struct Eip712Meta {
+    pub gas_per_pubdata: U256,
+    pub factory_deps: Option<Vec<Bytes>>,
+    pub custom_signature: Option<Bytes>,
+    pub paymaster_params: Option<PaymasterParams>,
+}
+
+impl Encodable for Eip712Meta {
+    fn rlp_append(&self, stream: &mut ethers::utils::rlp::RlpStream) {
+        // 12
+        stream.append(&self.gas_per_pubdata);
+        // 13
+        if let Some(factory_deps) = &self.factory_deps {
+            stream.begin_list(factory_deps.len());
+            for dep in factory_deps.iter() {
+                stream.append(&dep.to_vec());
+            }
+        } else {
+            stream.begin_list(0);
+        }
+        // 14
+        rlp_opt(stream, &self.custom_signature.clone().map(|s| s.to_vec()));
+        // 15
+        if let Some(paymaster_params) = &self.paymaster_params {
+            paymaster_params.rlp_append(stream);
+        } else {
+            stream.begin_list(0);
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all(serialize = "camelCase", deserialize = "camelCase"))]
+pub struct PaymasterParams {
+    pub paymaster: Address,
+    pub paymaster_input: Vec<u8>,
+}
+
+impl Encodable for PaymasterParams {
+    fn rlp_append(&self, stream: &mut ethers::utils::rlp::RlpStream) {
+        stream.begin_list(2);
+        stream.append(&self.paymaster.as_bytes());
+        stream.append(&self.paymaster_input);
     }
 }
