@@ -38,7 +38,7 @@ pub struct Eip712SignInput {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub data: Option<Bytes>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub factory_deps: Option<Vec<u8>>,
+    pub factory_deps: Option<Vec<Bytes>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub paymaster_input: Option<Vec<u8>>,
 }
@@ -56,11 +56,11 @@ pub fn eip712_sign_input_types() -> Types {
             },
             Eip712DomainType {
                 name: "from".to_string(),
-                r#type: "address".to_string(),
+                r#type: "uint256".to_string(),
             },
             Eip712DomainType {
                 name: "to".to_string(),
-                r#type: "address".to_string(),
+                r#type: "uint256".to_string(),
             },
             Eip712DomainType {
                 name: "gasLimit".to_string(),
@@ -80,7 +80,7 @@ pub fn eip712_sign_input_types() -> Types {
             },
             Eip712DomainType {
                 name: "paymaster".to_string(),
-                r#type: "address".to_string(),
+                r#type: "uint256".to_string(),
             },
             Eip712DomainType {
                 name: "nonce".to_string(),
@@ -96,7 +96,7 @@ pub fn eip712_sign_input_types() -> Types {
             },
             Eip712DomainType {
                 name: "factoryDeps".to_string(),
-                r#type: "bytes".to_string(),
+                r#type: "bytes32[]".to_string(),
             },
             Eip712DomainType {
                 name: "paymasterInput".to_string(),
@@ -181,11 +181,9 @@ mod tests {
             nonce: 10.into(),
             value: Some(0.into()),
             data: Some(hex::decode("9c4d535b00000000000000000000000000000000000000000000000000000000000000000100008f4ba7acf2a15d4d159ee5f98b53b01ddccc75588290280820b725987100000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000094869207468657265210000000000000000000000000000000000000000000000").unwrap().into()),
-            factory_deps: Some(vec![ 1, 0, 0, 143, 75, 167, 172, 242, 161, 93, 77, 21, 158, 229, 249, 139, 83, 176, 29, 220, 204, 117, 88, 130, 144, 40, 8, 32, 183, 37, 152, 113 ]),
+            factory_deps: Some(vec![Bytes::from([ 1, 0, 0, 143, 75, 167, 172, 242, 161, 93, 77, 21, 158, 229, 249, 139, 83, 176, 29, 220, 204, 117, 88, 130, 144, 40, 8, 32, 183, 37, 152, 113 ])]),
             paymaster_input: Some(Vec::new()),
         };
-
-        println!("sign_input = {:?}", sign_input);
 
         let struct_hash = sign_input.struct_hash();
         assert!(struct_hash.is_ok());
