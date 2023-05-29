@@ -13,19 +13,30 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 #[serde(rename_all(serialize = "camelCase", deserialize = "camelCase"))]
 pub struct Eip712TransactionRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub to: Option<Address>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub from: Option<Address>,
     pub nonce: U256,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub gas_limit: Option<U256>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub gas_price: Option<U256>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub data: Option<Bytes>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub value: Option<U256>,
     pub chain_id: U256,
     pub r#type: U256,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub access_list: Option<AccessList>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub max_priority_fee_per_gas: Option<U256>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub max_fee_per_gas: Option<U256>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub custom_data: Option<Eip712Meta>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub ccip_read_enabled: Option<bool>,
 }
 
@@ -118,7 +129,8 @@ impl Into<Eip712SignInput> for Eip712TransactionRequest {
                         .parse()
                         .unwrap(),
                 );
-                eip712_sign_input.paymaster_input = Some(vec![0]);
+                // TODO: This default seems to be wrong.
+                eip712_sign_input.paymaster_input = Some(Bytes::default());
             }
         }
 
@@ -163,13 +175,13 @@ impl Encodable for Eip712Meta {
 #[serde(rename_all(serialize = "camelCase", deserialize = "camelCase"))]
 pub struct PaymasterParams {
     pub paymaster: Address,
-    pub paymaster_input: Vec<u8>,
+    pub paymaster_input: Bytes,
 }
 
 impl Encodable for PaymasterParams {
     fn rlp_append(&self, stream: &mut ethers::utils::rlp::RlpStream) {
         stream.begin_list(2);
         stream.append(&self.paymaster.as_bytes());
-        stream.append(&self.paymaster_input);
+        stream.append(&self.paymaster_input.to_vec());
     }
 }
