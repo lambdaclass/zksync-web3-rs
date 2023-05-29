@@ -153,7 +153,7 @@ mod tests {
     use super::*;
     use crate::{
         eip712::{
-            eip712_transaction_request::{Eip712Meta, PaymasterParams},
+            eip712_transaction_request::Eip712Meta,
             utils::{DEFAULT_GAS_PER_PUBDATA_LIMIT, EIP712_TX_TYPE},
             Eip712TransactionRequest,
         },
@@ -166,10 +166,7 @@ mod tests {
         signers::Signer,
         signers::Wallet,
         types::Signature,
-        utils::{
-            keccak256,
-            rlp::{Encodable, Rlp, RlpStream},
-        },
+        utils::{keccak256, rlp::Rlp},
     };
 
     #[tokio::test]
@@ -257,12 +254,7 @@ mod tests {
             let signature_bytes = Bytes::from(signature.to_vec());
             custom_data.custom_signature = Some(signature_bytes);
 
-            let mut stream = RlpStream::new();
-            stream.begin_unbounded_list();
-            tx.rlp_append(&mut stream);
-            stream.finalize_unbounded_list();
-            let rlp_encoded = stream.out().freeze();
-
+            let rlp_encoded = tx.rlp_unsigned();
             let rlp = Rlp::new(&rlp_encoded);
 
             println!("RLP ITEM COUNT: {:?}", rlp.item_count());

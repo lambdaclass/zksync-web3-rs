@@ -71,11 +71,14 @@ mod tests {
         tx.custom_data = Some(custom_data);
         let tx_sign_input: Eip712SignInput = tx.into();
 
-        let expected_bytecode_hash = [
+        let expected_bytecode_hash = Bytes::from([
             1, 0, 0, 143, 75, 167, 172, 242, 161, 93, 77, 21, 158, 229, 249, 139, 83, 176, 29, 220,
             204, 117, 88, 130, 144, 40, 8, 32, 183, 37, 152, 113,
-        ];
-        assert_eq!(tx_sign_input.factory_deps.unwrap(), expected_bytecode_hash);
+        ]);
+        assert_eq!(
+            tx_sign_input.factory_deps.unwrap(),
+            vec![expected_bytecode_hash]
+        );
     }
 
     // #[tokio::test]

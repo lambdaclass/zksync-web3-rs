@@ -97,8 +97,9 @@ impl Into<Eip712SignInput> for Eip712TransactionRequest {
         eip712_sign_input.data = self.data;
 
         if let Some(custom_data) = self.custom_data {
-            eip712_sign_input.factory_deps =
-                Some(hash_bytecode(custom_data.factory_deps).unwrap().to_vec());
+            eip712_sign_input.factory_deps = Some(vec![Bytes::from(
+                hash_bytecode(custom_data.factory_deps).unwrap(),
+            )]);
             eip712_sign_input.gas_per_pubdata_byte_limit =
                 Some(U256::from(utils::DEFAULT_GAS_PER_PUBDATA_LIMIT));
             if let Some(paymaster_params) = custom_data.paymaster_params {
