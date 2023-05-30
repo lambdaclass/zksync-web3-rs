@@ -2,7 +2,7 @@ use ethers::types::{transaction::eip712::Eip712Error, Bytes};
 use sha2::Digest;
 
 mod eip712_transaction_request;
-pub use eip712_transaction_request::Eip712TransactionRequest;
+pub use eip712_transaction_request::{Eip712Meta, Eip712TransactionRequest, PaymasterParams};
 
 mod eip712_sign_input;
 pub use eip712_sign_input::Eip712SignInput;
@@ -14,30 +14,27 @@ mod utils;
 /// * The first 2 bytes denote the version of bytecode hash format and are currently equal to [1,0].
 /// * The second 2 bytes denote the length of the bytecode in 32-byte words.
 /// * The rest of the 28-byte (i.e. 28 low big-endian bytes) are equal to the last 28 bytes of the sha256 hash of the contract's bytecode.
-pub fn hash_bytecode(bytecode: Option<Vec<Bytes>>) -> Result<[u8; 32], Eip712Error> {
-    let step_1: [u8; 2] = 0x100_u16.to_be_bytes();
-    let step_2: [u8; 2] = ((bytecode
-        .clone()
-        .ok_or_else(|| return Eip712Error::FailedToEncodeStruct)?[0]
-        .len()
-        / 32) as u16)
-        .to_be_bytes();
-    let step_3: [u8; 28] = sha2::Sha256::digest(
-        &bytecode
-            .clone()
-            .ok_or_else(|| return Eip712Error::FailedToEncodeStruct)?[0],
-    )
-    .into_iter()
-    .skip(4)
-    .collect::<Vec<u8>>()
-    .try_into()
-    .unwrap();
+pub fn hash_bytecode(bytecode: &Bytes) -> Result<[u8; 32], Eip712Error> {
+    let step_1: [u8; 2] = 0x0100_u16.to_be_bytes();
+    let step_2: [u8; 2] = ((bytecode.len() / 32) as u16).to_be_bytes();
+    let step_3: [u8; 28] = sha2::Sha256::digest(bytecode)
+        .iter()
+        .skip(4)
+        .copied()
+        .collect::<Vec<u8>>()
+        .try_into()
+        .map_err(|e| {
+            Eip712Error::Message(format!(
+                "Failed to digest last 28 bytes of bytecode's sha256 hash: {e:?}"
+            ))
+        })?;
 
     let contract_hash: [u8; 32] = [&step_1, &step_2, &step_3[..]]
         .concat()
-        .to_vec()
         .try_into()
-        .unwrap();
+        .map_err(|e| {
+            Eip712Error::Message(format!("Algorithm's steps concatenation failed: {e:?}"))
+        })?;
 
     Ok(contract_hash)
 }
