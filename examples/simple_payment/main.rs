@@ -30,7 +30,11 @@ struct Args {
     pub to: Address,
     #[clap(long, name = "SENDER_PRIVATE_KEY")]
     pub private_key: Wallet<SigningKey>,
-    #[clap(long, name = "NETWORK_NAME", help = "Available networks: \"era\" or \"eth\"")]
+    #[clap(
+        long,
+        name = "NETWORK_NAME",
+        help = "Available networks: \"era\" or \"eth\""
+    )]
     pub network: String,
 }
 
