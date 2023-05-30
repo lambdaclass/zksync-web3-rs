@@ -128,18 +128,12 @@ impl Eip712 for Eip712SignInput {
     }
 
     fn struct_hash(&self) -> Result<[u8; 32], Self::Error> {
-        Ok(keccak256(encode_data("Transaction", &json!(self), &eip712_sign_input_types())?))
-        // Ok(keccak256(
-        //     [
-        //         // &Self::type_hash()?,
-        //         &encode(&encode_data(
-        //             "Transaction",
-        //             &json!(self),
-        //             &eip712_sign_input_types(),
-        //         )?)[..],
-        //     ]
-        //     .concat(),
-        // ))
+        let hash = keccak256(encode(&encode_data(
+            "Transaction",
+            &json!(self),
+            &eip712_sign_input_types(),
+        )?));
+        Ok(hash)
     }
 }
 
