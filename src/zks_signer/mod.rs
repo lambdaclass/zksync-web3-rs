@@ -1,12 +1,21 @@
-use crate::zks_provider::ZKSProvider;
+use crate::{
+    eip712::{
+        hash_bytecode, Eip712Meta, Eip712SignInput, Eip712TransactionRequest, PaymasterParams,
+    },
+    zks_provider::ZKSProvider,
+    zks_utils::{
+        CONTRACT_DEPLOYER_ADDR, DEFAULT_GAS_PER_PUBDATA_LIMIT, EIP712_TX_TYPE, ERA_CHAIN_ID,
+    },
+};
 use async_trait::async_trait;
 use ethers::{
-    prelude::{signer::SignerMiddlewareError, SignerMiddleware},
+    abi::{Param, ParamType, Tokenizable},
+    prelude::{encode_function_data, signer::SignerMiddlewareError, AbiError, SignerMiddleware},
     providers::{Middleware, ProviderError},
-    signers::Signer,
+    signers::{Signer, WalletError},
     types::{
-        transaction::eip2718::TypedTransaction, Address, Eip1559TransactionRequest,
-        TransactionReceipt, U256,
+        transaction::{eip2718::TypedTransaction, eip712::Eip712Error},
+        Address, Bytes, Eip1559TransactionRequest, Signature, TransactionReceipt, U256,
     },
 };
 
@@ -20,6 +29,12 @@ where
     ProviderError(#[from] ProviderError),
     #[error("Middleware error: {0}")]
     MiddlewareError(#[from] SignerMiddlewareError<M, S>),
+    #[error("Wallet error: {0}")]
+    WalletError(#[from] WalletError),
+    #[error("ABI error: {0}")]
+    AbiError(#[from] AbiError),
+    #[error("EIP712 error: {0}")]
+    Eip712Error(#[from] Eip712Error),
     #[error("{0}")]
     CustomError(String),
 }
@@ -57,6 +72,108 @@ where
 
         // TODO: add block as an override.
         let pending_transaction = self.send_transaction(transaction, None).await?;
+
+        // TODO: Should we wait here for the transaction to be confirmed on-chain?
+
+        pending_transaction
+            .await?
+            .ok_or(ZKSSignerError::CustomError(
+                "no transaction receipt".to_string(),
+            ))
+    }
+
+    async fn deploy(
+        &self,
+        contract_bytecode: Bytes,
+        contract_dependencies: Vec<Bytes>,
+    ) -> Result<TransactionReceipt, ZKSSignerError<M, S>>
+    where
+        Self: Middleware + Signer + ZKSProvider + Sized,
+        ZKSSignerError<M, S>: From<<Self as Signer>::Error> + From<<Self as Middleware>::Error>,
+    {
+        let mut deploy_request = Eip712TransactionRequest::default();
+
+        deploy_request.r#type = EIP712_TX_TYPE.into();
+        deploy_request.from = Some(self.default_sender().ok_or_else(|| {
+            return ZKSSignerError::CustomError("no default sender".to_string());
+        })?);
+        deploy_request.to = CONTRACT_DEPLOYER_ADDR.parse().ok();
+        deploy_request.chain_id = ERA_CHAIN_ID.into();
+        deploy_request.nonce = self
+            .get_transaction_count(deploy_request.from.unwrap(), None)
+            .await
+            .unwrap();
+        deploy_request.gas_price = self.get_gas_price().await.unwrap();
+
+        deploy_request.data = {
+            let create = ethers::abi::Function {
+                name: "create".to_owned(),
+                inputs: vec![
+                    Param {
+                        name: "salt".to_owned(),
+                        kind: ParamType::FixedBytes(32),
+                        internal_type: None,
+                    },
+                    Param {
+                        name: "bytecode".to_owned(),
+                        kind: ParamType::Bytes,
+                        internal_type: None,
+                    },
+                    Param {
+                        name: "call_data".to_owned(),
+                        kind: ParamType::Bytes,
+                        internal_type: None,
+                    },
+                ],
+                outputs: vec![],
+                state_mutability: ethers::abi::StateMutability::View,
+                constant: None,
+            };
+
+            // TODO: User could provide this instead of defaulting.
+            let salt = [0_u8; 32].into_token();
+            let bytecode_hash = hash_bytecode(&contract_bytecode)?.into_token();
+            // TODO: User could provide this instead of defaulting.
+            let call_data = Bytes::default().into_token();
+
+            encode_function_data(&create, [salt, bytecode_hash, call_data]).ok()
+        };
+
+        deploy_request.custom_data = {
+            let mut custom_data = Eip712Meta::default();
+            custom_data.factory_deps = {
+                let mut factory_deps = vec![contract_bytecode];
+                factory_deps.extend(contract_dependencies);
+                Some(factory_deps)
+            };
+            // TODO: User could provide this instead of defaulting.
+            custom_data.gas_per_pubdata = DEFAULT_GAS_PER_PUBDATA_LIMIT.into();
+            // TODO: User could provide this instead of defaulting.
+            custom_data.paymaster_params = Some(PaymasterParams::default());
+            Some(custom_data)
+        };
+
+        let fee = self.estimate_fee(deploy_request.clone()).await.unwrap();
+        deploy_request.max_priority_fee_per_gas = Some(fee.max_priority_fee_per_gas);
+        deploy_request.max_fee_per_gas = Some(fee.max_fee_per_gas);
+        deploy_request.gas_limit = Some(fee.gas_limit);
+
+        /* Create Sign Input */
+
+        let signable_data: Eip712SignInput = deploy_request.clone().into();
+
+        if let Some(custom_data) = &mut deploy_request.custom_data {
+            let signature: Signature = self.sign_typed_data(&signable_data).await?;
+            custom_data.custom_signature = Some(Bytes::from(signature.to_vec()));
+        }
+
+        let pending_transaction = self
+            .send_raw_transaction(
+                [&[EIP712_TX_TYPE], &deploy_request.rlp_unsigned()[..]]
+                    .concat()
+                    .into(),
+            )
+            .await?;
 
         // TODO: Should we wait here for the transaction to be confirmed on-chain?
 
