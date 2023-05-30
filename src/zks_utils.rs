@@ -1,3 +1,9 @@
+/* Misc */
+
+pub const ERA_CHAIN_ID: u16 = 0x10E;
+
+/* Contracts */
+
 pub const CHAIN_STATE_KEEPER_BOOTLOADER_HASH: &str =
     "0x0100038581be3d0e201b3cc45d151ef5cc59eb3a0f146ad44f0f72abf00b594c";
 pub const CHAIN_STATE_KEEPER_DEFAULT_AA_HASH: &str =
