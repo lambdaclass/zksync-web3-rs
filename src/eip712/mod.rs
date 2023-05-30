@@ -7,6 +7,9 @@ pub use eip712_transaction_request::{Eip712Meta, Eip712TransactionRequest, Payma
 mod eip712_sign_input;
 pub use eip712_sign_input::Eip712SignInput;
 
+mod transaction_request_builder;
+pub use transaction_request_builder::Eip712TransactionRequestBuilder;
+
 mod utils;
 
 /// The 32-byte hash of the bytecode of a zkSync contract is calculated in the following way:
