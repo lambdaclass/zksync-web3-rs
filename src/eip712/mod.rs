@@ -1,10 +1,11 @@
+use ethers::types::{transaction::eip712::Eip712Error, Bytes};
+use sha2::Digest;
+
 mod eip712_transaction_request;
 pub use eip712_transaction_request::Eip712TransactionRequest;
 
 mod eip712_sign_input;
 pub use eip712_sign_input::Eip712SignInput;
-use ethers::types::{transaction::eip712::Eip712Error, Bytes};
-use sha2::Digest;
 
 mod utils;
 
@@ -271,8 +272,8 @@ mod tests {
             to: "0xa61464658AfeAf65CccaaFD3a512b69A83B77618".parse().ok(),
             nonce: U256::default(),
             gas_limit: None,
-            gas_price: None,
-            value: None,
+            gas_price: U256::default(),
+            value: U256::default(),
             data: None,
             // TODO: Use the constant.
             chain_id: 270.into(),
@@ -340,7 +341,7 @@ mod tests {
         println!(
             "{:?}",
             provider
-                .send_raw_transaction(signature.to_vec().into())
+                .send_raw_transaction(Bytes::from([&[0x71], &signature.to_vec()[..]].concat()))
                 .await
                 .unwrap()
         );
