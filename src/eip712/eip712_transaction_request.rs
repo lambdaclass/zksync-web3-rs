@@ -169,7 +169,7 @@ impl Encodable for Eip712Meta {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 #[serde(rename_all(serialize = "camelCase", deserialize = "camelCase"))]
 pub struct PaymasterParams {
     pub paymaster: Address,
