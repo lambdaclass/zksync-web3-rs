@@ -3,7 +3,7 @@ use ethers::{
     prelude::SignerMiddleware,
     providers::{JsonRpcClient, Middleware, Provider, ProviderError},
     signers::Signer,
-    types::{Address, H256, U256},
+    types::{Address, Trace, H256, U256},
 };
 use serde::Serialize;
 use serde_json::json;
@@ -122,14 +122,14 @@ pub trait ZKSProvider {
     async fn debug_trace_block_by_hash(
         &self,
         hash: H256,
-        options: TracerConfig,
+        options: Option<TracerConfig>,
     ) -> Result<DebugTrace, ProviderError>;
 
     /// Returns debug trace of all executed calls contained in a block given by its L2 block number.
     async fn debug_trace_block_by_number(
         &self,
         block: U256,
-        options: TracerConfig,
+        options: Option<TracerConfig>,
     ) -> Result<DebugTrace, ProviderError>;
 
     /// Returns debug trace containing information on a specific calls given by the call request.
@@ -137,7 +137,7 @@ pub trait ZKSProvider {
         &self,
         request: T,
         block: U256,
-        options: TracerConfig,
+        options: Option<TracerConfig>,
     ) -> Result<DebugTrace, ProviderError>
     where
         T: Debug + Serialize + Send + Sync;
@@ -146,7 +146,7 @@ pub trait ZKSProvider {
     async fn debug_trace_transaction(
         &self,
         hash: H256,
-        options: TracerConfig,
+        options: Option<TracerConfig>,
     ) -> Result<DebugTrace, ProviderError>;
 }
 
@@ -260,7 +260,7 @@ impl<M: Middleware + ZKSProvider, S: Signer> ZKSProvider for SignerMiddleware<M,
     async fn debug_trace_block_by_hash(
         &self,
         hash: H256,
-        options: TracerConfig,
+        options: Option<TracerConfig>,
     ) -> Result<DebugTrace, ProviderError> {
         ZKSProvider::debug_trace_block_by_hash(self.inner(), hash, options).await
     }
@@ -268,7 +268,7 @@ impl<M: Middleware + ZKSProvider, S: Signer> ZKSProvider for SignerMiddleware<M,
     async fn debug_trace_block_by_number(
         &self,
         block: U256,
-        options: TracerConfig,
+        options: Option<TracerConfig>,
     ) -> Result<DebugTrace, ProviderError> {
         ZKSProvider::debug_trace_block_by_number(self.inner(), block, options).await
     }
@@ -277,7 +277,7 @@ impl<M: Middleware + ZKSProvider, S: Signer> ZKSProvider for SignerMiddleware<M,
         &self,
         request: T,
         block: U256,
-        options: TracerConfig,
+        options: Option<TracerConfig>,
     ) -> Result<DebugTrace, ProviderError>
     where
         T: Debug + Serialize + Send + Sync,
@@ -288,7 +288,7 @@ impl<M: Middleware + ZKSProvider, S: Signer> ZKSProvider for SignerMiddleware<M,
     async fn debug_trace_transaction(
         &self,
         hash: H256,
-        options: TracerConfig,
+        options: Option<TracerConfig>,
     ) -> Result<DebugTrace, ProviderError> {
         ZKSProvider::debug_trace_transaction(self.inner(), hash, options).await
     }
@@ -409,26 +409,38 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
     async fn debug_trace_block_by_hash(
         &self,
         hash: H256,
-        options: TracerConfig,
+        options: Option<TracerConfig>,
     ) -> Result<DebugTrace, ProviderError> {
-        self.request("debug_traceBlockByHash", json!([hash, options]))
-            .await
+        let processable_response = self
+            .request::<serde_json::Value, serde_json::Value>(
+                "debug_traceBlockByHash",
+                json!([hash, options]),
+            )
+            .await?[0]["result"]
+            .clone();
+        serde_json::from_value(processable_response).map_err(ProviderError::SerdeJson)
     }
 
     async fn debug_trace_block_by_number(
         &self,
         block: U256,
-        options: TracerConfig,
+        options: Option<TracerConfig>,
     ) -> Result<DebugTrace, ProviderError> {
-        self.request("debug_traceBlockByNumber", json!([block, options]))
-            .await
+        let processable_response = self
+            .request::<serde_json::Value, serde_json::Value>(
+                "debug_traceBlockByNumber",
+                json!([block, options]),
+            )
+            .await?[0]["result"]
+            .clone();
+        serde_json::from_value(processable_response).map_err(ProviderError::SerdeJson)
     }
 
     async fn debug_trace_call<T>(
         &self,
         request: T,
         block: U256,
-        options: TracerConfig,
+        options: Option<TracerConfig>,
     ) -> Result<DebugTrace, ProviderError>
     where
         T: Debug + Serialize + Send + Sync,
@@ -440,7 +452,7 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
     async fn debug_trace_transaction(
         &self,
         hash: H256,
-        options: TracerConfig,
+        options: Option<TracerConfig>,
     ) -> Result<DebugTrace, ProviderError> {
         self.request("debug_traceTransaction", json!([hash, options]))
             .await
@@ -449,8 +461,11 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
 
 #[cfg(test)]
 mod tests {
-    use crate::zks_provider::ZKSProvider;
+    use std::collections::HashMap;
+
+    use crate::zks_provider::{types::TracerConfig, ZKSProvider};
     use ethers::{
+        abi::ethabi::Bytes,
         prelude::{k256::ecdsa::SigningKey, MiddlewareBuilder, SignerMiddleware},
         providers::{Middleware, Provider},
         signers::{Signer, Wallet},
@@ -463,7 +478,7 @@ mod tests {
     fn local_provider() -> Provider<ethers::providers::Http> {
         Provider::try_from(format!(
             "http://{host}:{port}",
-            host = "65.108.204.116",
+            host = "localhost",
             port = 3_050_i32
         ))
         .unwrap()
@@ -578,9 +593,8 @@ mod tests {
     async fn test_provider_get_bytecode_by_hash() {
         let provider = local_provider();
         let invalid_hash = H256::default();
-        let valid_hash: H256 = "0x7641711d8997f701a4d5929b6661185aeb5ae1fdff33288b6b5df1c05135cfc9"
-            .parse()
-            .unwrap();
+        let test_block = provider.get_block_details(2).await.unwrap();
+        let valid_hash = test_block.root_hash;
 
         assert!(provider.get_bytecode_by_hash(invalid_hash).await.is_err());
         assert!(provider.get_bytecode_by_hash(valid_hash).await.is_err());
@@ -670,9 +684,8 @@ mod tests {
     #[tokio::test]
     async fn test_provider_get_transaction_details() {
         let provider = local_provider();
-        let hash: H256 = "0xac9cf301af3b11760feb9d84283513f993dcd29de6e5fd28a8f41b1c7c0469ed"
-            .parse()
-            .unwrap();
+        let test_block = provider.get_block_details(2).await.unwrap();
+        let hash = test_block.root_hash;
 
         assert!(provider.get_transaction_details(hash).await.is_ok());
     }
@@ -691,23 +704,61 @@ mod tests {
         assert!(provider.get_l1_chain_id().await.is_ok());
     }
 
-    // #[tokio::test]
-    // async fn test_provider_debug_trace_block_by_hash() {
-    //     let provider = local_provider();
-    //     let hash = /* create a hash object */;
-    //     let options = /* create a tracer config object */;
+    #[tokio::test]
+    async fn test_provider_debug_trace_block_by_hash() {
+        let provider = local_provider();
+        let test_block = provider.get_block_details(2).await.unwrap();
+        let hash = test_block.root_hash;
 
-    //     assert!(provider.debug_trace_block_by_hash(hash, options).await.is_ok());
-    // }
+        let options = Some(TracerConfig {
+            disable_storage: None,
+            disable_stack: None,
+            enable_memory: None,
+            enable_return_data: None,
+            tracer: Some("callTracer".to_string()),
+            tracer_config: Some(HashMap::from([("onlyTopCall".to_string(), true)])),
+        });
 
-    // #[tokio::test]
-    // async fn test_provider_debug_trace_block_by_number() {
-    //     let provider = local_provider();
-    //     let block = /* create a block object */;
-    //     let options = /* create a tracer config object */;
+        assert!(
+            ZKSProvider::debug_trace_block_by_hash(&provider, hash, None)
+                .await
+                .is_ok()
+        );
+        assert!(
+            ZKSProvider::debug_trace_block_by_hash(&provider, hash, options)
+                .await
+                .is_ok()
+        );
+    }
 
-    //     assert!(provider.debug_trace_block_by_number(block, options).await.is_ok());
-    // }
+    #[tokio::test]
+    async fn test_provider_debug_trace_block_by_number() {
+        let provider = local_provider();
+        let block_number = U256::from(2);
+        let options = Some(TracerConfig {
+            disable_storage: None,
+            disable_stack: None,
+            enable_memory: None,
+            enable_return_data: None,
+            tracer: Some("callTracer".to_string()),
+            tracer_config: Some(HashMap::from([("onlyTopCall".to_string(), true)])),
+        });
+
+        println!(
+            "{:?}",
+            ZKSProvider::debug_trace_block_by_number(&provider, block_number, None).await
+        );
+        assert!(
+            ZKSProvider::debug_trace_block_by_number(&provider, block_number, None)
+                .await
+                .is_ok()
+        );
+        assert!(
+            ZKSProvider::debug_trace_block_by_number(&provider, block_number, options)
+                .await
+                .is_ok()
+        );
+    }
 
     // #[tokio::test]
     // async fn test_provider_debug_trace_call() {
