@@ -141,7 +141,7 @@ mod tests {
     use super::*;
     use crate::{
         eip712::{
-            eip712_transaction_request::Eip712Meta,
+            eip712_transaction_request::{Eip712Meta, PaymasterParams},
             utils::{DEFAULT_GAS_PER_PUBDATA_LIMIT, EIP712_TX_TYPE},
             Eip712TransactionRequest,
         },
