@@ -2,8 +2,7 @@ use ethers::{
     abi::encode,
     types::{
         transaction::eip712::{
-            encode_data, encode_type, EIP712Domain, Eip712, Eip712DomainType,
-            Eip712Error, Types,
+            encode_data, encode_type, EIP712Domain, Eip712, Eip712DomainType, Eip712Error, Types,
         },
         Address, Bytes, U256,
     },
@@ -155,8 +154,9 @@ mod tests {
         providers::{Middleware, Provider},
         signers::Signer,
         signers::Wallet,
+        solc::{Artifact, Project, ProjectPathsConfig},
         types::Signature,
-        utils::keccak256, solc::{ProjectPathsConfig, Project, Artifact},
+        utils::keccak256,
     };
 
     #[tokio::test]
@@ -273,7 +273,10 @@ mod tests {
         tx.from = "0x36615Cf349d7F6344891B1e7CA7C72883F5dc049".parse().ok();
         tx.to = CONTRACT_DEPLOYER_ADDR.parse().ok();
         tx.chain_id = ERA_CHAIN_ID.into();
-        tx.nonce = provider.get_transaction_count(tx.from.unwrap(), None).await.unwrap();
+        tx.nonce = provider
+            .get_transaction_count(tx.from.unwrap(), None)
+            .await
+            .unwrap();
         tx.value = U256::zero();
         tx.gas_price = provider.get_gas_price().await.unwrap();
 
@@ -281,16 +284,19 @@ mod tests {
             // See https://docs.soliditylang.org/en/latest/abi-spec.html#examples
             // TODO: Support all kind of function calls and return cast
             // (nowadays we only support empty function calls).
-            Bytes::from(keccak256(function_signature.as_bytes())
-                .get(0..4)
-                .unwrap()
-                .to_vec())
+            Bytes::from(
+                keccak256(function_signature.as_bytes())
+                    .get(0..4)
+                    .unwrap()
+                    .to_vec(),
+            )
         };
         tx.data = Some(build_data("create"));
         tx.data = Some(Bytes::from(hex::decode("9c4d535b00000000000000000000000000000000000000000000000000000000000000000100001bcf3424d9bc67cdb6eca8cfb731cec86df28064283f3c82fb1bf5c8be00000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000").unwrap()));
 
         // Build custom data
-        let paths = ProjectPathsConfig::builder().build_with_root("./src/compile/test_contracts/test");
+        let paths =
+            ProjectPathsConfig::builder().build_with_root("./src/compile/test_contracts/test");
         let project = Project::builder()
             .paths(paths)
             .set_auto_detect(true)
@@ -298,14 +304,16 @@ mod tests {
             .build()
             .unwrap();
         let compilation_output = project.compile().unwrap();
-        let contract = compilation_output
-            .find_first("Test")
-            .unwrap()
-            .clone();
+        let contract = compilation_output.find_first("Test").unwrap().clone();
         let (_, bytecode, _) = contract.into_parts();
 
         let mut custom_data = Eip712Meta::default();
-        custom_data.factory_deps = Some(vec![[bytecode.unwrap().to_vec(), hex::decode("000000000000000000000000000000").unwrap()].concat().into()]);
+        custom_data.factory_deps = Some(vec![[
+            bytecode.unwrap().to_vec(),
+            hex::decode("000000000000000000000000000000").unwrap(),
+        ]
+        .concat()
+        .into()]);
         custom_data.gas_per_pubdata = DEFAULT_GAS_PER_PUBDATA_LIMIT.into();
         custom_data.paymaster_params = Some(PaymasterParams::default());
         tx.custom_data = Some(custom_data);
@@ -342,11 +350,7 @@ mod tests {
         println!(
             "{:?}",
             provider
-                .send_raw_transaction(
-                    [&[EIP712_TX_TYPE], &tx.rlp_unsigned()[..]]
-                        .concat()
-                        .into()
-                )
+                .send_raw_transaction([&[EIP712_TX_TYPE], &tx.rlp_unsigned()[..]].concat().into())
                 .await
                 .unwrap()
         );
