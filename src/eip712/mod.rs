@@ -272,8 +272,8 @@ mod tests {
             to: "0xa61464658AfeAf65CccaaFD3a512b69A83B77618".parse().ok(),
             nonce: U256::default(),
             gas_limit: None,
-            gas_price: None,
-            value: None,
+            gas_price: U256::default(),
+            value: U256::default(),
             data: None,
             // TODO: Use the constant.
             chain_id: 270.into(),

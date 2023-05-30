@@ -20,12 +20,10 @@ pub struct Eip712TransactionRequest {
     pub nonce: U256,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub gas_limit: Option<U256>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub gas_price: Option<U256>,
+    pub gas_price: U256,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub data: Option<Bytes>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub value: Option<U256>,
+    pub value: U256,
     pub chain_id: U256,
     pub r#type: U256,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -64,7 +62,7 @@ impl Eip712TransactionRequest {
         // 4
         rlp_opt(&mut stream, &self.to);
         // 5
-        rlp_opt(&mut stream, &self.value);
+        stream.append(&self.value);
         // 6
         rlp_opt(&mut stream, &self.data.clone().map(|d| d.0));
         if let Some(signature) = signature {
