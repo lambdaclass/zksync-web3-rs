@@ -1,3 +1,8 @@
+use std::{
+    collections::HashMap,
+    default::{self},
+};
+
 use ethers::types::{Address, Bytes, H256, U256};
 use serde::{Deserialize, Serialize};
 
@@ -144,10 +149,36 @@ pub struct TransactionDetails {
     pub status: String,
 }
 
-// TODO: Complete struct.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct TracerConfig;
+#[serde(rename_all = "camelCase")]
+pub struct TracerConfig {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disable_storage: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disable_stack: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_memory: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_return_data: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tracer: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tracer_config: Option<HashMap<String, bool>>,
+}
 
-// TODO: Complete struct.
+// TODO: Check correct types for the ones using serde_json::Value.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct DebugTrace;
+#[serde(rename_all = "camelCase")]
+pub struct DebugTrace {
+    calls: Vec<serde_json::Value>,
+    error: Option<String>,
+    from: Address,
+    gas: U256,
+    gas_used: U256,
+    input: Bytes,
+    output: Bytes,
+    revert_reason: Option<String>,
+    to: Address,
+    r#type: String,
+    value: U256,
+}
