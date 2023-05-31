@@ -147,9 +147,7 @@ let payment_response: zksync::TransactionReceipt =
 let sender_balance = provider
     .get_balance(sender_address, None)
     .await
-    .unwrap()
     .unwrap();
-```
 
 ### Simple Transfer Example
 
