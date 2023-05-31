@@ -1,3 +1,4 @@
+use super::ZKSWalletError;
 use crate::{
     eip712::{
         hash_bytecode, Eip712Meta, Eip712SignInput, Eip712TransactionRequest, PaymasterParams,
@@ -16,36 +17,15 @@ use ethers::{
             ecdsa::{RecoveryId, Signature as RecoverableSignature},
             schnorr::signature::hazmat::PrehashSigner,
         },
-        signer::SignerMiddlewareError,
-        AbiError, MiddlewareBuilder, SignerMiddleware,
+        MiddlewareBuilder, SignerMiddleware,
     },
-    providers::{Middleware, ProviderError},
-    signers::{Signer, Wallet, WalletError},
+    providers::Middleware,
+    signers::{Signer, Wallet},
     types::{
-        transaction::{eip2718::TypedTransaction, eip712::Eip712Error},
-        Address, Bytes, Eip1559TransactionRequest, Signature, TransactionReceipt, U256,
+        transaction::eip2718::TypedTransaction, Address, Bytes, Eip1559TransactionRequest,
+        Signature, TransactionReceipt, U256,
     },
 };
-
-#[derive(thiserror::Error, Debug)]
-pub enum ZKSWalletError<M, D>
-where
-    M: Middleware,
-    D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Sync + Send,
-{
-    #[error("Provider error: {0}")]
-    ProviderError(#[from] ProviderError),
-    #[error("Middleware error: {0}")]
-    MiddlewareError(#[from] SignerMiddlewareError<M, Wallet<D>>),
-    #[error("Wallet error: {0}")]
-    EthWalletError(#[from] WalletError),
-    #[error("ABI error: {0}")]
-    AbiError(#[from] AbiError),
-    #[error("EIP712 error: {0}")]
-    Eip712Error(#[from] Eip712Error),
-    #[error("{0}")]
-    CustomError(String),
-}
 
 pub struct ZKSWallet<M, D>
 where
@@ -279,28 +259,18 @@ where
 
 #[cfg(test)]
 mod zks_signer_tests {
-    use std::str::FromStr;
-
+    use crate::zks_utils::ERA_CHAIN_ID;
+    use crate::zks_wallet::ZKSWallet;
     use ethers::providers::Middleware;
     use ethers::providers::{Http, Provider};
     use ethers::signers::{LocalWallet, Signer};
     use ethers::types::Address;
     use ethers::types::Bytes;
     use ethers::types::U256;
-
-    use crate::zks_signer::ZKSWallet;
-    use crate::zks_utils::ERA_CHAIN_ID;
-
-    fn provider(host: &str, port: &str) -> Provider<Http> {
-        Provider::try_from(format!("http://{host}:{port}")).unwrap()
-    }
-
-    fn eth_provider() -> Provider<Http> {
-        provider("localhost", "8545")
-    }
+    use std::str::FromStr;
 
     fn era_provider() -> Provider<Http> {
-        provider("localhost", "3050")
+        Provider::try_from(format!("http://localhost:3050")).unwrap()
     }
 
     #[tokio::test]
