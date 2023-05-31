@@ -360,6 +360,7 @@ mod zks_signer_tests {
 
         let deploy_receipt = zk_wallet.deploy(contract_bytecode, None).await.unwrap();
 
-        println!("{:#?}", deploy_receipt);
+        assert_eq!(deploy_receipt.from, deployer_wallet.address());
+        assert!(era_provider.get_transaction(deploy_receipt.transaction_hash).await.is_ok());
     }
 }
