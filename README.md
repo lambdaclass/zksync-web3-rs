@@ -82,11 +82,12 @@ To create a wallet, you need to provide the private key of the Ethereum account 
 > https://era.zksync.io/docs/api/hardhat/testing.html#connect-wallet-to-local-nodes
 
 ```rust
-let private_key = "0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110";
-let zksync_era_chain_id = 270;
+use zksync::{Signer, k256::ecdsa::SigningKey};
+
+let private_key: Wallet<SigningKey> = "0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110".parse().unwrap();
+let zksync_era_chain_id: u64 = 270;
 
 let wallet = zksync::Wallet::with_chain_id(private_key, zksync_era_chain_id);
-```
 
 #### Connecting to the zkSync Network
 
