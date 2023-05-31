@@ -26,6 +26,7 @@ use ethers::{
         Signature, TransactionReceipt, U256,
     },
 };
+use std::str::FromStr;
 
 pub struct ZKSWallet<M, D>
 where
@@ -151,84 +152,75 @@ where
             None => return Err(ZKSWalletError::CustomError("no era provider".to_string())),
         };
 
-        let mut deploy_request = Eip712TransactionRequest::default();
+        let mut deploy_request = Eip712TransactionRequest::new()
+            .r#type(EIP712_TX_TYPE)
+            .from(self.address())
+            .to(Address::from_str(CONTRACT_DEPLOYER_ADDR).unwrap())
+            .chain_id(ERA_CHAIN_ID)
+            .nonce(
+                era_provider
+                    .get_transaction_count(self.address(), None)
+                    .await?,
+            )
+            .gas_price(era_provider.get_gas_price().await?)
+            .data({
+                let create = ethers::abi::Function {
+                    name: "create".to_owned(),
+                    inputs: vec![
+                        Param {
+                            name: "_salt".to_owned(),
+                            kind: ParamType::FixedBytes(32),
+                            internal_type: None,
+                        },
+                        Param {
+                            name: "_bytecodeHash".to_owned(),
+                            kind: ParamType::FixedBytes(32),
+                            internal_type: None,
+                        },
+                        Param {
+                            name: "_input".to_owned(),
+                            kind: ParamType::Bytes,
+                            internal_type: None,
+                        },
+                    ],
+                    outputs: vec![],
+                    state_mutability: ethers::abi::StateMutability::Payable,
+                    constant: None,
+                };
 
-        deploy_request.r#type = EIP712_TX_TYPE.into();
-        deploy_request.from = era_provider.default_sender();
-        deploy_request.to = CONTRACT_DEPLOYER_ADDR.parse().ok();
-        deploy_request.chain_id = ERA_CHAIN_ID.into();
-        deploy_request.nonce = era_provider
-            .get_transaction_count(deploy_request.from.unwrap(), None)
-            .await
-            .unwrap();
-        deploy_request.gas_price = era_provider.get_gas_price().await.unwrap();
+                // TODO: User could provide this instead of defaulting.
+                let salt = [0_u8; 32];
+                let bytecode_hash = hash_bytecode(&contract_bytecode)?;
+                // TODO: User could provide this instead of defaulting.
+                let call_data = Bytes::default();
 
-        deploy_request.data = {
-            let create = ethers::abi::Function {
-                name: "create".to_owned(),
-                inputs: vec![
-                    Param {
-                        name: "_salt".to_owned(),
-                        kind: ParamType::FixedBytes(32),
-                        internal_type: None,
-                    },
-                    Param {
-                        name: "_bytecodeHash".to_owned(),
-                        kind: ParamType::FixedBytes(32),
-                        internal_type: None,
-                    },
-                    Param {
-                        name: "_input".to_owned(),
-                        kind: ParamType::Bytes,
-                        internal_type: None,
-                    },
-                ],
-                outputs: vec![],
-                state_mutability: ethers::abi::StateMutability::Payable,
-                constant: None,
-            };
+                encode_function_data(&create, (salt, bytecode_hash, call_data))?
+            })
+            .custom_data({
+                let mut custom_data = Eip712Meta::default();
+                custom_data.factory_deps = {
+                    let mut factory_deps = vec![contract_bytecode];
+                    if let Some(contract_dependencies) = contract_dependencies {
+                        factory_deps.extend(contract_dependencies);
+                    }
+                    Some(factory_deps)
+                };
+                // TODO: User could provide this instead of defaulting.
+                custom_data.gas_per_pubdata = DEFAULT_GAS_PER_PUBDATA_LIMIT.into();
+                // TODO: User could provide this instead of defaulting.
+                custom_data.paymaster_params = Some(PaymasterParams::default());
+                custom_data
+            });
 
-            // TODO: User could provide this instead of defaulting.
-            let salt = [0_u8; 32];
-            let bytecode_hash = hash_bytecode(&contract_bytecode)?;
-            // TODO: User could provide this instead of defaulting.
-            let call_data = Bytes::default();
-
-            encode_function_data(&create, (salt, bytecode_hash, call_data)).ok()
-        };
-
-        deploy_request.custom_data = {
-            let mut custom_data = Eip712Meta::default();
-            custom_data.factory_deps = {
-                let mut factory_deps = vec![contract_bytecode];
-                if let Some(contract_dependencies) = contract_dependencies {
-                    factory_deps.extend(contract_dependencies);
-                }
-                Some(factory_deps)
-            };
-            // TODO: User could provide this instead of defaulting.
-            custom_data.gas_per_pubdata = DEFAULT_GAS_PER_PUBDATA_LIMIT.into();
-            // TODO: User could provide this instead of defaulting.
-            custom_data.paymaster_params = Some(PaymasterParams::default());
-            Some(custom_data)
-        };
-
-        let fee = era_provider
-            .estimate_fee(deploy_request.clone())
-            .await
-            .unwrap();
-        deploy_request.max_priority_fee_per_gas = Some(fee.max_priority_fee_per_gas);
-        deploy_request.max_fee_per_gas = Some(fee.max_fee_per_gas);
-        deploy_request.gas_limit = Some(fee.gas_limit);
-
-        /* Create Sign Input */
+        let fee = era_provider.estimate_fee(deploy_request.clone()).await?;
+        deploy_request = deploy_request
+            .max_priority_fee_per_gas(fee.max_priority_fee_per_gas)
+            .max_fee_per_gas(fee.max_fee_per_gas)
+            .gas_limit(fee.gas_limit);
 
         let signable_data: Eip712SignInput = deploy_request.clone().into();
-
-        if let Some(custom_data) = &mut deploy_request.custom_data {
-            let signature: Signature = self.wallet.sign_typed_data(&signable_data).await?;
-            custom_data.custom_signature = Some(Bytes::from(signature.to_vec()));
-        }
+        let signature: Signature = self.wallet.sign_typed_data(&signable_data).await?;
+        deploy_request = deploy_request.custom_signature(signature.to_vec());
 
         let pending_transaction = era_provider
             .send_raw_transaction(
