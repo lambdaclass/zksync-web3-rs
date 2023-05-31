@@ -8,7 +8,7 @@ use crate::{
     },
 };
 use ethers::{
-    abi::{Param, ParamType, Token, Tokenizable, Tokenize},
+    abi::{Param, ParamType},
     prelude::{
         encode_function_data,
         k256::{
