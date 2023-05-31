@@ -114,6 +114,7 @@ let mut payment_request = zksync::Eip1559TransactionRequest::new()
     .value(amount_to_transfer);
 
 let fee = provider
+    .clone()
     .estimate_fee(payment_request.clone())
     .await
     .unwrap();
