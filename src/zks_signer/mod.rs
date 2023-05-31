@@ -221,8 +221,6 @@ where
             Some(custom_data)
         };
 
-        println!("{deploy_request:#?}");
-
         let fee = era_provider
             .estimate_fee(deploy_request.clone())
             .await
@@ -239,9 +237,6 @@ where
             let signature: Signature = self.wallet.sign_typed_data(&signable_data).await?;
             custom_data.custom_signature = Some(Bytes::from(signature.to_vec()));
         }
-
-        println!("{deploy_request:#?}");
-        println!("{signable_data:#?}");
 
         let pending_transaction = era_provider
             .send_raw_transaction(
