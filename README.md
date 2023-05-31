@@ -102,9 +102,11 @@ let provider = zksync::Provider::try_from("http://<HOST>:<PORT>").unwrap();
 To create a payment transaction, you need to provide the sender's address, the receiver's address, and the amount to transfer. You can create a payment transaction using the following code:
 
 ```rust
-let sender_address = "0x36615Cf349d7F6344891B1e7CA7C72883F5dc049";
-let receiver_address = "0xa61464658AfeAf65CccaaFD3a512b69A83B77618";
-let amount_to_transfer = U256::from(1);
+use zksync::zks_provider::ZKSProvider;
+
+let sender_address: zksync::Address = "0x36615Cf349d7F6344891B1e7CA7C72883F5dc049".parse().unwrap();
+let receiver_address: zksync::Address = "0xa61464658AfeAf65CccaaFD3a512b69A83B77618".parse().unwrap();
+let amount_to_transfer = zksync::U256::from(1);
 
 let mut payment_request = zksync::Eip1559TransactionRequest::new()
     .from(sender_address)
