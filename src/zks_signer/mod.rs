@@ -92,14 +92,18 @@ where
     //     self.era_provider = Provider::try_from(format!("http://{host}:{port}")).ok().map(|p| p.with_signer(self.wallet));
     // }
 
-    pub async fn balance(&self) -> Result<U256, ZKSSignerError<M, S>>
+    pub fn address(&self) -> Address {
+        self.wallet.address()
+    }
+
+    pub async fn balance(&self) -> Result<U256, ZKSSignerError<M>>
     where
         M: ZKSProvider,
     {
         match &self.era_provider {
             // TODO: Should we have a balance_on_block method?
             Some(era_provider) => Ok(era_provider
-                .get_balance(self.wallet.address(), None)
+                .get_balance(self.address(), None)
                 .await?),
             None => Err(ZKSSignerError::CustomError("no eth provider".to_string())),
         }
