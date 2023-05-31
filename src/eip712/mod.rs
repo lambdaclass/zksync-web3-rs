@@ -1,11 +1,17 @@
 use ethers::types::{transaction::eip712::Eip712Error, Bytes};
 use sha2::Digest;
 
-mod eip712_transaction_request;
-pub use eip712_transaction_request::{Eip712Meta, Eip712TransactionRequest, PaymasterParams};
+mod transaction_request;
+pub use transaction_request::Eip712TransactionRequest;
 
-mod eip712_sign_input;
-pub use eip712_sign_input::Eip712SignInput;
+mod sign_input;
+pub use sign_input::Eip712SignInput;
+
+mod meta;
+pub use meta::Eip712Meta;
+
+mod paymaster_params;
+pub use paymaster_params::PaymasterParams;
 
 mod utils;
 
@@ -43,7 +49,7 @@ pub fn hash_bytecode(bytecode: &Bytes) -> Result<[u8; 32], Eip712Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{eip712::eip712_transaction_request::Eip712Meta, zks_provider::ZKSProvider};
+    use crate::{eip712::meta::Eip712Meta, zks_provider::ZKSProvider};
     use ethers::{
         prelude::{k256::ecdsa::SigningKey, MiddlewareBuilder, SignerMiddleware},
         providers::{Middleware, Provider},

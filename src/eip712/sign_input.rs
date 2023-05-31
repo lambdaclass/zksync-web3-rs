@@ -21,13 +21,10 @@ pub struct Eip712SignInput {
     pub to: Option<Address>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub gas_limit: Option<U256>,
-    // NOTE: this value must be set after calling ZKSProvider::estimate_fee method.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub gas_per_pubdata_byte_limit: Option<U256>,
-    // TODO: This field has a default value or calculation
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_fee_per_gas: Option<U256>,
-    // TODO: This field has a default value or calculation
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_priority_fee_per_gas: Option<U256>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -141,7 +138,8 @@ mod tests {
     use super::*;
     use crate::{
         eip712::{
-            eip712_transaction_request::{Eip712Meta, PaymasterParams},
+            meta::Eip712Meta,
+            paymaster_params::PaymasterParams,
             utils::{DEFAULT_GAS_PER_PUBDATA_LIMIT, EIP712_TX_TYPE},
             Eip712TransactionRequest,
         },
@@ -167,7 +165,6 @@ mod tests {
 
         let provider = Provider::try_from(format!(
             "http://{host}:{port}",
-            // host = "65.108.204.116",
             host = "localhost",
             port = 3050
         ))
