@@ -137,14 +137,11 @@ impl Eip712 for Eip712SignInput {
 mod tests {
     use super::*;
     use crate::{
-        eip712::{
-            meta::Eip712Meta,
-            paymaster_params::PaymasterParams,
-            utils::{DEFAULT_GAS_PER_PUBDATA_LIMIT, EIP712_TX_TYPE},
-            Eip712TransactionRequest,
-        },
+        eip712::{meta::Eip712Meta, paymaster_params::PaymasterParams, Eip712TransactionRequest},
         zks_provider::ZKSProvider,
-        zks_utils::{CONTRACT_DEPLOYER_ADDR, ERA_CHAIN_ID},
+        zks_utils::{
+            CONTRACT_DEPLOYER_ADDR, DEFAULT_GAS_PER_PUBDATA_LIMIT, EIP712_TX_TYPE, ERA_CHAIN_ID,
+        },
     };
     use ethers::{
         abi::AbiEncode,

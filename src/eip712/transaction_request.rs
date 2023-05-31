@@ -1,8 +1,5 @@
-use super::{
-    hash_bytecode,
-    utils::{self, rlp_opt},
-    Eip712Meta, Eip712SignInput,
-};
+use super::{hash_bytecode, rlp_opt, Eip712Meta, Eip712SignInput};
+use crate::zks_utils::DEFAULT_GAS_PER_PUBDATA_LIMIT;
 use ethers::{
     types::{transaction::eip2930::AccessList, Address, Bytes, Signature, U256, U64},
     utils::rlp::{Encodable, RlpStream},
@@ -248,7 +245,7 @@ impl Into<Eip712SignInput> for Eip712TransactionRequest {
                 );
             }
             eip712_sign_input.gas_per_pubdata_byte_limit =
-                Some(U256::from(utils::DEFAULT_GAS_PER_PUBDATA_LIMIT));
+                Some(U256::from(DEFAULT_GAS_PER_PUBDATA_LIMIT));
             if let Some(paymaster_params) = custom_data.paymaster_params {
                 eip712_sign_input.paymaster = Some(paymaster_params.paymaster);
                 eip712_sign_input.paymaster_input = Some(paymaster_params.paymaster_input);

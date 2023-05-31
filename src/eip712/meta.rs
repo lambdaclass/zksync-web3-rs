@@ -1,4 +1,4 @@
-use super::{utils::rlp_opt, PaymasterParams};
+use super::{rlp_opt, PaymasterParams};
 use crate::zks_utils::DEFAULT_GAS_PER_PUBDATA_LIMIT;
 use ethers::{
     types::{Bytes, U256},
