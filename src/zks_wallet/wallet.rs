@@ -1,13 +1,8 @@
 use super::ZKSWalletError;
 use crate::{
-    eip712::{
-        hash_bytecode, Eip712Meta, Eip712SignInput, Eip712TransactionRequest, PaymasterParams,
-    },
+    eip712::{hash_bytecode, Eip712Meta, Eip712SignInput, Eip712TransactionRequest},
     zks_provider::ZKSProvider,
-    zks_utils::{
-        CONTRACT_DEPLOYER_ADDR, DEFAULT_GAS_PER_PUBDATA_LIMIT, EIP712_TX_TYPE, ERA_CHAIN_ID,
-        ETH_CHAIN_ID,
-    },
+    zks_utils::{CONTRACT_DEPLOYER_ADDR, EIP712_TX_TYPE, ERA_CHAIN_ID, ETH_CHAIN_ID},
 };
 use ethers::{
     abi::{Param, ParamType},
@@ -43,7 +38,6 @@ where
     M: Middleware + 'static,
     D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Sync + Send + Clone,
 {
-    // TODO: A user could use different wallets for the providers, we should not let that happen.
     pub fn new(
         wallet: Wallet<D>,
         era_provider: Option<M>,
@@ -81,7 +75,7 @@ where
     //     self.eth_provider = Provider::try_from(format!("http://{host}:{port}")).ok().map(|p| p.with_signer(self.wallet));
     // }
 
-    // pub fn connect_era(&mut self, era_provider: SignerMiddleware<M>) {
+    // pub fn connect_era(&mut self, host: &str, port: u16) {
     //     self.era_provider = Provider::try_from(format!("http://{host}:{port}")).ok().map(|p| p.with_signer(self.wallet));
     // }
 
@@ -98,7 +92,7 @@ where
             Some(eth_provider) => Ok(eth_provider.get_balance(self.address(), None).await?),
             None => Err(ZKSWalletError::CustomError("no era provider".to_string())),
         }
-    }        
+    }
 
     pub async fn era_balance(&self) -> Result<U256, ZKSWalletError<M, D>>
     where
