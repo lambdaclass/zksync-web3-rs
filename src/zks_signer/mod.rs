@@ -8,7 +8,7 @@ use crate::{
     },
 };
 use ethers::{
-    abi::{Param, ParamType, Tokenizable},
+    abi::{Param, ParamType, Tokenizable, Token, Tokenize},
     prelude::{
         encode_function_data,
         k256::{
@@ -197,12 +197,12 @@ where
             };
 
             // TODO: User could provide this instead of defaulting.
-            let salt = [0_u8; 32].into_token();
-            let bytecode_hash = hash_bytecode(&contract_bytecode)?.into_token();
+            let salt = [0_u8; 32];
+            let bytecode_hash = hash_bytecode(&contract_bytecode)?;
             // TODO: User could provide this instead of defaulting.
-            let call_data = Bytes::default().into_token();
+            let call_data = Bytes::default();
 
-            encode_function_data(&create, [salt, bytecode_hash, call_data]).ok()
+            encode_function_data(&create, (salt, bytecode_hash, call_data)).ok()
         };
 
         deploy_request.custom_data = {
