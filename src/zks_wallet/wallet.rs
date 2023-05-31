@@ -89,7 +89,18 @@ where
         self.wallet.address()
     }
 
-    pub async fn balance(&self) -> Result<U256, ZKSWalletError<M, D>>
+    pub async fn eth_balance(&self) -> Result<U256, ZKSWalletError<M, D>>
+    where
+        M: ZKSProvider,
+    {
+        match &self.eth_provider {
+            // TODO: Should we have a balance_on_block method?
+            Some(eth_provider) => Ok(eth_provider.get_balance(self.address(), None).await?),
+            None => Err(ZKSWalletError::CustomError("no era provider".to_string())),
+        }
+    }        
+
+    pub async fn era_balance(&self) -> Result<U256, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
     {
