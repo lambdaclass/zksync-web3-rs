@@ -54,9 +54,9 @@ impl Default for Eip712Meta {
     fn default() -> Self {
         Self {
             gas_per_pubdata: DEFAULT_GAS_PER_PUBDATA_LIMIT.into(),
-            factory_deps: Default::default(),
-            custom_signature: Default::default(),
-            paymaster_params: Default::default(),
+            factory_deps: Some(<Vec<Bytes>>::default()),
+            custom_signature: Some(<Bytes>::default()),
+            paymaster_params: Some(<PaymasterParams>::default()),
         }
     }
 }
