@@ -7,12 +7,19 @@ use crate::{
         CONTRACT_DEPLOYER_ADDR, DEFAULT_GAS_PER_PUBDATA_LIMIT, EIP712_TX_TYPE, ERA_CHAIN_ID,
     },
 };
-use async_trait::async_trait;
 use ethers::{
     abi::{Param, ParamType, Tokenizable},
-    prelude::{encode_function_data, signer::SignerMiddlewareError, AbiError, SignerMiddleware},
+    prelude::{
+        encode_function_data,
+        k256::{
+            ecdsa::{RecoveryId, Signature as RecoverableSignature},
+            schnorr::signature::hazmat::PrehashSigner,
+        },
+        signer::SignerMiddlewareError,
+        AbiError, SignerMiddleware,
+    },
     providers::{Middleware, ProviderError},
-    signers::{Signer, WalletError},
+    signers::{Signer, Wallet, WalletError},
     types::{
         transaction::{eip2718::TypedTransaction, eip712::Eip712Error},
         Address, Bytes, Eip1559TransactionRequest, Signature, TransactionReceipt, U256,
@@ -39,13 +46,66 @@ where
     CustomError(String),
 }
 
-#[async_trait]
-pub trait ZKSSigner<M, S>
+pub struct ZKSSigner<M, S, D>
 where
     M: Middleware,
     S: Signer,
+    D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Sync + Send,
 {
-    async fn transfer(
+    pub eth_provider: Option<SignerMiddleware<M, S>>,
+    pub era_provider: Option<SignerMiddleware<M, S>>,
+    pub wallet: Wallet<D>,
+}
+
+impl<M, S, D> ZKSSigner<M, S, D>
+where
+    M: Middleware,
+    S: Signer,
+    D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Sync + Send,
+{
+    // TODO: A user could use different wallets for the providers, we should not let that happen.
+    pub fn new(
+        wallet: Wallet<D>,
+        era_provider: Option<SignerMiddleware<M, S>>,
+        eth_provider: Option<SignerMiddleware<M, S>>,
+    ) -> Self {
+        Self {
+            wallet,
+            era_provider,
+            eth_provider,
+        }
+    }
+
+    pub fn connect_eth_provider(&mut self, eth_provider: SignerMiddleware<M, S>) {
+        self.eth_provider = Some(eth_provider);
+    }
+
+    pub fn connect_era_provider(&mut self, era_provider: SignerMiddleware<M, S>) {
+        self.era_provider = Some(era_provider);
+    }
+
+    // pub fn connect_eth(&mut self, host: &str, port: u16) {
+    //     self.eth_provider = Provider::try_from(format!("http://{host}:{port}")).ok().map(|p| p.with_signer(self.wallet));
+    // }
+
+    // pub fn connect_era(&mut self, era_provider: SignerMiddleware<M, S>) {
+    //     self.era_provider = Provider::try_from(format!("http://{host}:{port}")).ok().map(|p| p.with_signer(self.wallet));
+    // }
+
+    pub async fn balance(&self) -> Result<U256, ZKSSignerError<M, S>>
+    where
+        M: ZKSProvider,
+    {
+        match &self.era_provider {
+            // TODO: Should we have a balance_on_block method?
+            Some(era_provider) => Ok(era_provider
+                .get_balance(self.wallet.address(), None)
+                .await?),
+            None => Err(ZKSSignerError::CustomError("no eth provider".to_string())),
+        }
+    }
+
+    pub async fn transfer(
         &self,
         to: Address,
         amount_to_transfer: U256,
@@ -53,25 +113,29 @@ where
         _token: Option<Address>,
     ) -> Result<TransactionReceipt, ZKSSignerError<M, S>>
     where
-        Self: Middleware + ZKSProvider + Sized,
-        ZKSSignerError<M, S>: From<<Self as Middleware>::Error>,
+        M: ZKSProvider,
     {
+        let era_provider = match &self.era_provider {
+            Some(era_provider) => era_provider,
+            None => return Err(ZKSSignerError::CustomError("no era provider".to_string())),
+        };
+
         let mut transfer_request = Eip1559TransactionRequest::new()
-            .from(self.default_sender().ok_or_else(|| {
+            .from(era_provider.default_sender().ok_or_else(|| {
                 return ZKSSignerError::CustomError("no default sender".to_string());
             })?)
             .to(to)
             .value(amount_to_transfer)
-            .chain_id(270);
+            .chain_id(ERA_CHAIN_ID);
 
-        let fee = self.estimate_fee(transfer_request.clone()).await?;
+        let fee = era_provider.estimate_fee(transfer_request.clone()).await?;
         transfer_request = transfer_request.max_priority_fee_per_gas(fee.max_priority_fee_per_gas);
         transfer_request = transfer_request.max_fee_per_gas(fee.max_fee_per_gas);
 
         let transaction: TypedTransaction = transfer_request.into();
 
         // TODO: add block as an override.
-        let pending_transaction = self.send_transaction(transaction, None).await?;
+        let pending_transaction = era_provider.send_transaction(transaction, None).await?;
 
         // TODO: Should we wait here for the transaction to be confirmed on-chain?
 
@@ -82,51 +146,53 @@ where
             ))
     }
 
-    async fn deploy(
+    pub async fn deploy(
         &self,
         contract_bytecode: Bytes,
-        contract_dependencies: Vec<Bytes>,
+        contract_dependencies: Option<Vec<Bytes>>,
     ) -> Result<TransactionReceipt, ZKSSignerError<M, S>>
     where
-        Self: Middleware + Signer + ZKSProvider + Sized,
-        ZKSSignerError<M, S>: From<<Self as Signer>::Error> + From<<Self as Middleware>::Error>,
+        M: ZKSProvider,
     {
+        let era_provider = match &self.era_provider {
+            Some(era_provider) => era_provider,
+            None => return Err(ZKSSignerError::CustomError("no era provider".to_string())),
+        };
+
         let mut deploy_request = Eip712TransactionRequest::default();
 
         deploy_request.r#type = EIP712_TX_TYPE.into();
-        deploy_request.from = Some(self.default_sender().ok_or_else(|| {
-            return ZKSSignerError::CustomError("no default sender".to_string());
-        })?);
+        deploy_request.from = era_provider.default_sender();
         deploy_request.to = CONTRACT_DEPLOYER_ADDR.parse().ok();
         deploy_request.chain_id = ERA_CHAIN_ID.into();
-        deploy_request.nonce = self
+        deploy_request.nonce = era_provider
             .get_transaction_count(deploy_request.from.unwrap(), None)
             .await
             .unwrap();
-        deploy_request.gas_price = self.get_gas_price().await.unwrap();
+        deploy_request.gas_price = era_provider.get_gas_price().await.unwrap();
 
         deploy_request.data = {
             let create = ethers::abi::Function {
                 name: "create".to_owned(),
                 inputs: vec![
                     Param {
-                        name: "salt".to_owned(),
+                        name: "_salt".to_owned(),
                         kind: ParamType::FixedBytes(32),
                         internal_type: None,
                     },
                     Param {
-                        name: "bytecode".to_owned(),
-                        kind: ParamType::Bytes,
+                        name: "_bytecodeHash".to_owned(),
+                        kind: ParamType::FixedBytes(32),
                         internal_type: None,
                     },
                     Param {
-                        name: "call_data".to_owned(),
+                        name: "_input".to_owned(),
                         kind: ParamType::Bytes,
                         internal_type: None,
                     },
                 ],
                 outputs: vec![],
-                state_mutability: ethers::abi::StateMutability::View,
+                state_mutability: ethers::abi::StateMutability::Payable,
                 constant: None,
             };
 
@@ -143,7 +209,9 @@ where
             let mut custom_data = Eip712Meta::default();
             custom_data.factory_deps = {
                 let mut factory_deps = vec![contract_bytecode];
-                factory_deps.extend(contract_dependencies);
+                if let Some(contract_dependencies) = contract_dependencies {
+                    factory_deps.extend(contract_dependencies);
+                }
                 Some(factory_deps)
             };
             // TODO: User could provide this instead of defaulting.
@@ -153,7 +221,12 @@ where
             Some(custom_data)
         };
 
-        let fee = self.estimate_fee(deploy_request.clone()).await.unwrap();
+        println!("{deploy_request:#?}");
+
+        let fee = era_provider
+            .estimate_fee(deploy_request.clone())
+            .await
+            .unwrap();
         deploy_request.max_priority_fee_per_gas = Some(fee.max_priority_fee_per_gas);
         deploy_request.max_fee_per_gas = Some(fee.max_fee_per_gas);
         deploy_request.gas_limit = Some(fee.gas_limit);
@@ -163,11 +236,14 @@ where
         let signable_data: Eip712SignInput = deploy_request.clone().into();
 
         if let Some(custom_data) = &mut deploy_request.custom_data {
-            let signature: Signature = self.sign_typed_data(&signable_data).await?;
+            let signature: Signature = self.wallet.sign_typed_data(&signable_data).await?;
             custom_data.custom_signature = Some(Bytes::from(signature.to_vec()));
         }
 
-        let pending_transaction = self
+        println!("{deploy_request:#?}");
+        println!("{signable_data:#?}");
+
+        let pending_transaction = era_provider
             .send_raw_transaction(
                 [&[EIP712_TX_TYPE], &deploy_request.rlp_unsigned()[..]]
                     .concat()
@@ -185,24 +261,39 @@ where
     }
 }
 
-#[async_trait]
-impl<M, S> ZKSSigner<M, S> for SignerMiddleware<M, S>
-where
-    M: Middleware,
-    S: Signer,
-{
-}
-
 #[cfg(test)]
-mod tests {
-    use crate::zks_signer::ZKSSigner;
+mod zks_signer_tests {
+    use ethers::prelude::k256::ecdsa::{RecoveryId, Signature as RecoverableSignature};
+    use ethers::prelude::k256::schnorr::signature::hazmat::PrehashSigner;
     use ethers::prelude::MiddlewareBuilder;
+    use ethers::prelude::SignerMiddleware;
     use ethers::providers::Middleware;
-    use ethers::providers::Provider;
+    use ethers::providers::{Http, Provider};
     use ethers::signers::Signer;
     use ethers::signers::Wallet;
     use ethers::types::Address;
+    use ethers::types::Bytes;
     use ethers::types::U256;
+
+    use crate::zks_signer::ZKSSigner;
+
+    fn provider(host: &str, port: &str) -> Provider<Http> {
+        Provider::try_from(format!("http://{host}:{port}")).unwrap()
+    }
+
+    fn eth_provider<D>(wallet: Wallet<D>) -> SignerMiddleware<Provider<Http>, Wallet<D>>
+    where
+        D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Sync + Send,
+    {
+        provider("localhost", "8545").with_signer(wallet)
+    }
+
+    fn era_provider<D>(wallet: Wallet<D>) -> SignerMiddleware<Provider<Http>, Wallet<D>>
+    where
+        D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Sync + Send,
+    {
+        provider("localhost", "3050").with_signer(wallet)
+    }
 
     #[tokio::test]
     async fn test_transfer() {
@@ -212,22 +303,24 @@ mod tests {
             .parse()
             .unwrap();
         let amount_to_transfer: U256 = 1.into();
-        let wallet = Wallet::with_chain_id(sender_private_key.parse().unwrap(), 270_u64);
-        let signer = Provider::try_from(format!(
-            "http://{host}:{port}",
-            host = "65.108.204.116",
-            port = 3050
-        ))
-        .unwrap()
-        .with_signer(wallet.clone());
 
-        let sender_balance_before = signer.get_balance(wallet.address(), None).await.unwrap();
-        let receiver_balance_before = signer.get_balance(receiver_address, None).await.unwrap();
+        let wallet = Wallet::with_chain_id(sender_private_key.parse().unwrap(), 270_u64);
+        let era_provider = era_provider(wallet.clone());
+        let zk_wallet = ZKSSigner::new(wallet.clone(), Some(era_provider.clone()), None);
+
+        let sender_balance_before = era_provider
+            .get_balance(wallet.address(), None)
+            .await
+            .unwrap();
+        let receiver_balance_before = era_provider
+            .get_balance(receiver_address, None)
+            .await
+            .unwrap();
 
         println!("Sender balance before: {}", sender_balance_before);
         println!("Receiver balance before: {}", receiver_balance_before);
 
-        let receipt = signer
+        let receipt = zk_wallet
             .transfer(receiver_address, amount_to_transfer, None)
             .await
             .unwrap();
@@ -237,8 +330,14 @@ mod tests {
 
         tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
 
-        let sender_balance_after = signer.get_balance(wallet.address(), None).await.unwrap();
-        let receiver_balance_after = signer.get_balance(receiver_address, None).await.unwrap();
+        let sender_balance_after = era_provider
+            .get_balance(wallet.address(), None)
+            .await
+            .unwrap();
+        let receiver_balance_after = era_provider
+            .get_balance(receiver_address, None)
+            .await
+            .unwrap();
 
         println!("Sender balance after: {}", sender_balance_after);
         println!("Receiver balance after: {}", receiver_balance_after);
@@ -253,5 +352,19 @@ mod tests {
             receiver_balance_after,
             receiver_balance_before + amount_to_transfer
         );
+    }
+
+    #[tokio::test]
+    async fn test_deploy() {
+        let deployer_private_key =
+            "0x28a574ab2de8a00364d5dd4b07c4f2f574ef7fcc2a86a197f65abaec836d1959";
+        let deployer_wallet = Wallet::with_chain_id(deployer_private_key.parse().unwrap(), 270_u64);
+        let era_provider = era_provider(deployer_wallet.clone());
+        let zk_wallet = ZKSSigner::new(deployer_wallet.clone(), Some(era_provider.clone()), None);
+        let contract_bytecode = Bytes::from(hex::decode("000200000000000200010000000103550000006001100270000000130010019d0000008001000039000000400010043f0000000101200190000000290000c13d0000000001000031000000040110008c000000420000413d0000000101000367000000000101043b000000e001100270000000150210009c000000310000613d000000160110009c000000420000c13d0000000001000416000000000110004c000000420000c13d000000040100008a00000000011000310000001702000041000000200310008c000000000300001900000000030240190000001701100197000000000410004c000000000200a019000000170110009c00000000010300190000000001026019000000000110004c000000420000c13d00000004010000390000000101100367000000000101043b000000000010041b0000000001000019000000490001042e0000000001000416000000000110004c000000420000c13d0000002001000039000001000010044300000120000004430000001401000041000000490001042e0000000001000416000000000110004c000000420000c13d000000040100008a00000000011000310000001702000041000000000310004c000000000300001900000000030240190000001701100197000000000410004c000000000200a019000000170110009c00000000010300190000000001026019000000000110004c000000440000613d00000000010000190000004a00010430000000000100041a000000800010043f0000001801000041000000490001042e0000004800000432000000490001042e0000004a00010430000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0000000200000000000000000000000000000040000001000000000000000000000000000000000000000000000000000000000000000000000000006d4ce63c0000000000000000000000000000000000000000000000000000000060fe47b1800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000200000008000000000000000000000000000000000000000000000000000000000000000000000000000000000d5c7d2782d356f4a1a2e458d242d21e07a04810c9f771eed6501083e07288c87").unwrap());
+
+        let deploy_receipt = zk_wallet.deploy(contract_bytecode, None).await.unwrap();
+
+        println!("{:#?}", deploy_receipt);
     }
 }
