@@ -129,7 +129,9 @@ To send the transaction, you need to provide the wallet and the transaction. You
 > In case you are wondering, the transaction is signed in the `send_transaction` method.
 
 ```rust
-let signer = provider.with_signer(wallet);
+use zksync::MiddlewareBuilder;
+
+let signer_middleware = provider.clone().with_signer(wallet);
 
 let payment_response: zksync::TransactionReceipt =
     zksync::SignerMiddleware::send_transaction(&signer_middleware, transaction, None)
@@ -138,7 +140,6 @@ let payment_response: zksync::TransactionReceipt =
         .await
         .unwrap()
         .unwrap();
-```
 
 #### Checking zkSync account balance
 
