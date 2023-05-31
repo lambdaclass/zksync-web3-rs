@@ -3,7 +3,7 @@ use ethers::{
     prelude::SignerMiddleware,
     providers::{JsonRpcClient, Middleware, Provider, ProviderError},
     signers::Signer,
-    types::{Address, Trace, H256, U256},
+    types::{Address, H256, U256},
 };
 use serde::Serialize;
 use serde_json::json;
@@ -136,7 +136,7 @@ pub trait ZKSProvider {
     async fn debug_trace_call<T>(
         &self,
         request: T,
-        block: U256,
+        block: Option<U256>,
         options: Option<TracerConfig>,
     ) -> Result<DebugTrace, ProviderError>
     where
@@ -276,7 +276,7 @@ impl<M: Middleware + ZKSProvider, S: Signer> ZKSProvider for SignerMiddleware<M,
     async fn debug_trace_call<T>(
         &self,
         request: T,
-        block: U256,
+        block: Option<U256>,
         options: Option<TracerConfig>,
     ) -> Result<DebugTrace, ProviderError>
     where
@@ -439,7 +439,7 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
     async fn debug_trace_call<T>(
         &self,
         request: T,
-        block: U256,
+        block: Option<U256>,
         options: Option<TracerConfig>,
     ) -> Result<DebugTrace, ProviderError>
     where
@@ -465,7 +465,6 @@ mod tests {
 
     use crate::zks_provider::{types::TracerConfig, ZKSProvider};
     use ethers::{
-        abi::ethabi::Bytes,
         prelude::{k256::ecdsa::SigningKey, MiddlewareBuilder, SignerMiddleware},
         providers::{Middleware, Provider},
         signers::{Signer, Wallet},
@@ -474,7 +473,7 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     const L2_CHAIN_ID: u64 = 270;
-
+    
     fn local_provider() -> Provider<ethers::providers::Http> {
         Provider::try_from(format!(
             "http://{host}:{port}",
@@ -715,8 +714,8 @@ mod tests {
             disable_stack: None,
             enable_memory: None,
             enable_return_data: None,
-            tracer: Some("callTracer".to_string()),
-            tracer_config: Some(HashMap::from([("onlyTopCall".to_string(), true)])),
+            tracer: Some("callTracer".to_owned()),
+            tracer_config: Some(HashMap::from([("onlyTopCall".to_owned(), true)])),
         });
 
         assert!(
@@ -740,14 +739,10 @@ mod tests {
             disable_stack: None,
             enable_memory: None,
             enable_return_data: None,
-            tracer: Some("callTracer".to_string()),
-            tracer_config: Some(HashMap::from([("onlyTopCall".to_string(), true)])),
+            tracer: Some("callTracer".to_owned()),
+            tracer_config: Some(HashMap::from([("onlyTopCall".to_owned(), true)])),
         });
 
-        println!(
-            "{:?}",
-            ZKSProvider::debug_trace_block_by_number(&provider, block_number, None).await
-        );
         assert!(
             ZKSProvider::debug_trace_block_by_number(&provider, block_number, None)
                 .await
@@ -760,24 +755,81 @@ mod tests {
         );
     }
 
-    // #[tokio::test]
-    // async fn test_provider_debug_trace_call() {
-    //     let provider = local_provider();
-    //     let request = /* create a request object */;
-    //     let block = /* create a block object */;
-    //     let options = /* create a tracer config object */;
+    #[tokio::test]
+    async fn test_provider_debug_trace_call() {
+        let provider = local_provider();
+        #[derive(Serialize, Deserialize, Debug)]
+        struct TestTransaction {
+            from: String,
+            to: String,
+            data: String,
+        }
 
-    //     assert!(provider.debug_trace_call(request, block, options).await.is_ok());
-    // }
+        let request = TestTransaction {
+            from: "0x1111111111111111111111111111111111111111".to_owned(),
+            to: "0x2222222222222222222222222222222222222222".to_owned(),
+            data: "0x608060405234801561001057600080fd5b50610228806100206000396000f3fe608060405234801561001057600080fd5b506004361061002b5760003560e01c80639146769014610030575b600080fd5b61003861004e565b6040516100459190610170565b60405180910390f35b60606000805461005d906101c1565b80601f0160208091040260200160405190810160405280929190818152602001828054610089906101c1565b80156100d65780601f106100ab576101008083540402835291602001916100d6565b820191906000526020600020905b8154815290600101906020018083116100b957829003601f168201915b5050505050905090565b600081519050919050565b600082825260208201905092915050565b60005b8381101561011a5780820151818401526020810190506100ff565b60008484015250505050565b6000601f19601f8301169050919050565b6000610142826100e0565b61014c81856100eb565b935061015c8185602086016100fc565b61016581610126565b840191505092915050565b6000602082019050818103600083015261018a8184610137565b905092915050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052602260045260246000fd5b600060028204905060018216806101d957607f821691505b6020821081036101ec576101eb610192565b5b5091905056fea26469706673582212203d7f62ad5ef1f9670aa630c438f1a75844e1d2cfaf92e6985c698b7009e3dfa864736f6c63430008140033".to_owned(),
+        };
 
-    // #[tokio::test]
-    // async fn test_provider_debug_trace_transaction() {
-    //     let provider = local_provider();
-    //     let hash = /* create a hash object */;
-    //     let options = /* create a tracer config object */;
+        let block = Some(U256::from(2));
+        let options = Some(TracerConfig {
+            disable_storage: None,
+            disable_stack: None,
+            enable_memory: None,
+            enable_return_data: None,
+            tracer: Some("callTracer".to_owned()),
+            tracer_config: Some(HashMap::from([("onlyTopCall".to_owned(), true)])),
+        });
 
-    //     assert!(provider.debug_trace_transaction(hash, options).await.is_ok());
-    // }
+        assert!(
+            ZKSProvider::debug_trace_call(&provider, &request, None, None)
+                .await
+                .is_ok()
+        );
+        assert!(
+            ZKSProvider::debug_trace_call(&provider, &request, block, None)
+                .await
+                .is_ok()
+        );
+        assert!(
+            ZKSProvider::debug_trace_call(&provider, &request, block, options.clone())
+                .await
+                .is_ok()
+        );
+        assert!(
+            ZKSProvider::debug_trace_call(&provider, request, None, options)
+                .await
+                .is_ok()
+        );
+    }
+
+    // TODO: This test is flacky. It could fail in the future.
+    #[tokio::test]
+    async fn test_provider_debug_trace_transaction() {
+        let provider = local_provider();
+        let transaction_hash = "0x84472204e445cb3cd5f3ce5e23abcc2892cda5e61b35855a7f0bb1562a6e30e7"
+            .parse()
+            .unwrap();
+        let options = Some(TracerConfig {
+            disable_storage: None,
+            disable_stack: None,
+            enable_memory: None,
+            enable_return_data: None,
+            tracer: Some("callTracer".to_owned()),
+            tracer_config: Some(HashMap::from([("onlyTopCall".to_owned(), true)])),
+        });
+
+        assert!(
+            ZKSProvider::debug_trace_transaction(&provider, transaction_hash, None)
+                .await
+                .is_ok()
+        );
+        assert!(
+            ZKSProvider::debug_trace_transaction(&provider, transaction_hash, options)
+                .await
+                .is_ok()
+        );
+    }
 
     #[tokio::test]
     async fn test_signer_estimate_fee() {
@@ -886,7 +938,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "fix"]
     async fn test_signer_get_confirmed_tokens() {
         let provider = local_signer();
         let from = 0;
@@ -990,40 +1041,131 @@ mod tests {
         assert!(provider.get_l1_chain_id().await.is_ok());
     }
 
-    // #[tokio::test]
-    // async fn test_signer_debug_trace_block_by_hash() {
-    //     let provider = local_signer();
-    //     let hash = /* create a hash object */;
-    //     let options = /* create a tracer config object */;
+    #[tokio::test]
+    async fn test_signer_debug_trace_block_by_hash() {
+        let provider = local_signer();
+        let test_block = provider.get_block_details(2).await.unwrap();
+        let hash = test_block.root_hash;
 
-    //     assert!(provider.debug_trace_block_by_hash(hash, options).await.is_ok());
-    // }
+        let options = Some(TracerConfig {
+            disable_storage: None,
+            disable_stack: None,
+            enable_memory: None,
+            enable_return_data: None,
+            tracer: Some("callTracer".to_owned()),
+            tracer_config: Some(HashMap::from([("onlyTopCall".to_owned(), true)])),
+        });
 
-    // #[tokio::test]
-    // async fn test_signer_debug_trace_block_by_number() {
-    //     let provider = local_signer();
-    //     let block = /* create a block object */;
-    //     let options = /* create a tracer config object */;
+        assert!(
+            ZKSProvider::debug_trace_block_by_hash(&provider, hash, None)
+                .await
+                .is_ok()
+        );
+        assert!(
+            ZKSProvider::debug_trace_block_by_hash(&provider, hash, options)
+                .await
+                .is_ok()
+        );
+    }
 
-    //     assert!(provider.debug_trace_block_by_number(block, options).await.is_ok());
-    // }
+    #[tokio::test]
+    async fn test_signer_debug_trace_block_by_number() {
+        let provider = local_signer();
+        let block_number = U256::from(2);
+        let options = Some(TracerConfig {
+            disable_storage: None,
+            disable_stack: None,
+            enable_memory: None,
+            enable_return_data: None,
+            tracer: Some("callTracer".to_owned()),
+            tracer_config: Some(HashMap::from([("onlyTopCall".to_owned(), true)])),
+        });
 
-    // #[tokio::test]
-    // async fn test_signer_debug_trace_call() {
-    //     let provider = local_signer();
-    //     let request = /* create a request object */;
-    //     let block = /* create a block object */;
-    //     let options = /* create a tracer config object */;
+        assert!(
+            ZKSProvider::debug_trace_block_by_number(&provider, block_number, None)
+                .await
+                .is_ok()
+        );
+        assert!(
+            ZKSProvider::debug_trace_block_by_number(&provider, block_number, options)
+                .await
+                .is_ok()
+        );
+    }
 
-    //     assert!(provider.debug_trace_call(request, block, options).await.is_ok());
-    // }
+    #[tokio::test]
+    async fn test_signer_debug_trace_call() {
+        let provider = local_signer();
+        #[derive(Serialize, Deserialize, Debug)]
+        struct TestTransaction {
+            from: String,
+            to: String,
+            data: String,
+        }
 
-    // #[tokio::test]
-    // async fn test_signer_debug_trace_transaction() {
-    //     let provider = local_signer();
-    //     let hash = /* create a hash object */;
-    //     let options = /* create a tracer config object */;
+        let request = TestTransaction {
+            from: "0x1111111111111111111111111111111111111111".to_owned(),
+            to: "0x2222222222222222222222222222222222222222".to_owned(),
+            data: "0x608060405234801561001057600080fd5b50610228806100206000396000f3fe608060405234801561001057600080fd5b506004361061002b5760003560e01c80639146769014610030575b600080fd5b61003861004e565b6040516100459190610170565b60405180910390f35b60606000805461005d906101c1565b80601f0160208091040260200160405190810160405280929190818152602001828054610089906101c1565b80156100d65780601f106100ab576101008083540402835291602001916100d6565b820191906000526020600020905b8154815290600101906020018083116100b957829003601f168201915b5050505050905090565b600081519050919050565b600082825260208201905092915050565b60005b8381101561011a5780820151818401526020810190506100ff565b60008484015250505050565b6000601f19601f8301169050919050565b6000610142826100e0565b61014c81856100eb565b935061015c8185602086016100fc565b61016581610126565b840191505092915050565b6000602082019050818103600083015261018a8184610137565b905092915050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052602260045260246000fd5b600060028204905060018216806101d957607f821691505b6020821081036101ec576101eb610192565b5b5091905056fea26469706673582212203d7f62ad5ef1f9670aa630c438f1a75844e1d2cfaf92e6985c698b7009e3dfa864736f6c63430008140033".to_owned(),
+        };
 
-    //     assert!(provider.debug_trace_transaction(hash, options).await.is_ok());
-    // }
+        let block = Some(U256::from(2));
+        let options = Some(TracerConfig {
+            disable_storage: None,
+            disable_stack: None,
+            enable_memory: None,
+            enable_return_data: None,
+            tracer: Some("callTracer".to_owned()),
+            tracer_config: Some(HashMap::from([("onlyTopCall".to_owned(), true)])),
+        });
+
+        assert!(
+            ZKSProvider::debug_trace_call(&provider, &request, None, None)
+                .await
+                .is_ok()
+        );
+        assert!(
+            ZKSProvider::debug_trace_call(&provider, &request, block, None)
+                .await
+                .is_ok()
+        );
+        assert!(
+            ZKSProvider::debug_trace_call(&provider, &request, block, options.clone())
+                .await
+                .is_ok()
+        );
+        assert!(
+            ZKSProvider::debug_trace_call(&provider, request, None, options)
+                .await
+                .is_ok()
+        );
+    }
+
+    // TODO: This test is flacky. It could fail in the future.
+    #[tokio::test]
+    async fn test_signer_debug_trace_transaction() {
+        let provider = local_signer();
+        let transaction_hash = "0x84472204e445cb3cd5f3ce5e23abcc2892cda5e61b35855a7f0bb1562a6e30e7"
+            .parse()
+            .unwrap();
+        let options = Some(TracerConfig {
+            disable_storage: None,
+            disable_stack: None,
+            enable_memory: None,
+            enable_return_data: None,
+            tracer: Some("callTracer".to_owned()),
+            tracer_config: Some(HashMap::from([("onlyTopCall".to_owned(), true)])),
+        });
+
+        assert!(
+            ZKSProvider::debug_trace_transaction(&provider, transaction_hash, None)
+                .await
+                .is_ok()
+        );
+        assert!(
+            ZKSProvider::debug_trace_transaction(&provider, transaction_hash, options)
+                .await
+                .is_ok()
+        );
+    }
 }

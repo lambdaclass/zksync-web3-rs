@@ -1,6 +1,5 @@
 use std::{
     collections::HashMap,
-    default::{self},
 };
 
 use ethers::types::{Address, Bytes, H256, U256};
@@ -54,6 +53,7 @@ pub struct BridgeContracts {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct TokenInfo {
     pub decimals: u64,
     pub l1_address: Address,
