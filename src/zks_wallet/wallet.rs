@@ -152,6 +152,14 @@ where
             None => return Err(ZKSWalletError::CustomError("no era provider".to_string())),
         };
 
+        let custom_data = Eip712Meta::new().factory_deps({
+            let mut factory_deps = vec![contract_bytecode.clone()];
+            if let Some(contract_dependencies) = contract_dependencies {
+                factory_deps.extend(contract_dependencies);
+            }
+            factory_deps
+        });
+
         let mut deploy_request = Eip712TransactionRequest::new()
             .r#type(EIP712_TX_TYPE)
             .from(self.address())
@@ -196,21 +204,7 @@ where
 
                 encode_function_data(&create, (salt, bytecode_hash, call_data))?
             })
-            .custom_data({
-                let mut custom_data = Eip712Meta::default();
-                custom_data.factory_deps = {
-                    let mut factory_deps = vec![contract_bytecode];
-                    if let Some(contract_dependencies) = contract_dependencies {
-                        factory_deps.extend(contract_dependencies);
-                    }
-                    Some(factory_deps)
-                };
-                // TODO: User could provide this instead of defaulting.
-                custom_data.gas_per_pubdata = DEFAULT_GAS_PER_PUBDATA_LIMIT.into();
-                // TODO: User could provide this instead of defaulting.
-                custom_data.paymaster_params = Some(PaymasterParams::default());
-                custom_data
-            });
+            .custom_data(custom_data.clone());
 
         let fee = era_provider.estimate_fee(deploy_request.clone()).await?;
         deploy_request = deploy_request
@@ -220,7 +214,8 @@ where
 
         let signable_data: Eip712SignInput = deploy_request.clone().into();
         let signature: Signature = self.wallet.sign_typed_data(&signable_data).await?;
-        deploy_request = deploy_request.custom_signature(signature.to_vec());
+        deploy_request =
+            deploy_request.custom_data(custom_data.custom_signature(signature.to_vec()));
 
         let pending_transaction = era_provider
             .send_raw_transaction(

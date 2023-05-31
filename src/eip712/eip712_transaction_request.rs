@@ -1,3 +1,5 @@
+use crate::zks_utils::DEFAULT_GAS_PER_PUBDATA_LIMIT;
+
 use super::{
     hash_bytecode,
     utils::{self, rlp_opt},
@@ -267,13 +269,59 @@ impl Into<Eip712SignInput> for Eip712TransactionRequest {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all(serialize = "camelCase", deserialize = "camelCase"))]
 pub struct Eip712Meta {
     pub gas_per_pubdata: U256,
     pub factory_deps: Option<Vec<Bytes>>,
     pub custom_signature: Option<Bytes>,
     pub paymaster_params: Option<PaymasterParams>,
+}
+
+impl Eip712Meta {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn gas_per_pubdata<T>(mut self, gas_per_pubdata: T) -> Self
+    where
+        T: Into<U256>,
+    {
+        self.gas_per_pubdata = gas_per_pubdata.into();
+        self
+    }
+
+    pub fn factory_deps<T>(mut self, factory_deps: T) -> Self
+    where
+        T: Into<Vec<Bytes>>,
+    {
+        self.factory_deps = Some(factory_deps.into());
+        self
+    }
+
+    pub fn custom_signature<T>(mut self, custom_signature: T) -> Self
+    where
+        T: Into<Bytes>,
+    {
+        self.custom_signature = Some(custom_signature.into());
+        self
+    }
+
+    pub fn paymaster_params(mut self, paymaster_params: PaymasterParams) -> Self {
+        self.paymaster_params = Some(paymaster_params);
+        self
+    }
+}
+
+impl Default for Eip712Meta {
+    fn default() -> Self {
+        Self {
+            gas_per_pubdata: DEFAULT_GAS_PER_PUBDATA_LIMIT.into(),
+            factory_deps: Default::default(),
+            custom_signature: Default::default(),
+            paymaster_params: Default::default(),
+        }
+    }
 }
 
 impl Encodable for Eip712Meta {
