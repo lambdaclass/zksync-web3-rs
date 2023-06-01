@@ -1,5 +1,111 @@
 # zksync-web3-rs
 
+## Everything you need to know about EIP712 on zkSync Era
+
+The Ethereum Improvement Proposal [EIP-712: Typed structured data hashing and signing](https://eips.ethereum.org/EIPS/eip-712) introduces hashing and signing of typed-structured data as well as bytestrings.
+
+In the following sections we'll explain how to build, sign, encode and send a well-formed EIP712 transaction request to the network.
+
+The steps:
+
+1. Create a base request and fill it with sufficient data for estimating the fee.
+2. Estimate the fee and add it the request.
+3. Derive the EIP712 signable transaction from the request and sign it and add the signature to the request.
+5. RLP-encode the request and concatenate the transaction type at the beginning.
+6. Send the transaction using the `sendRawTransaction` method.
+
+### Building an EIP712 transaction request
+
+These transactions have the same fields as standard Ethereum transactions, but they also have fields that contain additional L2-specific data that should be set in the `customData` field.
+
+In the case of zkSync Era, this fields are the following:
+
+- `gasPerPubdata`: A field denoting the maximum amount of gas the user is willing to pay for a single byte of pubdata.
+- `customSignature`: A field with a custom signature for the cases in which the signer's account is not an EOA.
+- `paymasterParams`: A field with parameters for configuring the custom paymaster for the transaction. Parameters include the address of the paymaster and the encoded input (you could find a tutorial on building a custom paymaster in the [zkSync Era docs](https://era.zksync.io/docs/dev/tutorials/custom-paymaster-tutorial.html)).
+- `factory_deps`: A non-empty array of bytes. For deployment transactions, it should contain the bytecode of the contract being deployed. If the contract is a factory contract, i.e. it can deploy other contracts, the array should also contain the bytecodes of the contracts which it can deploy.
+
+This is how a noop `customData` object looks like:
+
+```json
+"customData": {
+  "gasPerPubdata": "0xc350",
+  "factoryDeps": [],
+  "customSignature": "0x",
+  "paymasterParams": {
+    "paymaster": "0x0000000000000000000000000000000000000000",
+    "paymasterInput": "0x"
+  }
+}
+```
+
+We call the representation of this structure `Eip712Meta` and its definition and implementation is located in the [`src/eip712/meta.rs`](/src/eip712/meta.rs) module.
+
+The transaction request is built in three stages being the final the one being encoded and sent to the network. 
+
+In the first stage you fill the request with *input data* (i.e. this could be `from`, `to`, `nonce`, `gasPrice`, `value`, `chainId`, `type` in the case of a transfer transaction). In the second stage the request is filled with fee data obtained from the network given the first stage's result (i.e. `maxFeePerGas`, `maxPriorityFeePerGas`, `gasPerPubdata`, `gasLimit`). Finally, the last stage consists on adding the EIP712 signature to the `customSignature` field of the `customData` object.
+
+This is how a noop EIP712 transaction request looks like:
+
+```json
+{
+  "to": "0x0000000000000000000000000000000000000000",
+  "from": "0x0000000000000000000000000000000000000000",
+  "nonce": "0x0",
+  "gasLimit": "0x0",
+  "gasPrice": "0x0",
+  "data": "0x",
+  "value": "0x0",
+  "chainId": "0x10e",
+  "type": "0x71",
+  "accessList": [],
+  "maxPriorityFeePerGas": "0x0",
+  "maxFeePerGas": "0x0",
+  "customData": {
+    "gasPerPubdata": "0xc350",
+    "factoryDeps": [],
+    "customSignature": "0x",
+    "paymasterParams": {
+      "paymaster": "0x0000000000000000000000000000000000000000",
+      "paymasterInput": "0x"
+    }
+  },
+  "ccipReadEnabled": false
+}
+```
+
+### Building an EIP712 signable transaction
+
+Instead of signing the RLP-encoded transaction, the user signs the a typed EIP712 structure which we called `Eip712Transaction`. This structure is built from the transaction request as it contains a subset of its fields. The `Eip712Transaction` structure is defined in the [`src/eip712/transaction.rs`](/src/eip712/transaction.rs) module and a noop one looks like the following:
+
+```json
+{
+  "txType": "0x71",
+  "from": "0x0000000000000000000000000000000000000000",
+  "to": "0x0000000000000000000000000000000000000000",
+  "gasLimit": "0x0",
+  "gasPerPubdataByteLimit": "0xc350",
+  "maxFeePerGas": "0x0",
+  "maxPriorityFeePerGas": "0x0",
+  "paymaster": "0x0000000000000000000000000000000000000000",
+  "nonce": "0x0",
+  "value": "0x0",
+  "data": "0x",
+  "factoryDeps": [],
+  "paymasterInput": "0x"
+}
+```
+
+### Encoding an EIP712 transaction
+
+### Signing an EIP712 transaction
+
+The signing could be done by `ethers-rs` by the `LocalWallet` with the method `sign_typed_data`. What you are signing here is the keccak hash of the EIP712 transaction encoding. Internally, this is done by the `sighash` method.
+
+### Sending an EIP712 transaction request
+
+What is sent to the network is the concatenation of the transaction type with the RLP-encoding of the transaction request containing the signed message.
+
 ## zkSync Era’s JSON-RPC methods
 
 ### The `ZKSProvider` trait
