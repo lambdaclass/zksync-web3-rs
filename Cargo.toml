@@ -26,6 +26,9 @@ thiserror = "1.0.40" # Library error handling
 log = "0.4"
 env_logger = "0.10"
 
+# Hash
+sha2 = "0.9.5"
+
 # Examples
 
 [[example]]
