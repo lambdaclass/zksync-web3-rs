@@ -141,22 +141,6 @@ impl Eip712TransactionRequest {
         self
     }
 
-    pub fn custom_signature<T>(mut self, signature: T) -> Self
-    where
-        T: Into<Bytes>,
-    {
-        if let Some(mut custom_data) = self.custom_data {
-            custom_data.custom_signature = Some(signature.into());
-            self.custom_data = Some(custom_data);
-        } else {
-            self.custom_data = Some(Eip712Meta {
-                custom_signature: Some(signature.into()),
-                ..Default::default()
-            });
-        }
-        self
-    }
-
     pub fn rlp_unsigned(&self) -> Bytes {
         self.rlp(None)
     }
