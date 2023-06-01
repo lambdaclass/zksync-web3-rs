@@ -18,8 +18,7 @@ pub struct Eip712TransactionRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub gas_limit: Option<U256>,
     pub gas_price: U256,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub data: Option<Bytes>,
+    pub data: Bytes,
     pub value: U256,
     pub chain_id: U256,
     pub r#type: U256,
@@ -29,8 +28,7 @@ pub struct Eip712TransactionRequest {
     pub max_priority_fee_per_gas: Option<U256>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_fee_per_gas: Option<U256>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub custom_data: Option<Eip712Meta>,
+    pub custom_data: Eip712Meta,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ccip_read_enabled: Option<bool>,
 }
@@ -84,7 +82,7 @@ impl Eip712TransactionRequest {
     where
         T: Into<Bytes>,
     {
-        self.data = Some(data.into());
+        self.data = data.into();
         self
     }
 
@@ -134,7 +132,7 @@ impl Eip712TransactionRequest {
     }
 
     pub fn custom_data(mut self, custom_data: Eip712Meta) -> Self {
-        self.custom_data = Some(custom_data);
+        self.custom_data = custom_data;
         self
     }
 
@@ -184,7 +182,7 @@ impl Eip712TransactionRequest {
         // 5
         stream.append(&self.value);
         // 6
-        rlp_opt(&mut stream, &self.data.clone().map(|d| d.0));
+        stream.append(&self.data.0);
         if let Some(signature) = signature {
             // 7
             stream.append(&U64::from(signature.v));
@@ -204,10 +202,8 @@ impl Eip712TransactionRequest {
         stream.append(&self.chain_id);
         // 11
         rlp_opt(&mut stream, &self.from);
-        if let Some(meta) = &self.custom_data {
-            // 12, 13, 14, 15
-            meta.rlp_append(&mut stream);
-        }
+        // 12, 13, 14, 15
+        self.custom_data.rlp_append(&mut stream);
 
         stream.finalize_unbounded_list();
         stream.out().freeze().into()
@@ -232,32 +228,28 @@ impl Into<Eip712SignInput> for Eip712TransactionRequest {
         eip712_sign_input.value = self.value;
         eip712_sign_input.data = self.data;
 
-        if let Some(custom_data) = self.custom_data {
-            if let Some(factory_deps) = custom_data.factory_deps {
-                eip712_sign_input.factory_deps = Some(
-                    factory_deps
-                        .iter()
-                        .map(|dependency_bytecode| {
-                            hash_bytecode(dependency_bytecode).map(Bytes::from)
-                        })
-                        .collect::<Result<Vec<Bytes>, _>>()
-                        .unwrap(),
-                );
-            }
-            eip712_sign_input.gas_per_pubdata_byte_limit =
-                Some(U256::from(DEFAULT_GAS_PER_PUBDATA_LIMIT));
-            if let Some(paymaster_params) = custom_data.paymaster_params {
-                eip712_sign_input.paymaster = Some(paymaster_params.paymaster);
-                eip712_sign_input.paymaster_input = Some(paymaster_params.paymaster_input);
-            } else {
-                eip712_sign_input.paymaster = Some(
-                    "0x0000000000000000000000000000000000000000"
-                        .parse()
-                        .unwrap(),
-                );
-                // TODO: This default seems to be wrong.
-                eip712_sign_input.paymaster_input = Some(Bytes::default());
-            }
+        if let Some(factory_deps) = self.custom_data.factory_deps {
+            eip712_sign_input.factory_deps = Some(
+                factory_deps
+                    .iter()
+                    .map(|dependency_bytecode| hash_bytecode(dependency_bytecode).map(Bytes::from))
+                    .collect::<Result<Vec<Bytes>, _>>()
+                    .unwrap(),
+            );
+        }
+        eip712_sign_input.gas_per_pubdata_byte_limit =
+            Some(U256::from(DEFAULT_GAS_PER_PUBDATA_LIMIT));
+        if let Some(paymaster_params) = self.custom_data.paymaster_params {
+            eip712_sign_input.paymaster = Some(paymaster_params.paymaster);
+            eip712_sign_input.paymaster_input = Some(paymaster_params.paymaster_input);
+        } else {
+            eip712_sign_input.paymaster = Some(
+                "0x0000000000000000000000000000000000000000"
+                    .parse()
+                    .unwrap(),
+            );
+            // TODO: This default seems to be wrong.
+            eip712_sign_input.paymaster_input = Some(Bytes::default());
         }
 
         eip712_sign_input

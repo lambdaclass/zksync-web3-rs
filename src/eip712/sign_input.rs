@@ -31,8 +31,7 @@ pub struct Eip712SignInput {
     pub paymaster: Option<Address>,
     pub nonce: U256,
     pub value: U256,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub data: Option<Bytes>,
+    pub data: Bytes,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub factory_deps: Option<Vec<Bytes>>,
     #[serde(skip_serializing_if = "Option::is_none")]
