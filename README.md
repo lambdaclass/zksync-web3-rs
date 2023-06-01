@@ -99,7 +99,7 @@ let wallet = zksync::Wallet::with_chain_id(private_key, zksync_era_chain_id);
 To connect to the zkSync network, you need to provide the URL of the zkSync node. The localnet runs both an *Ethereum* node (L1) on port `8545` and an *Era* node (L2) on port `3050`. You can connect to the zkSync Era network using the following code:
 
 ```rust
-let provider = zksync::Provider::try_from("http://localhost:3050").unwrap();
+let provider = zksync::Provider::try_from("http://65.21.140.36:3050").unwrap();
 ```
 
 #### Creating a Payment Transaction

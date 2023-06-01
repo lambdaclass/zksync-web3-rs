@@ -477,7 +477,7 @@ mod tests {
     fn local_provider() -> Provider<ethers::providers::Http> {
         Provider::try_from(format!(
             "http://{host}:{port}",
-            host = "localhost",
+            host = "65.21.140.36",
             port = 3_050_i32
         ))
         .unwrap()
