@@ -17,27 +17,18 @@ use serde_json::json;
 #[serde(rename_all(serialize = "camelCase", deserialize = "camelCase"))]
 pub struct Eip712SignInput {
     pub tx_type: U256,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub from: Option<Address>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub to: Option<Address>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub gas_limit: Option<U256>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub gas_per_pubdata_byte_limit: Option<U256>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_fee_per_gas: Option<U256>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_priority_fee_per_gas: Option<U256>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub paymaster: Option<Address>,
+    pub from: Address,
+    pub to: Address,
+    pub gas_limit: U256,
+    pub gas_per_pubdata_byte_limit: U256,
+    pub max_fee_per_gas: U256,
+    pub max_priority_fee_per_gas: U256,
+    pub paymaster: Address,
     pub nonce: U256,
     pub value: U256,
     pub data: Bytes,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub factory_deps: Option<Vec<Bytes>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub paymaster_input: Option<Bytes>,
+    pub factory_deps: Vec<Bytes>,
+    pub paymaster_input: Bytes,
 }
 
 impl Eip712SignInput {
@@ -150,39 +141,21 @@ impl TryFrom<Eip712TransactionRequest> for Eip712SignInput {
         eip712_sign_input.from = tx.from;
         eip712_sign_input.to = tx.to;
         eip712_sign_input.gas_limit = tx.gas_limit;
-        // TODO create a new constant for default value
-        eip712_sign_input.max_fee_per_gas = tx.max_fee_per_gas.or(Some(U256::from("0x0ee6b280")));
-        // TODO create a new constant for default value
-        eip712_sign_input.max_priority_fee_per_gas = tx
-            .max_priority_fee_per_gas
-            .or(Some(U256::from("0x0ee6b280")));
+        eip712_sign_input.max_fee_per_gas = tx.max_fee_per_gas;
+        eip712_sign_input.max_priority_fee_per_gas = tx.max_priority_fee_per_gas;
         eip712_sign_input.nonce = tx.nonce;
         eip712_sign_input.value = tx.value;
         eip712_sign_input.data = tx.data;
-
-        if let Some(factory_deps) = tx.custom_data.factory_deps {
-            eip712_sign_input.factory_deps = Some(
-                factory_deps
-                    .iter()
-                    .map(|dependency_bytecode| hash_bytecode(dependency_bytecode).map(Bytes::from))
-                    .collect::<Result<Vec<Bytes>, _>>()
-                    .unwrap(),
-            );
-        }
-        eip712_sign_input.gas_per_pubdata_byte_limit =
-            Some(U256::from(DEFAULT_GAS_PER_PUBDATA_LIMIT));
-        if let Some(paymaster_params) = tx.custom_data.paymaster_params {
-            eip712_sign_input.paymaster = Some(paymaster_params.paymaster);
-            eip712_sign_input.paymaster_input = Some(paymaster_params.paymaster_input);
-        } else {
-            eip712_sign_input.paymaster = Some(
-                "0x0000000000000000000000000000000000000000"
-                    .parse()
-                    .unwrap(),
-            );
-            // TODO: This default seems to be wrong.
-            eip712_sign_input.paymaster_input = Some(Bytes::default());
-        }
+        eip712_sign_input.factory_deps = tx
+            .custom_data
+            .factory_deps
+            .iter()
+            .map(|dependency_bytecode| hash_bytecode(dependency_bytecode).map(Bytes::from))
+            .collect::<Result<Vec<Bytes>, _>>()
+            .unwrap();
+        eip712_sign_input.gas_per_pubdata_byte_limit = U256::from(DEFAULT_GAS_PER_PUBDATA_LIMIT);
+        eip712_sign_input.paymaster = tx.custom_data.paymaster_params.paymaster;
+        eip712_sign_input.paymaster_input = tx.custom_data.paymaster_params.paymaster_input;
 
         Ok(eip712_sign_input)
     }

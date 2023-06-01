@@ -1,6 +1,6 @@
 use crate::zks_utils::{EIP712_TX_TYPE, ERA_CHAIN_ID};
 
-use super::{rlp_opt, Eip712Meta};
+use super::Eip712Meta;
 use ethers::{
     types::{transaction::eip2930::AccessList, Address, Bytes, Signature, U256, U64},
     utils::rlp::{Encodable, RlpStream},
@@ -11,27 +11,20 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all(serialize = "camelCase", deserialize = "camelCase"))]
 pub struct Eip712TransactionRequest {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub to: Option<Address>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub from: Option<Address>,
+    pub to: Address,
+    pub from: Address,
     pub nonce: U256,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub gas_limit: Option<U256>,
+    pub gas_limit: U256,
     pub gas_price: U256,
     pub data: Bytes,
     pub value: U256,
     pub chain_id: U256,
     pub r#type: U256,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub access_list: Option<AccessList>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_priority_fee_per_gas: Option<U256>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_fee_per_gas: Option<U256>,
+    pub access_list: AccessList,
+    pub max_priority_fee_per_gas: U256,
+    pub max_fee_per_gas: U256,
     pub custom_data: Eip712Meta,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub ccip_read_enabled: Option<bool>,
+    pub ccip_read_enabled: bool,
 }
 
 impl Eip712TransactionRequest {
@@ -43,7 +36,7 @@ impl Eip712TransactionRequest {
     where
         T: Into<Address>,
     {
-        self.to = Some(to.into());
+        self.to = to.into();
         self
     }
 
@@ -51,7 +44,7 @@ impl Eip712TransactionRequest {
     where
         T: Into<Address>,
     {
-        self.from = Some(from.into());
+        self.from = from.into();
         self
     }
 
@@ -67,7 +60,7 @@ impl Eip712TransactionRequest {
     where
         T: Into<U256>,
     {
-        self.gas_limit = Some(gas_limit.into());
+        self.gas_limit = gas_limit.into();
         self
     }
 
@@ -112,7 +105,7 @@ impl Eip712TransactionRequest {
     }
 
     pub fn access_list<T>(mut self, access_list: AccessList) -> Self {
-        self.access_list = Some(access_list);
+        self.access_list = access_list;
         self
     }
 
@@ -120,7 +113,7 @@ impl Eip712TransactionRequest {
     where
         T: Into<U256>,
     {
-        self.max_priority_fee_per_gas = Some(max_priority_fee_per_gas.into());
+        self.max_priority_fee_per_gas = max_priority_fee_per_gas.into();
         self
     }
 
@@ -128,7 +121,7 @@ impl Eip712TransactionRequest {
     where
         T: Into<U256>,
     {
-        self.max_fee_per_gas = Some(max_fee_per_gas.into());
+        self.max_fee_per_gas = max_fee_per_gas.into();
         self
     }
 
@@ -138,7 +131,7 @@ impl Eip712TransactionRequest {
     }
 
     pub fn ccip_read_enabled(mut self, ccip_read_enabled: bool) -> Self {
-        self.ccip_read_enabled = Some(ccip_read_enabled);
+        self.ccip_read_enabled = ccip_read_enabled;
         self
     }
 
@@ -157,13 +150,13 @@ impl Eip712TransactionRequest {
         // 0
         stream.append(&self.nonce);
         // 1
-        rlp_opt(&mut stream, &self.max_priority_fee_per_gas);
+        stream.append(&self.max_priority_fee_per_gas);
         // 2
-        rlp_opt(&mut stream, &self.max_fee_per_gas);
+        stream.append(&self.max_fee_per_gas);
         // 3 (supped to be gas)
-        rlp_opt(&mut stream, &self.gas_limit);
+        stream.append(&self.gas_limit);
         // 4
-        rlp_opt(&mut stream, &self.to);
+        stream.append(&self.to);
         // 5
         stream.append(&self.value);
         // 6
@@ -186,7 +179,7 @@ impl Eip712TransactionRequest {
         // 10
         stream.append(&self.chain_id);
         // 11
-        rlp_opt(&mut stream, &self.from);
+        stream.append(&self.from);
         // 12, 13, 14, 15
         self.custom_data.rlp_append(&mut stream);
 

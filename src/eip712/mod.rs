@@ -45,14 +45,3 @@ pub fn hash_bytecode(bytecode: &Bytes) -> Result<[u8; 32], Eip712Error> {
 
     Ok(contract_hash)
 }
-
-pub(crate) fn rlp_opt<T: ethers::utils::rlp::Encodable>(
-    stream: &mut ethers::utils::rlp::RlpStream,
-    opt: &Option<T>,
-) {
-    if let Some(inner) = opt {
-        stream.append(inner);
-    } else {
-        stream.append(&"");
-    }
-}
