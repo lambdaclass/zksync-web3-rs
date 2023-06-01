@@ -151,8 +151,7 @@ impl TryFrom<Eip712TransactionRequest> for Eip712SignInput {
             .factory_deps
             .iter()
             .map(|dependency_bytecode| hash_bytecode(dependency_bytecode).map(Bytes::from))
-            .collect::<Result<Vec<Bytes>, _>>()
-            .unwrap();
+            .collect::<Result<Vec<Bytes>, _>>()?;
         eip712_sign_input.gas_per_pubdata_byte_limit = U256::from(DEFAULT_GAS_PER_PUBDATA_LIMIT);
         eip712_sign_input.paymaster = tx.custom_data.paymaster_params.paymaster;
         eip712_sign_input.paymaster_input = tx.custom_data.paymaster_params.paymaster_input;

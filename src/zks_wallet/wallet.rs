@@ -90,7 +90,7 @@ where
         match &self.eth_provider {
             // TODO: Should we have a balance_on_block method?
             Some(eth_provider) => Ok(eth_provider.get_balance(self.address(), None).await?),
-            None => Err(ZKSWalletError::CustomError("no era provider".to_string())),
+            None => Err(ZKSWalletError::CustomError("no era provider".to_owned())),
         }
     }
 
@@ -101,7 +101,7 @@ where
         match &self.era_provider {
             // TODO: Should we have a balance_on_block method?
             Some(era_provider) => Ok(era_provider.get_balance(self.address(), None).await?),
-            None => Err(ZKSWalletError::CustomError("no era provider".to_string())),
+            None => Err(ZKSWalletError::CustomError("no era provider".to_owned())),
         }
     }
 
@@ -117,7 +117,7 @@ where
     {
         let era_provider = match &self.era_provider {
             Some(era_provider) => era_provider,
-            None => return Err(ZKSWalletError::CustomError("no era provider".to_string())),
+            None => return Err(ZKSWalletError::CustomError("no era provider".to_owned())),
         };
 
         let mut transfer_request = Eip1559TransactionRequest::new()
@@ -140,7 +140,7 @@ where
         pending_transaction
             .await?
             .ok_or(ZKSWalletError::CustomError(
-                "no transaction receipt".to_string(),
+                "no transaction receipt".to_owned(),
             ))
     }
 
@@ -156,7 +156,7 @@ where
     {
         let era_provider = match &self.era_provider {
             Some(era_provider) => era_provider,
-            None => return Err(ZKSWalletError::CustomError("no era provider".to_string())),
+            None => return Err(ZKSWalletError::CustomError("no era provider".to_owned())),
         };
 
         let mut transfer_request = Eip712TransactionRequest::new()
@@ -183,7 +183,7 @@ where
 
         let pending_transaction = era_provider
             .send_raw_transaction(
-                [&[EIP712_TX_TYPE], &transfer_request.rlp_unsigned()[..]]
+                [&[EIP712_TX_TYPE], &*transfer_request.rlp_unsigned()]
                     .concat()
                     .into(),
             )
@@ -194,7 +194,7 @@ where
         let transaction_receipt = pending_transaction
             .await?
             .ok_or(ZKSWalletError::CustomError(
-                "no transaction receipt".to_string(),
+                "no transaction receipt".to_owned(),
             ))?;
 
         Ok(transaction_receipt)
@@ -216,7 +216,7 @@ where
             transaction_receipt
                 .contract_address
                 .ok_or(ZKSWalletError::CustomError(
-                    "no contract address".to_string(),
+                    "no contract address".to_owned(),
                 ))?;
 
         Ok(contract_address)
@@ -238,7 +238,7 @@ where
             transaction_receipt
                 .contract_address
                 .ok_or(ZKSWalletError::CustomError(
-                    "no contract address".to_string(),
+                    "no contract address".to_owned(),
                 ))?;
 
         Ok((contract_address, transaction_receipt))
@@ -256,7 +256,7 @@ where
     {
         let era_provider = match &self.era_provider {
             Some(era_provider) => era_provider,
-            None => return Err(ZKSWalletError::CustomError("no era provider".to_string())),
+            None => return Err(ZKSWalletError::CustomError("no era provider".to_owned())),
         };
 
         let custom_data = Eip712Meta::new().factory_deps({
@@ -270,7 +270,9 @@ where
         let mut deploy_request = Eip712TransactionRequest::new()
             .r#type(EIP712_TX_TYPE)
             .from(self.address())
-            .to(Address::from_str(CONTRACT_DEPLOYER_ADDR).unwrap())
+            .to(Address::from_str(CONTRACT_DEPLOYER_ADDR).map_err(|e| {
+                ZKSWalletError::CustomError(format!("invalid contract deployer address: {e}"))
+            })?)
             .chain_id(ERA_CHAIN_ID)
             .nonce(
                 era_provider
@@ -326,7 +328,7 @@ where
 
         let pending_transaction = era_provider
             .send_raw_transaction(
-                [&[EIP712_TX_TYPE], &deploy_request.rlp_unsigned()[..]]
+                [&[EIP712_TX_TYPE], &*deploy_request.rlp_unsigned()]
                     .concat()
                     .into(),
             )
@@ -337,7 +339,7 @@ where
         pending_transaction
             .await?
             .ok_or(ZKSWalletError::CustomError(
-                "no transaction receipt".to_string(),
+                "no transaction receipt".to_owned(),
             ))
     }
 }
@@ -355,7 +357,7 @@ mod zks_signer_tests {
     use std::str::FromStr;
 
     fn era_provider() -> Provider<Http> {
-        Provider::try_from(format!("http://localhost:3050")).unwrap()
+        Provider::try_from("http://localhost:3050".to_owned()).unwrap()
     }
 
     #[tokio::test]
@@ -365,7 +367,7 @@ mod zks_signer_tests {
         let receiver_address: Address = "0xa61464658AfeAf65CccaaFD3a512b69A83B77618"
             .parse()
             .unwrap();
-        let amount_to_transfer: U256 = 1.into();
+        let amount_to_transfer: U256 = 1_i32.into();
 
         let era_provider = era_provider();
         let wallet = LocalWallet::from_str(sender_private_key)
@@ -382,8 +384,8 @@ mod zks_signer_tests {
             .await
             .unwrap();
 
-        println!("Sender balance before: {}", sender_balance_before);
-        println!("Receiver balance before: {}", receiver_balance_before);
+        println!("Sender balance before: {sender_balance_before}");
+        println!("Receiver balance before: {receiver_balance_before}");
 
         let receipt = zk_wallet
             .transfer(receiver_address, amount_to_transfer, None)
@@ -404,8 +406,8 @@ mod zks_signer_tests {
             .await
             .unwrap();
 
-        println!("Sender balance after: {}", sender_balance_after);
-        println!("Receiver balance after: {}", receiver_balance_after);
+        println!("Sender balance after: {sender_balance_after}");
+        println!("Receiver balance after: {receiver_balance_after}");
 
         assert_eq!(
             sender_balance_after,
@@ -426,7 +428,7 @@ mod zks_signer_tests {
         let receiver_address: Address = "0xa61464658AfeAf65CccaaFD3a512b69A83B77618"
             .parse()
             .unwrap();
-        let amount_to_transfer: U256 = 1.into();
+        let amount_to_transfer: U256 = 1_i32.into();
 
         let era_provider = era_provider();
         let wallet = LocalWallet::from_str(sender_private_key)
@@ -443,8 +445,8 @@ mod zks_signer_tests {
             .await
             .unwrap();
 
-        println!("Sender balance before: {}", sender_balance_before);
-        println!("Receiver balance before: {}", receiver_balance_before);
+        println!("Sender balance before: {sender_balance_before}");
+        println!("Receiver balance before: {receiver_balance_before}");
 
         let receipt = zk_wallet
             .transfer_eip712(receiver_address, amount_to_transfer, None)
@@ -465,8 +467,8 @@ mod zks_signer_tests {
             .await
             .unwrap();
 
-        println!("Sender balance after: {}", sender_balance_after);
-        println!("Receiver balance after: {}", receiver_balance_after);
+        println!("Sender balance after: {sender_balance_after}");
+        println!("Receiver balance after: {receiver_balance_after}");
 
         assert_eq!(
             sender_balance_after,
