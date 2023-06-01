@@ -45,64 +45,70 @@ pub struct Eip712SignInput {
     pub paymaster_input: Option<Bytes>,
 }
 
+impl Eip712SignInput {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
 // FIXME: Cleanup this.
 pub fn eip712_sign_input_types() -> Types {
     let mut types = Types::new();
 
     types.insert(
-        "Transaction".to_string(),
+        "Transaction".to_owned(),
         vec![
             Eip712DomainType {
-                name: "txType".to_string(),
-                r#type: "uint256".to_string(),
+                name: "txType".to_owned(),
+                r#type: "uint256".to_owned(),
             },
             Eip712DomainType {
-                name: "from".to_string(),
-                r#type: "uint256".to_string(),
+                name: "from".to_owned(),
+                r#type: "uint256".to_owned(),
             },
             Eip712DomainType {
-                name: "to".to_string(),
-                r#type: "uint256".to_string(),
+                name: "to".to_owned(),
+                r#type: "uint256".to_owned(),
             },
             Eip712DomainType {
-                name: "gasLimit".to_string(),
-                r#type: "uint256".to_string(),
+                name: "gasLimit".to_owned(),
+                r#type: "uint256".to_owned(),
             },
             Eip712DomainType {
-                name: "gasPerPubdataByteLimit".to_string(),
-                r#type: "uint256".to_string(),
+                name: "gasPerPubdataByteLimit".to_owned(),
+                r#type: "uint256".to_owned(),
             },
             Eip712DomainType {
-                name: "maxFeePerGas".to_string(),
-                r#type: "uint256".to_string(),
+                name: "maxFeePerGas".to_owned(),
+                r#type: "uint256".to_owned(),
             },
             Eip712DomainType {
-                name: "maxPriorityFeePerGas".to_string(),
-                r#type: "uint256".to_string(),
+                name: "maxPriorityFeePerGas".to_owned(),
+                r#type: "uint256".to_owned(),
             },
             Eip712DomainType {
-                name: "paymaster".to_string(),
-                r#type: "uint256".to_string(),
+                name: "paymaster".to_owned(),
+                r#type: "uint256".to_owned(),
             },
             Eip712DomainType {
-                name: "nonce".to_string(),
-                r#type: "uint256".to_string(),
+                name: "nonce".to_owned(),
+                r#type: "uint256".to_owned(),
             },
             Eip712DomainType {
-                name: "value".to_string(),
-                r#type: "uint256".to_string(),
+                name: "value".to_owned(),
+                r#type: "uint256".to_owned(),
             },
             Eip712DomainType {
-                name: "data".to_string(),
-                r#type: "bytes".to_string(),
+                name: "data".to_owned(),
+                r#type: "bytes".to_owned(),
             },
             Eip712DomainType {
-                name: "factoryDeps".to_string(),
-                r#type: "bytes32[]".to_string(),
+                name: "factoryDeps".to_owned(),
+                r#type: "bytes32[]".to_owned(),
             },
             Eip712DomainType {
-                name: "paymasterInput".to_string(),
-                r#type: "bytes".to_string(),
+                name: "paymasterInput".to_owned(),
+                r#type: "bytes".to_owned(),
             },
         ],
     );
@@ -143,7 +149,7 @@ impl TryFrom<Eip712TransactionRequest> for Eip712SignInput {
     type Error = Eip712Error;
 
     fn try_from(tx: Eip712TransactionRequest) -> Result<Self, Self::Error> {
-        let mut eip712_sign_input = Eip712SignInput::default();
+        let mut eip712_sign_input = Eip712SignInput::new();
 
         eip712_sign_input.tx_type = tx.r#type;
         eip712_sign_input.from = tx.from;
@@ -170,7 +176,7 @@ impl TryFrom<Eip712TransactionRequest> for Eip712SignInput {
             } else {
                 eip712_sign_input.paymaster = Some(
                     Address::from_str("0x0000000000000000000000000000000000000000")
-                        .map_err(|_| Eip712Error::FailedToEncodeStruct)?,
+                        .map_err(|e| Eip712Error::Message(e.to_string()))?,
                 );
                 // TODO: This default seems to be wrong.
                 eip712_sign_input.paymaster_input = Some(Bytes::default());

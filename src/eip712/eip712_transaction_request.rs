@@ -1,9 +1,6 @@
 use super::rlp_opt;
 use ethers::{
-    types::{
-        transaction::eip2930::AccessList,
-        Address, Bytes, Signature, U256, U64,
-    },
+    types::{transaction::eip2930::AccessList, Address, Bytes, Signature, U256, U64},
     utils::rlp::{Encodable, RlpStream},
 };
 use serde::{Deserialize, Serialize};

@@ -1,5 +1,6 @@
 use ethers::types::{transaction::eip712::Eip712Error, Bytes};
 use sha2::Digest;
+use std::num::TryFromIntError;
 
 mod eip712_transaction_request;
 pub use eip712_transaction_request::Eip712TransactionRequest;
@@ -16,28 +17,31 @@ pub fn hash_bytecode(bytecode: Option<Vec<Bytes>>) -> Result<[u8; 32], Eip712Err
     let step_1: [u8; 2] = 0x100_u16.to_be_bytes();
     let bytecode_length: u16 = (bytecode
         .clone()
-        .ok_or_else(|| return Eip712Error::FailedToEncodeStruct)?[0]
+        .ok_or_else(|| Eip712Error::FailedToEncodeStruct)?
+        .get(0)
+        .ok_or_else(|| Eip712Error::FailedToEncodeStruct)?
         .len()
         / 32)
         .try_into()
-        .map_err(|_| Eip712Error::FailedToEncodeStruct)?;
+        .map_err(|e: TryFromIntError| Eip712Error::Message(e.to_string()))?;
     let step_2: [u8; 2] = bytecode_length.to_be_bytes();
     let step_3: [u8; 28] = sha2::Sha256::digest(
-        &bytecode
-            .clone()
-            .ok_or_else(|| return Eip712Error::FailedToEncodeStruct)?[0],
+        bytecode
+            .ok_or_else(|| Eip712Error::FailedToEncodeStruct)?
+            .get(0)
+            .ok_or_else(|| Eip712Error::FailedToEncodeStruct)?,
     )
     .into_iter()
     .skip(4)
     .collect::<Vec<u8>>()
     .try_into()
-    .unwrap();
+    .map_err(|e: Vec<u8>| Eip712Error::Message(format!("{e:?}")))?;
 
     let contract_hash: [u8; 32] = [&step_1, &step_2, &step_3[..]]
         .concat()
         .to_vec()
         .try_into()
-        .unwrap();
+        .map_err(|e: Vec<u8>| Eip712Error::Message(format!("{e:?}")))?;
 
     Ok(contract_hash)
 }
