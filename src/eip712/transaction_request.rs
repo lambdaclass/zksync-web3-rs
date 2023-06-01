@@ -1,5 +1,4 @@
-use super::{hash_bytecode, rlp_opt, Eip712Meta, Eip712SignInput};
-use crate::zks_utils::DEFAULT_GAS_PER_PUBDATA_LIMIT;
+use super::rlp_opt;
 use ethers::{
     types::{transaction::eip2930::AccessList, Address, Bytes, Signature, U256, U64},
     utils::rlp::{Encodable, RlpStream},
@@ -214,52 +213,50 @@ impl Eip712TransactionRequest {
     }
 }
 
-impl Into<Eip712SignInput> for Eip712TransactionRequest {
-    fn into(self) -> Eip712SignInput {
-        let mut eip712_sign_input = Eip712SignInput::default();
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[serde(rename_all(serialize = "camelCase", deserialize = "camelCase"))]
+pub struct Eip712Meta {
+    pub gas_per_pubdata: U256,
+    pub factory_deps: Option<Vec<Bytes>>,
+    pub custom_signature: Option<Bytes>,
+    pub paymaster_params: Option<PaymasterParams>,
+}
 
-        eip712_sign_input.tx_type = self.r#type;
-        eip712_sign_input.from = self.from;
-        eip712_sign_input.to = self.to;
-        eip712_sign_input.gas_limit = self.gas_limit;
-        // TODO create a new constant for default value
-        eip712_sign_input.max_fee_per_gas = self.max_fee_per_gas.or(Some(U256::from("0x0ee6b280")));
-        // TODO create a new constant for default value
-        eip712_sign_input.max_priority_fee_per_gas = self
-            .max_priority_fee_per_gas
-            .or(Some(U256::from("0x0ee6b280")));
-        eip712_sign_input.nonce = self.nonce;
-        eip712_sign_input.value = self.value;
-        eip712_sign_input.data = self.data;
-
-        if let Some(custom_data) = self.custom_data {
-            if let Some(factory_deps) = custom_data.factory_deps {
-                eip712_sign_input.factory_deps = Some(
-                    factory_deps
-                        .iter()
-                        .map(|dependency_bytecode| {
-                            hash_bytecode(dependency_bytecode).map(Bytes::from)
-                        })
-                        .collect::<Result<Vec<Bytes>, _>>()
-                        .unwrap(),
-                );
+impl Encodable for Eip712Meta {
+    fn rlp_append(&self, stream: &mut ethers::utils::rlp::RlpStream) {
+        // 12
+        stream.append(&self.gas_per_pubdata);
+        // 13
+        if let Some(factory_deps) = &self.factory_deps {
+            stream.begin_list(factory_deps.len());
+            for dep in factory_deps.iter() {
+                stream.append(&dep.to_vec());
             }
-            eip712_sign_input.gas_per_pubdata_byte_limit =
-                Some(U256::from(DEFAULT_GAS_PER_PUBDATA_LIMIT));
-            if let Some(paymaster_params) = custom_data.paymaster_params {
-                eip712_sign_input.paymaster = Some(paymaster_params.paymaster);
-                eip712_sign_input.paymaster_input = Some(paymaster_params.paymaster_input);
-            } else {
-                eip712_sign_input.paymaster = Some(
-                    "0x0000000000000000000000000000000000000000"
-                        .parse()
-                        .unwrap(),
-                );
-                // TODO: This default seems to be wrong.
-                eip712_sign_input.paymaster_input = Some(Bytes::default());
-            }
+        } else {
+            stream.begin_list(0);
         }
+        // 14
+        rlp_opt(stream, &self.custom_signature.clone().map(|s| s.to_vec()));
+        // 15
+        if let Some(paymaster_params) = &self.paymaster_params {
+            paymaster_params.rlp_append(stream);
+        } else {
+            stream.begin_list(0);
+        }
+    }
+}
 
-        eip712_sign_input
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[serde(rename_all(serialize = "camelCase", deserialize = "camelCase"))]
+pub struct PaymasterParams {
+    pub paymaster: Address,
+    pub paymaster_input: Bytes,
+}
+
+impl Encodable for PaymasterParams {
+    fn rlp_append(&self, stream: &mut ethers::utils::rlp::RlpStream) {
+        stream.begin_list(2);
+        stream.append(&self.paymaster.as_bytes());
+        stream.append(&self.paymaster_input.to_vec());
     }
 }
