@@ -66,7 +66,7 @@ impl Encodable for Eip712Meta {
         // 12
         stream.append(&self.gas_per_pubdata);
         // 13
-        if self.factory_deps.len() > 0 {
+        if !self.factory_deps.is_empty() {
             stream.begin_list(self.factory_deps.len());
             for dep in self.factory_deps.iter() {
                 stream.append(&dep.to_vec());
