@@ -1,5 +1,5 @@
 use super::{hash_bytecode, rlp_opt, Eip712Meta, Eip712SignInput};
-use crate::zks_utils::DEFAULT_GAS_PER_PUBDATA_LIMIT;
+use crate::zks_utils::{DEFAULT_GAS_PER_PUBDATA_LIMIT, EIP712_TX_TYPE, ERA_CHAIN_ID};
 use ethers::{
     types::{transaction::eip2930::AccessList, Address, Bytes, Signature, U256, U64},
     utils::rlp::{Encodable, RlpStream},
@@ -7,7 +7,7 @@ use ethers::{
 use serde::{Deserialize, Serialize};
 
 // TODO: Not all the fields are optional. This was copied from the JS implementation.
-#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all(serialize = "camelCase", deserialize = "camelCase"))]
 pub struct Eip712TransactionRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -191,6 +191,27 @@ impl Eip712TransactionRequest {
 
         stream.finalize_unbounded_list();
         stream.out().freeze().into()
+    }
+}
+
+impl Default for Eip712TransactionRequest {
+    fn default() -> Self {
+        Self {
+            to: Default::default(),
+            from: Default::default(),
+            nonce: Default::default(),
+            gas_limit: Default::default(),
+            gas_price: Default::default(),
+            data: Default::default(),
+            value: Default::default(),
+            chain_id: ERA_CHAIN_ID.into(),
+            r#type: EIP712_TX_TYPE.into(),
+            access_list: Default::default(),
+            max_priority_fee_per_gas: Default::default(),
+            max_fee_per_gas: Default::default(),
+            custom_data: Default::default(),
+            ccip_read_enabled: Default::default(),
+        }
     }
 }
 

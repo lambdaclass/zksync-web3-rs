@@ -164,7 +164,6 @@ where
         };
 
         let mut transfer_request = Eip712TransactionRequest::new()
-            .r#type(EIP712_TX_TYPE)
             .from(self.address())
             .to(to)
             .value(amount_to_transfer)
@@ -173,9 +172,7 @@ where
                     .get_transaction_count(self.address(), None)
                     .await?,
             )
-            .chain_id(ERA_CHAIN_ID)
-            .data(Bytes::default())
-            .custom_data(Eip712Meta::new());
+            .gas_price(era_provider.get_gas_price().await?);
 
         let fee = era_provider.estimate_fee(transfer_request.clone()).await?;
         transfer_request = transfer_request
@@ -229,10 +226,8 @@ where
         });
 
         let mut deploy_request = Eip712TransactionRequest::new()
-            .r#type(EIP712_TX_TYPE)
             .from(self.address())
             .to(Address::from_str(CONTRACT_DEPLOYER_ADDR).unwrap())
-            .chain_id(ERA_CHAIN_ID)
             .nonce(
                 era_provider
                     .get_transaction_count(self.address(), None)
