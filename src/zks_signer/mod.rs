@@ -98,7 +98,7 @@ mod tests {
         let wallet = Wallet::with_chain_id(sender_private_key.parse().unwrap(), 270_u64);
         let signer = Provider::try_from(format!(
             "http://{host}:{port}",
-            host = "65.108.204.116",
+            host = "65.21.140.36",
             port = 3050
         ))
         .unwrap()

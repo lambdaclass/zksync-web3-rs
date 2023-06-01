@@ -236,7 +236,7 @@ Commands:
   help             Print this message or the help of the given subcommand(s)
 
 Options:
-      --host <HOST>  [default: 65.108.204.116]
+      --host <HOST>  [default: 65.21.140.36]
   -p, --port <PORT>  [default: 8545]
   -h, --help         Print help
   -V, --version      Print version
