@@ -1,9 +1,8 @@
+use ethers::types::{Address, Bytes, H256, U256};
+use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
 };
-
-use ethers::types::{Address, Bytes, H256, U256};
-use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Fee {

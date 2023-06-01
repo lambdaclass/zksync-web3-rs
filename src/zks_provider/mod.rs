@@ -473,7 +473,7 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     const L2_CHAIN_ID: u64 = 270;
-    
+
     fn local_provider() -> Provider<ethers::providers::Http> {
         Provider::try_from(format!(
             "http://{host}:{port}",
