@@ -56,6 +56,7 @@ pub mod prelude {
 
     pub use super::contract::*;
 
+    pub use super::core::types::transaction::eip2718::TypedTransaction;
     pub use super::core::{types::*, *};
 
     pub use super::etherscan::*;
@@ -68,6 +69,8 @@ pub mod prelude {
 
     pub use super::solc::*;
 }
+
+pub use prelude::*;
 
 // TODO: This should be visible only for this crate and not for the library users.
 pub mod cli;
