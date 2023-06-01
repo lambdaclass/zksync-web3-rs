@@ -8,8 +8,8 @@ pub use meta::Eip712Meta;
 mod transaction_request;
 pub use transaction_request::Eip712TransactionRequest;
 
-mod sign_input;
-pub use sign_input::Eip712SignInput;
+mod transaction;
+pub use transaction::Eip712Transaction;
 
 mod paymaster_params;
 pub use paymaster_params::PaymasterParams;

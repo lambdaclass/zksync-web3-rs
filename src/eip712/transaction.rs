@@ -15,7 +15,7 @@ use serde_json::json;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all(serialize = "camelCase", deserialize = "camelCase"))]
-pub struct Eip712SignInput {
+pub struct Eip712Transaction {
     pub tx_type: U256,
     pub from: Address,
     pub to: Address,
@@ -31,7 +31,7 @@ pub struct Eip712SignInput {
     pub paymaster_input: Bytes,
 }
 
-impl Eip712SignInput {
+impl Eip712Transaction {
     // Check if this is necessary or if we can always use the default.
     pub fn new() -> Self {
         Self::default()
@@ -142,7 +142,7 @@ impl Eip712SignInput {
     }
 }
 
-impl Default for Eip712SignInput {
+impl Default for Eip712Transaction {
     fn default() -> Self {
         Self {
             tx_type: EIP712_TX_TYPE.into(),
@@ -163,7 +163,7 @@ impl Default for Eip712SignInput {
 }
 
 // FIXME: Cleanup this.
-pub fn eip712_sign_input_types() -> Types {
+pub fn eip712_transaction_types() -> Types {
     let mut types = Types::new();
 
     types.insert(
@@ -226,7 +226,7 @@ pub fn eip712_sign_input_types() -> Types {
     types
 }
 
-impl Eip712 for Eip712SignInput {
+impl Eip712 for Eip712Transaction {
     type Error = Eip712Error;
 
     fn domain(&self) -> Result<EIP712Domain, Self::Error> {
@@ -242,7 +242,7 @@ impl Eip712 for Eip712SignInput {
     fn type_hash() -> Result<[u8; 32], Self::Error> {
         Ok(keccak256(encode_type(
             "Transaction",
-            &eip712_sign_input_types(),
+            &eip712_transaction_types(),
         )?))
     }
 
@@ -250,17 +250,17 @@ impl Eip712 for Eip712SignInput {
         let hash = keccak256(encode(&encode_data(
             "Transaction",
             &json!(self),
-            &eip712_sign_input_types(),
+            &eip712_transaction_types(),
         )?));
         Ok(hash)
     }
 }
 
-impl TryFrom<Eip712TransactionRequest> for Eip712SignInput {
+impl TryFrom<Eip712TransactionRequest> for Eip712Transaction {
     type Error = Eip712Error;
 
     fn try_from(tx: Eip712TransactionRequest) -> Result<Self, Self::Error> {
-        let eip712_sign_input = Eip712SignInput::default()
+        let eip712_transaction = Eip712Transaction::default()
             .tx_type(tx.r#type)
             .from(tx.from)
             .to(tx.to)
@@ -280,6 +280,6 @@ impl TryFrom<Eip712TransactionRequest> for Eip712SignInput {
             .paymaster(tx.custom_data.paymaster_params.paymaster)
             .paymaster_input(tx.custom_data.paymaster_params.paymaster_input);
 
-        Ok(eip712_sign_input)
+        Ok(eip712_transaction)
     }
 }

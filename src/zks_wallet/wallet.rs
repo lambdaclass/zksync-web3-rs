@@ -1,6 +1,6 @@
 use super::ZKSWalletError;
 use crate::{
-    eip712::{hash_bytecode, Eip712Meta, Eip712SignInput, Eip712TransactionRequest},
+    eip712::{hash_bytecode, Eip712Meta, Eip712Transaction, Eip712TransactionRequest},
     zks_provider::ZKSProvider,
     zks_utils::{CONTRACT_DEPLOYER_ADDR, EIP712_TX_TYPE, ERA_CHAIN_ID, ETH_CHAIN_ID},
 };
@@ -176,7 +176,7 @@ where
             .max_fee_per_gas(fee.max_fee_per_gas)
             .gas_limit(fee.gas_limit);
 
-        let signable_data: Eip712SignInput = transfer_request.clone().try_into()?;
+        let signable_data: Eip712Transaction = transfer_request.clone().try_into()?;
         let signature: Signature = self.wallet.sign_typed_data(&signable_data).await?;
         transfer_request =
             transfer_request.custom_data(Eip712Meta::new().custom_signature(signature.to_vec()));
@@ -321,7 +321,7 @@ where
             .max_fee_per_gas(fee.max_fee_per_gas)
             .gas_limit(fee.gas_limit);
 
-        let signable_data: Eip712SignInput = deploy_request.clone().try_into()?;
+        let signable_data: Eip712Transaction = deploy_request.clone().try_into()?;
         let signature: Signature = self.wallet.sign_typed_data(&signable_data).await?;
         deploy_request =
             deploy_request.custom_data(custom_data.custom_signature(signature.to_vec()));
