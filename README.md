@@ -92,6 +92,7 @@ let private_key: Wallet<SigningKey> = "0x7726827caac94a7f9e1b160f7ea819f172f7b6f
 let zksync_era_chain_id: u64 = 270;
 
 let wallet = zksync::Wallet::with_chain_id(private_key, zksync_era_chain_id);
+```
 
 #### Connecting to the zkSync Network
 
@@ -147,6 +148,7 @@ let payment_response: zksync::TransactionReceipt =
         .await
         .unwrap()
         .unwrap();
+```
 
 #### Checking zkSync account balance
 
@@ -155,6 +157,7 @@ let sender_balance = provider
     .get_balance(sender_address, None)
     .await
     .unwrap();
+```
 
 ### Simple Transfer Example
 
