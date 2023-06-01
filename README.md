@@ -1,6 +1,6 @@
 # zksync-web3-rs
 
-## EIP712 on zkSync Era
+## Everything you need to know about EIP712 on zkSync Era
 
 The Ethereum Improvement Proposal [EIP-712: Typed structured data hashing and signing](https://eips.ethereum.org/EIPS/eip-712) introduces hashing and signing of typed-structured data as well as bytestrings.
 
