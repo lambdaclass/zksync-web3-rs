@@ -1,3 +1,5 @@
+use super::{hash_bytecode, Eip712TransactionRequest};
+use crate::zks_utils;
 use ethers::{
     abi::encode,
     types::{
@@ -10,6 +12,7 @@ use ethers::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::str::FromStr;
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 #[serde(rename_all(serialize = "camelCase", deserialize = "camelCase"))]
@@ -133,5 +136,47 @@ impl Eip712 for Eip712SignInput {
             &eip712_sign_input_types(),
         )?));
         Ok(hash)
+    }
+}
+
+impl TryFrom<Eip712TransactionRequest> for Eip712SignInput {
+    type Error = Eip712Error;
+
+    fn try_from(tx: Eip712TransactionRequest) -> Result<Self, Self::Error> {
+        let mut eip712_sign_input = Eip712SignInput::default();
+
+        eip712_sign_input.tx_type = tx.r#type;
+        eip712_sign_input.from = tx.from;
+        eip712_sign_input.to = tx.to;
+        eip712_sign_input.gas_limit = tx.gas_limit;
+        // TODO create a new constant for default value
+        eip712_sign_input.max_fee_per_gas = tx.max_fee_per_gas.or(Some(U256::from("0x0ee6b280")));
+        // TODO create a new constant for default value
+        eip712_sign_input.max_priority_fee_per_gas = tx
+            .max_priority_fee_per_gas
+            .or(Some(U256::from("0x0ee6b280")));
+        eip712_sign_input.nonce = tx.nonce;
+        eip712_sign_input.value = tx.value;
+        eip712_sign_input.data = tx.data;
+
+        if let Some(custom_data) = tx.custom_data {
+            eip712_sign_input.factory_deps =
+                Some(vec![hash_bytecode(custom_data.factory_deps)?.into()]);
+            eip712_sign_input.gas_per_pubdata_byte_limit =
+                Some(U256::from(zks_utils::DEFAULT_GAS_PER_PUBDATA_LIMIT));
+            if let Some(paymaster_params) = custom_data.paymaster_params {
+                eip712_sign_input.paymaster = Some(paymaster_params.paymaster);
+                eip712_sign_input.paymaster_input = Some(paymaster_params.paymaster_input);
+            } else {
+                eip712_sign_input.paymaster = Some(
+                    Address::from_str("0x0000000000000000000000000000000000000000")
+                        .map_err(|_| Eip712Error::FailedToEncodeStruct)?,
+                );
+                // TODO: This default seems to be wrong.
+                eip712_sign_input.paymaster_input = Some(Bytes::default());
+            }
+        }
+
+        Ok(eip712_sign_input)
     }
 }
