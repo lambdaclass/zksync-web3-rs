@@ -1,5 +1,5 @@
 use super::{hash_bytecode, Eip712TransactionRequest};
-use crate::zks_utils::DEFAULT_GAS_PER_PUBDATA_LIMIT;
+use crate::zks_utils::{DEFAULT_GAS_PER_PUBDATA_LIMIT, EIP712_TX_TYPE};
 use ethers::{
     abi::encode,
     types::{
@@ -13,7 +13,7 @@ use ethers::{
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all(serialize = "camelCase", deserialize = "camelCase"))]
 pub struct Eip712SignInput {
     pub tx_type: U256,
@@ -32,8 +32,133 @@ pub struct Eip712SignInput {
 }
 
 impl Eip712SignInput {
+    // Check if this is necessary or if we can always use the default.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn tx_type<T>(mut self, tx_type: T) -> Self
+    where
+        T: Into<U256>,
+    {
+        self.tx_type = tx_type.into();
+        self
+    }
+
+    pub fn to<T>(mut self, to: T) -> Self
+    where
+        T: Into<Address>,
+    {
+        self.to = to.into();
+        self
+    }
+
+    pub fn from<T>(mut self, from: T) -> Self
+    where
+        T: Into<Address>,
+    {
+        self.from = from.into();
+        self
+    }
+
+    pub fn nonce<T>(mut self, nonce: T) -> Self
+    where
+        T: Into<U256>,
+    {
+        self.nonce = nonce.into();
+        self
+    }
+
+    pub fn gas_limit<T>(mut self, gas_limit: T) -> Self
+    where
+        T: Into<U256>,
+    {
+        self.gas_limit = gas_limit.into();
+        self
+    }
+
+    pub fn gas_per_pubdata_byte_limit<T>(mut self, gas_per_pubdata_byte_limit: T) -> Self
+    where
+        T: Into<U256>,
+    {
+        self.gas_per_pubdata_byte_limit = gas_per_pubdata_byte_limit.into();
+        self
+    }
+
+    pub fn max_fee_per_gas<T>(mut self, max_fee_per_gas: T) -> Self
+    where
+        T: Into<U256>,
+    {
+        self.max_fee_per_gas = max_fee_per_gas.into();
+        self
+    }
+
+    pub fn max_priority_fee_per_gas<T>(mut self, max_priority_fee_per_gas: T) -> Self
+    where
+        T: Into<U256>,
+    {
+        self.max_priority_fee_per_gas = max_priority_fee_per_gas.into();
+        self
+    }
+
+    pub fn paymaster<T>(mut self, paymaster: T) -> Self
+    where
+        T: Into<Address>,
+    {
+        self.paymaster = paymaster.into();
+        self
+    }
+
+    pub fn value<T>(mut self, value: T) -> Self
+    where
+        T: Into<U256>,
+    {
+        self.value = value.into();
+        self
+    }
+
+    pub fn data<T>(mut self, data: T) -> Self
+    where
+        T: Into<Bytes>,
+    {
+        self.data = data.into();
+        self
+    }
+
+    pub fn factory_deps<T>(mut self, factory_deps: T) -> Self
+    where
+        T: Into<Vec<Bytes>>,
+    {
+        self.factory_deps = factory_deps.into();
+        self
+    }
+
+    pub fn paymaster_input<T>(mut self, paymaster_input: T) -> Self
+    where
+        T: Into<Bytes>,
+    {
+        self.paymaster_input = paymaster_input.into();
+        self
+    }
+}
+
+impl Default for Eip712SignInput {
+    fn default() -> Self {
+        Self {
+            tx_type: EIP712_TX_TYPE.into(),
+            from: Default::default(),
+            to: Default::default(),
+            gas_limit: Default::default(),
+            gas_per_pubdata_byte_limit: DEFAULT_GAS_PER_PUBDATA_LIMIT.into(),
+            max_fee_per_gas: Default::default(),
+            max_priority_fee_per_gas: Default::default(),
+            paymaster: Default::default(),
+            nonce: Default::default(),
+            value: Default::default(),
+            data: Default::default(),
+            factory_deps: <Vec<Bytes>>::default(),
+            paymaster_input: Default::default(),
+        }
     }
 }
 
@@ -135,27 +260,25 @@ impl TryFrom<Eip712TransactionRequest> for Eip712SignInput {
     type Error = Eip712Error;
 
     fn try_from(tx: Eip712TransactionRequest) -> Result<Self, Self::Error> {
-        let mut eip712_sign_input = Eip712SignInput::new();
-
-        eip712_sign_input.tx_type = tx.r#type;
-        eip712_sign_input.from = tx.from;
-        eip712_sign_input.to = tx.to;
-        eip712_sign_input.gas_limit = tx.gas_limit;
-        eip712_sign_input.max_fee_per_gas = tx.max_fee_per_gas;
-        eip712_sign_input.max_priority_fee_per_gas = tx.max_priority_fee_per_gas;
-        eip712_sign_input.nonce = tx.nonce;
-        eip712_sign_input.value = tx.value;
-        eip712_sign_input.data = tx.data;
-        eip712_sign_input.factory_deps = tx
-            .custom_data
-            .factory_deps
-            .iter()
-            .map(|dependency_bytecode| hash_bytecode(dependency_bytecode).map(Bytes::from))
-            .collect::<Result<Vec<Bytes>, _>>()
-            .unwrap();
-        eip712_sign_input.gas_per_pubdata_byte_limit = U256::from(DEFAULT_GAS_PER_PUBDATA_LIMIT);
-        eip712_sign_input.paymaster = tx.custom_data.paymaster_params.paymaster;
-        eip712_sign_input.paymaster_input = tx.custom_data.paymaster_params.paymaster_input;
+        let eip712_sign_input = Eip712SignInput::default()
+            .tx_type(tx.r#type)
+            .from(tx.from)
+            .to(tx.to)
+            .gas_limit(tx.gas_limit)
+            .max_fee_per_gas(tx.max_fee_per_gas)
+            .max_priority_fee_per_gas(tx.max_priority_fee_per_gas)
+            .nonce(tx.nonce)
+            .value(tx.value)
+            .data(tx.data)
+            .factory_deps(
+                tx.custom_data
+                    .factory_deps
+                    .iter()
+                    .map(|dependency_bytecode| hash_bytecode(dependency_bytecode).map(Bytes::from))
+                    .collect::<Result<Vec<Bytes>, _>>()?,
+            )
+            .paymaster(tx.custom_data.paymaster_params.paymaster)
+            .paymaster_input(tx.custom_data.paymaster_params.paymaster_input);
 
         Ok(eip712_sign_input)
     }
