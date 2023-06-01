@@ -47,6 +47,8 @@ Before you begin, make sure you have the following prerequisites:
 - Git: Install Git on your system if you haven't already. You can find installation instructions at [https://git-scm.com/book/en/v2/Getting-Started-Installing-Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git).
 
 - zkSync CLI (only if you want to run a localnet): Install the zkSync CLI on your system
+  > This particular CLI command uses Docker under the hood, you should also have Docker installed on your system. You can find installation instructions at [https://docs.docker.com/get-docker/](https://docs.docker.com/get-docker/).
+
   ```bash
   git clone https://github.com/lambdaclass/zksync-cli.git
   cd zksync-cli
@@ -61,6 +63,8 @@ Add the following dependencies to your `Cargo.toml` file:
 ```bash
 zksync-web3-rs = { git = "https://www.github.com/lambdaclass/zksync-web3-rs" }
 ```
+
+> Maybe consider adding tokio as dependency since we are using a lot of async/await functions. If this example is meant to be done in the main function the #[tokio::main] annotation is needed.
 
 ### First steps
 
@@ -91,10 +95,10 @@ let wallet = zksync::Wallet::with_chain_id(private_key, zksync_era_chain_id);
 
 #### Connecting to the zkSync Network
 
-To connect to the zkSync network, you need to provide the URL of the zkSync node. You can connect to the zkSync network using the following code:
+To connect to the zkSync network, you need to provide the URL of the zkSync node. The localnet runs both an *Ethereum* node (L1) on port `8545` and an *Era* node (L2) on port `3050`. You can connect to the zkSync Era network using the following code:
 
 ```rust
-let provider = zksync::Provider::try_from("http://<HOST>:<PORT>").unwrap();
+let provider = zksync::Provider::try_from("http://localhost:3050").unwrap();
 ```
 
 #### Creating a Payment Transaction
