@@ -145,57 +145,66 @@ where
             .ok_or(ZKSWalletError::CustomError(
                 "no transaction receipt".to_string(),
             ))
+    }
 
+    pub async fn transfer_eip712(
+        &self,
+        to: Address,
+        amount_to_transfer: U256,
+        // TODO: Support multiple-token transfers.
+        _token: Option<Address>,
+    ) -> Result<TransactionReceipt, ZKSWalletError<M, D>>
+    where
+        M: ZKSProvider,
+    {
         // EIP712 Transfers
-        // let era_provider = match &self.era_provider {
-        //     Some(era_provider) => era_provider,
-        //     None => return Err(ZKSWalletError::CustomError("no era provider".to_string())),
-        // };
+        let era_provider = match &self.era_provider {
+            Some(era_provider) => era_provider,
+            None => return Err(ZKSWalletError::CustomError("no era provider".to_string())),
+        };
 
-        // let mut transfer_request = Eip712TransactionRequest::new()
-        //     .from(self.address())
-        //     .to(to)
-        //     .value(amount_to_transfer)
-        //     .nonce(era_provider.get_transaction_count(self.address(), None).await?)
-        //     .chain_id(ERA_CHAIN_ID)
-        //     // TODO: This should be a default on the request.
-        //     .data(Bytes::default())
-        //     // TODO: This should be a default on the request.
-        //     .custom_data(Eip712Meta::new());
+        let mut transfer_request = Eip712TransactionRequest::new()
+            .r#type(EIP712_TX_TYPE)
+            .from(self.address())
+            .to(to)
+            .value(amount_to_transfer)
+            .nonce(
+                era_provider
+                    .get_transaction_count(self.address(), None)
+                    .await?,
+            )
+            .chain_id(ERA_CHAIN_ID)
+            .data(Bytes::default())
+            .custom_data(Eip712Meta::new());
 
-        // let fee = era_provider.estimate_fee(transfer_request.clone()).await?;
-        // transfer_request = transfer_request
-        //     .max_priority_fee_per_gas(fee.max_priority_fee_per_gas)
-        //     .max_fee_per_gas(fee.max_fee_per_gas)
-        //     .gas_limit(fee.gas_limit);
+        let fee = era_provider.estimate_fee(transfer_request.clone()).await?;
+        transfer_request = transfer_request
+            .max_priority_fee_per_gas(fee.max_priority_fee_per_gas)
+            .max_fee_per_gas(fee.max_fee_per_gas)
+            .gas_limit(fee.gas_limit);
 
-        // println!("{transfer_request:#?}");
+        let signable_data: Eip712SignInput = transfer_request.clone().into();
+        let signature: Signature = self.wallet.sign_typed_data(&signable_data).await?;
+        transfer_request =
+            transfer_request.custom_data(Eip712Meta::new().custom_signature(signature.to_vec()));
 
-        // let signable_data: Eip712SignInput = transfer_request.clone().into();
+        let pending_transaction = era_provider
+            .send_raw_transaction(
+                [&[EIP712_TX_TYPE], &transfer_request.rlp_unsigned()[..]]
+                    .concat()
+                    .into(),
+            )
+            .await?;
 
-        // println!("{signable_data:#?}");
+        // TODO: Should we wait here for the transaction to be confirmed on-chain?
 
-        // let signature: Signature = self.wallet.sign_typed_data(&signable_data).await?;
-        // transfer_request =
-        //     transfer_request.custom_data(Eip712Meta::new().custom_signature(signature.to_vec()));
+        let transaction_receipt = pending_transaction
+            .await?
+            .ok_or(ZKSWalletError::CustomError(
+                "no transaction receipt".to_string(),
+            ))?;
 
-        // let pending_transaction = era_provider
-        //     .send_raw_transaction(
-        //         [&[EIP712_TX_TYPE], &transfer_request.rlp_unsigned()[..]]
-        //             .concat()
-        //             .into(),
-        //     )
-        //     .await?;
-
-        // // TODO: Should we wait here for the transaction to be confirmed on-chain?
-
-        // let transaction_receipt = pending_transaction
-        //     .await?
-        //     .ok_or(ZKSWalletError::CustomError(
-        //         "no transaction receipt".to_string(),
-        //     ))?;
-
-        // Ok(transaction_receipt)
+        Ok(transaction_receipt)
     }
 
     pub async fn deploy(
@@ -452,6 +461,67 @@ mod zks_signer_tests {
 
         let receipt = zk_wallet
             .transfer(receiver_address, amount_to_transfer, None)
+            .await
+            .unwrap();
+
+        assert_eq!(receipt.from, zk_wallet.address());
+        assert_eq!(receipt.to.unwrap(), receiver_address);
+
+        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+
+        let sender_balance_after = era_provider
+            .get_balance(zk_wallet.address(), None)
+            .await
+            .unwrap();
+        let receiver_balance_after = era_provider
+            .get_balance(receiver_address, None)
+            .await
+            .unwrap();
+
+        println!("Sender balance after: {}", sender_balance_after);
+        println!("Receiver balance after: {}", receiver_balance_after);
+
+        assert_eq!(
+            sender_balance_after,
+            sender_balance_before
+                - (amount_to_transfer
+                    + receipt.effective_gas_price.unwrap() * receipt.gas_used.unwrap())
+        );
+        assert_eq!(
+            receiver_balance_after,
+            receiver_balance_before + amount_to_transfer
+        );
+    }
+
+    #[tokio::test]
+    async fn test_transfer_eip712() {
+        let sender_private_key =
+            "0x28a574ab2de8a00364d5dd4b07c4f2f574ef7fcc2a86a197f65abaec836d1959";
+        let receiver_address: Address = "0xa61464658AfeAf65CccaaFD3a512b69A83B77618"
+            .parse()
+            .unwrap();
+        let amount_to_transfer: U256 = 1.into();
+
+        let era_provider = era_provider();
+        let wallet = LocalWallet::from_str(sender_private_key)
+            .unwrap()
+            .with_chain_id(ERA_CHAIN_ID);
+        let zk_wallet = ZKSWallet::new(wallet, Some(era_provider.clone()), None).unwrap();
+
+        let sender_balance_before = era_provider
+            .get_balance(zk_wallet.address(), None)
+            .await
+            .unwrap();
+        let receiver_balance_before = era_provider
+            .get_balance(receiver_address, None)
+            .await
+            .unwrap();
+
+        println!("Sender balance before: {}", sender_balance_before);
+        println!("Receiver balance before: {}", receiver_balance_before);
+
+        let receipt = zk_wallet
+            .transfer_eip712(receiver_address, amount_to_transfer, None)
             .await
             .unwrap();
 
