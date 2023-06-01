@@ -1,5 +1,5 @@
 use super::{hash_bytecode, Eip712TransactionRequest};
-use crate::zks_utils::{self, DEFAULT_GAS_PER_PUBDATA_LIMIT};
+use crate::zks_utils::DEFAULT_GAS_PER_PUBDATA_LIMIT;
 use ethers::{
     abi::encode,
     types::{
@@ -12,7 +12,6 @@ use ethers::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::str::FromStr;
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 #[serde(rename_all(serialize = "camelCase", deserialize = "camelCase"))]

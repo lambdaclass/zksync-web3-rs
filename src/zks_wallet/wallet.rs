@@ -144,6 +144,8 @@ where
             ))
     }
 
+    // The field `constant` of ethers::abi::Function is deprecated.
+    #[allow(deprecated)]
     pub async fn deploy(
         &self,
         contract_bytecode: Bytes,
