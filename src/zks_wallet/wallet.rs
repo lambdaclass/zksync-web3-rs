@@ -2,10 +2,7 @@ use super::ZKSWalletError;
 use crate::{
     eip712::{hash_bytecode, Eip712Meta, Eip712SignInput, Eip712TransactionRequest},
     zks_provider::ZKSProvider,
-    zks_utils::{
-        CONTRACT_DEPLOYER_ADDR, DEFAULT_GAS_PER_PUBDATA_LIMIT, EIP712_TX_TYPE, ERA_CHAIN_ID,
-        ETH_CHAIN_ID,
-    },
+    zks_utils::{CONTRACT_DEPLOYER_ADDR, EIP712_TX_TYPE, ERA_CHAIN_ID, ETH_CHAIN_ID},
 };
 use ethers::{
     abi::{Param, ParamType},
@@ -21,7 +18,7 @@ use ethers::{
     signers::{Signer, Wallet},
     types::{
         transaction::eip2718::TypedTransaction, Address, Bytes, Eip1559TransactionRequest,
-        Signature, TransactionReceipt, H256, U256,
+        Signature, TransactionReceipt, U256,
     },
 };
 use std::str::FromStr;
@@ -157,7 +154,6 @@ where
     where
         M: ZKSProvider,
     {
-        // EIP712 Transfers
         let era_provider = match &self.era_provider {
             Some(era_provider) => era_provider,
             None => return Err(ZKSWalletError::CustomError("no era provider".to_string())),
@@ -180,7 +176,7 @@ where
             .max_fee_per_gas(fee.max_fee_per_gas)
             .gas_limit(fee.gas_limit);
 
-        let signable_data: Eip712SignInput = transfer_request.clone().into();
+        let signable_data: Eip712SignInput = transfer_request.clone().try_into()?;
         let signature: Signature = self.wallet.sign_typed_data(&signable_data).await?;
         transfer_request =
             transfer_request.custom_data(Eip712Meta::new().custom_signature(signature.to_vec()));
@@ -204,6 +200,8 @@ where
         Ok(transaction_receipt)
     }
 
+    // The field `constant` of ethers::abi::Function is deprecated.
+    #[allow(deprecated)]
     pub async fn deploy(
         &self,
         contract_bytecode: Bytes,
@@ -275,7 +273,7 @@ where
             .max_fee_per_gas(fee.max_fee_per_gas)
             .gas_limit(fee.gas_limit);
 
-        let signable_data: Eip712SignInput = deploy_request.clone().into();
+        let signable_data: Eip712SignInput = deploy_request.clone().try_into()?;
         let signature: Signature = self.wallet.sign_typed_data(&signable_data).await?;
         deploy_request =
             deploy_request.custom_data(custom_data.custom_signature(signature.to_vec()));
@@ -306,6 +304,8 @@ where
         Ok(contract_address)
     }
 
+    // The field `constant` of ethers::abi::Function is deprecated.
+    #[allow(deprecated)]
     pub async fn deploy_with_receipt(
         &self,
         contract_bytecode: Bytes,
@@ -379,7 +379,7 @@ where
             .max_fee_per_gas(fee.max_fee_per_gas)
             .gas_limit(fee.gas_limit);
 
-        let signable_data: Eip712SignInput = deploy_request.clone().into();
+        let signable_data: Eip712SignInput = deploy_request.clone().try_into()?;
         let signature: Signature = self.wallet.sign_typed_data(&signable_data).await?;
         deploy_request =
             deploy_request.custom_data(custom_data.custom_signature(signature.to_vec()));

@@ -1,14 +1,15 @@
 use ethers::types::{transaction::eip712::Eip712Error, Bytes};
 use sha2::Digest;
+use std::num::TryFromIntError;
+
+mod meta;
+pub use meta::Eip712Meta;
 
 mod transaction_request;
 pub use transaction_request::Eip712TransactionRequest;
 
 mod sign_input;
 pub use sign_input::Eip712SignInput;
-
-mod meta;
-pub use meta::Eip712Meta;
 
 mod paymaster_params;
 pub use paymaster_params::PaymasterParams;
@@ -20,11 +21,13 @@ pub use paymaster_params::PaymasterParams;
 /// * The rest of the 28-byte (i.e. 28 low big-endian bytes) are equal to the last 28 bytes of the sha256 hash of the contract's bytecode.
 pub fn hash_bytecode(bytecode: &Bytes) -> Result<[u8; 32], Eip712Error> {
     let step_1: [u8; 2] = 0x0100_u16.to_be_bytes();
-    let step_2: [u8; 2] = ((bytecode.len() / 32) as u16).to_be_bytes();
-    let step_3: [u8; 28] = sha2::Sha256::digest(bytecode)
-        .iter()
+    let bytecode_length: u16 = (bytecode.len() / 32)
+        .try_into()
+        .map_err(|e: TryFromIntError| Eip712Error::Message(e.to_string()))?;
+    let step_2: [u8; 2] = bytecode_length.to_be_bytes();
+    let step_3: [u8; 28] = sha2::Sha256::digest(bytecode.as_ref())
+        .into_iter()
         .skip(4)
-        .copied()
         .collect::<Vec<u8>>()
         .try_into()
         .map_err(|e| {

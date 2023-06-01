@@ -1,5 +1,5 @@
 use super::{hash_bytecode, Eip712TransactionRequest};
-use crate::zks_utils::DEFAULT_GAS_PER_PUBDATA_LIMIT;
+use crate::zks_utils;
 use ethers::{
     abi::encode,
     types::{
@@ -12,6 +12,7 @@ use ethers::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::str::FromStr;
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 #[serde(rename_all(serialize = "camelCase", deserialize = "camelCase"))]
@@ -23,17 +24,21 @@ pub struct Eip712SignInput {
     pub to: Option<Address>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub gas_limit: Option<U256>,
+    // NOTE: this value must be set after calling ZKSProvider::estimate_fee method.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub gas_per_pubdata_byte_limit: Option<U256>,
+    // TODO: This field has a default value or calculation
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_fee_per_gas: Option<U256>,
+    // TODO: This field has a default value or calculation
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_priority_fee_per_gas: Option<U256>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub paymaster: Option<Address>,
     pub nonce: U256,
     pub value: U256,
-    pub data: Bytes,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub data: Option<Bytes>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub factory_deps: Option<Vec<Bytes>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -160,28 +165,22 @@ impl TryFrom<Eip712TransactionRequest> for Eip712SignInput {
         eip712_sign_input.value = tx.value;
         eip712_sign_input.data = tx.data;
 
-        if let Some(factory_deps) = tx.custom_data.factory_deps {
-            eip712_sign_input.factory_deps = Some(
-                factory_deps
-                    .iter()
-                    .map(|dependency_bytecode| hash_bytecode(dependency_bytecode).map(Bytes::from))
-                    .collect::<Result<Vec<Bytes>, _>>()
-                    .unwrap(),
-            );
-        }
-        eip712_sign_input.gas_per_pubdata_byte_limit =
-            Some(U256::from(DEFAULT_GAS_PER_PUBDATA_LIMIT));
-        if let Some(paymaster_params) = tx.custom_data.paymaster_params {
-            eip712_sign_input.paymaster = Some(paymaster_params.paymaster);
-            eip712_sign_input.paymaster_input = Some(paymaster_params.paymaster_input);
-        } else {
-            eip712_sign_input.paymaster = Some(
-                "0x0000000000000000000000000000000000000000"
-                    .parse()
-                    .unwrap(),
-            );
-            // TODO: This default seems to be wrong.
-            eip712_sign_input.paymaster_input = Some(Bytes::default());
+        if let Some(custom_data) = tx.custom_data {
+            eip712_sign_input.factory_deps =
+                Some(vec![hash_bytecode(custom_data.factory_deps)?.into()]);
+            eip712_sign_input.gas_per_pubdata_byte_limit =
+                Some(U256::from(zks_utils::DEFAULT_GAS_PER_PUBDATA_LIMIT));
+            if let Some(paymaster_params) = custom_data.paymaster_params {
+                eip712_sign_input.paymaster = Some(paymaster_params.paymaster);
+                eip712_sign_input.paymaster_input = Some(paymaster_params.paymaster_input);
+            } else {
+                eip712_sign_input.paymaster = Some(
+                    Address::from_str("0x0000000000000000000000000000000000000000")
+                        .map_err(|e| Eip712Error::Message(e.to_string()))?,
+                );
+                // TODO: This default seems to be wrong.
+                eip712_sign_input.paymaster_input = Some(Bytes::default());
+            }
         }
 
         Ok(eip712_sign_input)
