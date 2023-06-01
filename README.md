@@ -100,6 +100,8 @@ Instead of signing the RLP-encoded transaction, the user signs the a typed EIP71
 
 ### Signing an EIP712 transaction
 
+The signing could be done by `ethers-rs` by the `LocalWallet` with the method `sign_typed_data`. What you are signing here is the keccak hash of the EIP712 transaction encoding. Internally, this is done by the `sighash` method.
+
 ### Sending an EIP712 transaction request
 
 What is sent to the network is the concatenation of the transaction type with the RLP-encoding of the transaction request containing the signed message.
