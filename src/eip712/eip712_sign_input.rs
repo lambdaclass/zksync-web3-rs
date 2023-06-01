@@ -142,11 +142,12 @@ mod tests {
     use crate::{
         eip712::{
             eip712_transaction_request::{Eip712Meta, PaymasterParams},
-            utils::{DEFAULT_GAS_PER_PUBDATA_LIMIT, EIP712_TX_TYPE},
             Eip712TransactionRequest,
         },
         zks_provider::ZKSProvider,
-        zks_utils::{CONTRACT_DEPLOYER_ADDR, ERA_CHAIN_ID},
+        zks_utils::{
+            CONTRACT_DEPLOYER_ADDR, DEFAULT_GAS_PER_PUBDATA_LIMIT, EIP712_TX_TYPE, ERA_CHAIN_ID,
+        },
     };
     use ethers::{
         abi::AbiEncode,

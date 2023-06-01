@@ -7,8 +7,6 @@ pub use eip712_transaction_request::Eip712TransactionRequest;
 mod eip712_sign_input;
 pub use eip712_sign_input::Eip712SignInput;
 
-mod utils;
-
 /// The 32-byte hash of the bytecode of a zkSync contract is calculated in the following way:
 ///
 /// * The first 2 bytes denote the version of bytecode hash format and are currently equal to [1,0].
@@ -16,12 +14,14 @@ mod utils;
 /// * The rest of the 28-byte (i.e. 28 low big-endian bytes) are equal to the last 28 bytes of the sha256 hash of the contract's bytecode.
 pub fn hash_bytecode(bytecode: Option<Vec<Bytes>>) -> Result<[u8; 32], Eip712Error> {
     let step_1: [u8; 2] = 0x100_u16.to_be_bytes();
-    let step_2: [u8; 2] = ((bytecode
+    let bytecode_length: u16 = (bytecode
         .clone()
         .ok_or_else(|| return Eip712Error::FailedToEncodeStruct)?[0]
         .len()
-        / 32) as u16)
-        .to_be_bytes();
+        / 32)
+        .try_into()
+        .map_err(|_| Eip712Error::FailedToEncodeStruct)?;
+    let step_2: [u8; 2] = bytecode_length.to_be_bytes();
     let step_3: [u8; 28] = sha2::Sha256::digest(
         &bytecode
             .clone()
@@ -40,4 +40,15 @@ pub fn hash_bytecode(bytecode: Option<Vec<Bytes>>) -> Result<[u8; 32], Eip712Err
         .unwrap();
 
     Ok(contract_hash)
+}
+
+pub(crate) fn rlp_opt<T: ethers::utils::rlp::Encodable>(
+    stream: &mut ethers::utils::rlp::RlpStream,
+    opt: &Option<T>,
+) {
+    if let Some(inner) = opt {
+        stream.append(inner);
+    } else {
+        stream.append(&"");
+    }
 }

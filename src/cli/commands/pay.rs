@@ -12,7 +12,6 @@ use crate::{
 use clap::Args;
 use eyre::ContextCompat;
 
-use super::L1_CHAIN_ID;
 use super::L2_CHAIN_ID;
 
 #[derive(Args)]
