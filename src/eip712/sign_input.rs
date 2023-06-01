@@ -1,5 +1,5 @@
 use super::{hash_bytecode, Eip712TransactionRequest};
-use crate::zks_utils;
+use crate::zks_utils::{self, DEFAULT_GAS_PER_PUBDATA_LIMIT};
 use ethers::{
     abi::encode,
     types::{
@@ -163,17 +163,27 @@ impl TryFrom<Eip712TransactionRequest> for Eip712SignInput {
         eip712_sign_input.data = tx.data;
 
         if let Some(custom_data) = tx.custom_data {
-            eip712_sign_input.factory_deps =
-                Some(vec![hash_bytecode(custom_data.factory_deps)?.into()]);
+            if let Some(factory_deps) = custom_data.factory_deps {
+                eip712_sign_input.factory_deps = Some(
+                    factory_deps
+                        .iter()
+                        .map(|dependency_bytecode| {
+                            hash_bytecode(dependency_bytecode).map(Bytes::from)
+                        })
+                        .collect::<Result<Vec<Bytes>, _>>()
+                        .unwrap(),
+                );
+            }
             eip712_sign_input.gas_per_pubdata_byte_limit =
-                Some(U256::from(zks_utils::DEFAULT_GAS_PER_PUBDATA_LIMIT));
+                Some(U256::from(DEFAULT_GAS_PER_PUBDATA_LIMIT));
             if let Some(paymaster_params) = custom_data.paymaster_params {
                 eip712_sign_input.paymaster = Some(paymaster_params.paymaster);
                 eip712_sign_input.paymaster_input = Some(paymaster_params.paymaster_input);
             } else {
                 eip712_sign_input.paymaster = Some(
-                    Address::from_str("0x0000000000000000000000000000000000000000")
-                        .map_err(|e| Eip712Error::Message(e.to_string()))?,
+                    "0x0000000000000000000000000000000000000000"
+                        .parse()
+                        .unwrap(),
                 );
                 // TODO: This default seems to be wrong.
                 eip712_sign_input.paymaster_input = Some(Bytes::default());

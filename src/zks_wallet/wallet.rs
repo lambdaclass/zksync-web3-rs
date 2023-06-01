@@ -217,7 +217,7 @@ where
             .max_fee_per_gas(fee.max_fee_per_gas)
             .gas_limit(fee.gas_limit);
 
-        let signable_data: Eip712SignInput = deploy_request.clone().into();
+        let signable_data: Eip712SignInput = deploy_request.clone().try_into()?;
         let signature: Signature = self.wallet.sign_typed_data(&signable_data).await?;
         deploy_request =
             deploy_request.custom_data(custom_data.custom_signature(signature.to_vec()));
