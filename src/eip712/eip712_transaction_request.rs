@@ -92,25 +92,25 @@ impl Eip712TransactionRequest {
     }
 }
 
-impl Into<Eip712SignInput> for Eip712TransactionRequest {
-    fn into(self) -> Eip712SignInput {
+impl From<Eip712TransactionRequest> for Eip712SignInput {
+    fn from(tx: Eip712TransactionRequest) -> Eip712SignInput {
         let mut eip712_sign_input = Eip712SignInput::default();
 
-        eip712_sign_input.tx_type = self.r#type;
-        eip712_sign_input.from = self.from;
-        eip712_sign_input.to = self.to;
-        eip712_sign_input.gas_limit = self.gas_limit;
+        eip712_sign_input.tx_type = tx.r#type;
+        eip712_sign_input.from = tx.from;
+        eip712_sign_input.to = tx.to;
+        eip712_sign_input.gas_limit = tx.gas_limit;
         // TODO create a new constant for default value
-        eip712_sign_input.max_fee_per_gas = self.max_fee_per_gas.or(Some(U256::from("0x0ee6b280")));
+        eip712_sign_input.max_fee_per_gas = tx.max_fee_per_gas.or(Some(U256::from("0x0ee6b280")));
         // TODO create a new constant for default value
-        eip712_sign_input.max_priority_fee_per_gas = self
+        eip712_sign_input.max_priority_fee_per_gas = tx
             .max_priority_fee_per_gas
             .or(Some(U256::from("0x0ee6b280")));
-        eip712_sign_input.nonce = self.nonce;
-        eip712_sign_input.value = self.value;
-        eip712_sign_input.data = self.data;
+        eip712_sign_input.nonce = tx.nonce;
+        eip712_sign_input.value = tx.value;
+        eip712_sign_input.data = tx.data;
 
-        if let Some(custom_data) = self.custom_data {
+        if let Some(custom_data) = tx.custom_data {
             eip712_sign_input.factory_deps = Some(vec![hash_bytecode(custom_data.factory_deps)
                 .unwrap()
                 .into()]);
