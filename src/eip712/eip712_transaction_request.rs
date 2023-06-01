@@ -1,11 +1,7 @@
-use std::str::FromStr;
-
-use crate::zks_utils;
-
-use super::{hash_bytecode, rlp_opt, Eip712SignInput};
+use super::rlp_opt;
 use ethers::{
     types::{
-        transaction::{eip2930::AccessList, eip712::Eip712Error},
+        transaction::eip2930::AccessList,
         Address, Bytes, Signature, U256, U64,
     },
     utils::rlp::{Encodable, RlpStream},
