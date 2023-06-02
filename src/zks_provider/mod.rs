@@ -41,7 +41,7 @@ pub trait ZKSProvider {
     /// * `committed`: The batch is closed and the state transition it creates exists on layer 1.
     /// * `proven`: The batch proof has been created, submitted, and accepted on layer 1.
     /// * `executed`: The batch state transition has been executed on L1; meaning the root state has been updated.
-    async fn get_block_details(&self, block: u32) -> Result<BlockDetails, ProviderError>;
+    async fn get_block_details(&self, block: u32) -> Result<Option<BlockDetails>, ProviderError>;
 
     /// Returns L1/L2 addresses of default bridges.
     async fn get_bridge_contracts(&self) -> Result<BridgeContracts, ProviderError>;
@@ -173,7 +173,7 @@ impl<M: Middleware + ZKSProvider, S: Signer> ZKSProvider for SignerMiddleware<M,
         self.inner().get_all_account_balances(address).await
     }
 
-    async fn get_block_details(&self, block: u32) -> Result<BlockDetails, ProviderError> {
+    async fn get_block_details(&self, block: u32) -> Result<Option<BlockDetails>, ProviderError> {
         self.inner().get_block_details(block).await
     }
 
@@ -317,7 +317,7 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
         self.request("zks_getAllAccountBalances", [address]).await
     }
 
-    async fn get_block_details(&self, block: u32) -> Result<BlockDetails, ProviderError> {
+    async fn get_block_details(&self, block: u32) -> Result<Option<BlockDetails>, ProviderError> {
         self.request("zks_getBlockDetails", [block]).await
     }
 
@@ -461,13 +461,16 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
+    use std::{collections::HashMap, str::FromStr};
 
-    use crate::zks_provider::{types::TracerConfig, ZKSProvider};
+    use crate::{
+        zks_provider::{types::TracerConfig, ZKSProvider},
+        zks_signer::ZKSSigner,
+    };
     use ethers::{
         prelude::{k256::ecdsa::SigningKey, MiddlewareBuilder, SignerMiddleware},
         providers::{Middleware, Provider},
-        signers::{Signer, Wallet},
+        signers::{LocalWallet, Signer, Wallet},
         types::{Address, H256, U256},
     };
     use serde::{Deserialize, Serialize};
@@ -482,6 +485,12 @@ mod tests {
         ))
         .unwrap()
         .interval(std::time::Duration::from_millis(10))
+    }
+
+    fn local_wallet() -> LocalWallet {
+        "0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110"
+            .parse::<LocalWallet>()
+            .unwrap()
     }
 
     fn local_signer() -> SignerMiddleware<Provider<ethers::providers::Http>, Wallet<SigningKey>> {
@@ -573,9 +582,17 @@ mod tests {
     #[tokio::test]
     async fn test_provider_get_block_details() {
         let provider = local_provider();
-        let block = 2;
+        let existing_block = 1;
+        let non_existing_block = provider.get_block_number().await.unwrap() + 100;
 
-        assert!(provider.get_block_details(block).await.is_ok())
+        let existing_block_details = provider.get_block_details(existing_block).await.unwrap();
+        let non_existing_block_details = provider
+            .get_block_details(non_existing_block.as_u32())
+            .await
+            .unwrap();
+
+        assert!(existing_block_details.is_some());
+        assert!(non_existing_block_details.is_none())
     }
 
     #[tokio::test]
@@ -591,7 +608,7 @@ mod tests {
         let invalid_hash = "0x7641711d8997f701a4d5929b6661185aeb5ae1fdff33288b6b5df1c05135cfc9"
             .parse()
             .unwrap();
-        let test_block = provider.get_block_details(2).await.unwrap();
+        let test_block = provider.get_block_details(2).await.unwrap().unwrap();
         let valid_hash = test_block.root_hash;
 
         assert!(provider.get_bytecode_by_hash(invalid_hash).await.is_ok());
@@ -677,7 +694,7 @@ mod tests {
     #[tokio::test]
     async fn test_provider_get_transaction_details() {
         let provider = local_provider();
-        let test_block = provider.get_block_details(2).await.unwrap();
+        let test_block = provider.get_block_details(2).await.unwrap().unwrap();
         let hash = test_block.root_hash;
 
         assert!(provider.get_transaction_details(hash).await.is_ok());
@@ -700,8 +717,13 @@ mod tests {
     #[tokio::test]
     async fn test_provider_debug_trace_block_by_hash() {
         let provider = local_provider();
-        let test_block = provider.get_block_details(2).await.unwrap();
-        let hash = test_block.root_hash;
+        let block_number = provider.get_block_number().await.unwrap() - 1;
+        let test_block = provider
+            .get_block_details(block_number.as_u32())
+            .await
+            .unwrap()
+            .unwrap();
+        let hash_block = test_block.root_hash;
 
         let options = Some(TracerConfig {
             disable_storage: None,
@@ -713,12 +735,12 @@ mod tests {
         });
 
         assert!(
-            ZKSProvider::debug_trace_block_by_hash(&provider, hash, None)
+            ZKSProvider::debug_trace_block_by_hash(&provider, hash_block, None)
                 .await
                 .is_ok()
         );
         assert!(
-            ZKSProvider::debug_trace_block_by_hash(&provider, hash, options)
+            ZKSProvider::debug_trace_block_by_hash(&provider, hash_block, options)
                 .await
                 .is_ok()
         );
@@ -727,7 +749,8 @@ mod tests {
     #[tokio::test]
     async fn test_provider_debug_trace_block_by_number() {
         let provider = local_provider();
-        let block_number = U256::from(2);
+        let existing_block_number = provider.get_block_number().await.unwrap() - 1;
+        let non_existing_block_number = existing_block_number + 100;
         let options = Some(TracerConfig {
             disable_storage: None,
             disable_stack: None,
@@ -737,16 +760,34 @@ mod tests {
             tracer_config: Some(HashMap::from([("onlyTopCall".to_owned(), true)])),
         });
 
-        assert!(
-            ZKSProvider::debug_trace_block_by_number(&provider, block_number, None)
-                .await
-                .is_ok()
-        );
-        assert!(
-            ZKSProvider::debug_trace_block_by_number(&provider, block_number, options)
-                .await
-                .is_ok()
-        );
+        assert!(ZKSProvider::debug_trace_block_by_number(
+            &provider,
+            existing_block_number.as_u32().into(),
+            None
+        )
+        .await
+        .is_ok());
+        assert!(ZKSProvider::debug_trace_block_by_number(
+            &provider,
+            existing_block_number.as_u32().into(),
+            options.clone()
+        )
+        .await
+        .is_ok());
+        assert!(ZKSProvider::debug_trace_block_by_number(
+            &provider,
+            non_existing_block_number.as_u32().into(),
+            None
+        )
+        .await
+        .is_err());
+        assert!(ZKSProvider::debug_trace_block_by_number(
+            &provider,
+            non_existing_block_number.as_u32().into(),
+            options
+        )
+        .await
+        .is_err());
     }
 
     #[tokio::test]
@@ -801,9 +842,21 @@ mod tests {
     #[tokio::test]
     async fn test_provider_debug_trace_transaction() {
         let provider = local_provider();
-        let transaction_hash = "0x84472204e445cb3cd5f3ce5e23abcc2892cda5e61b35855a7f0bb1562a6e30e7"
-            .parse()
-            .unwrap();
+        let signer = local_signer();
+        let transaction_hash = signer
+            .transfer(
+                Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049").unwrap(),
+                1.into(),
+                None,
+            )
+            .await
+            .unwrap()
+            .transaction_hash;
+        let invalid_transaction_hash: H256 =
+            "0x84472204e445cb3cd5f3ce5e23abcc2892cda5e61b35855a7f0bb1562a6e30e7"
+                .parse()
+                .unwrap();
+
         let options = Some(TracerConfig {
             disable_storage: None,
             disable_stack: None,
@@ -819,9 +872,19 @@ mod tests {
                 .is_ok()
         );
         assert!(
-            ZKSProvider::debug_trace_transaction(&provider, transaction_hash, options)
+            ZKSProvider::debug_trace_transaction(&provider, transaction_hash, options.clone())
                 .await
                 .is_ok()
+        );
+        assert!(
+            ZKSProvider::debug_trace_transaction(&provider, invalid_transaction_hash, None)
+                .await
+                .is_err()
+        );
+        assert!(
+            ZKSProvider::debug_trace_transaction(&provider, invalid_transaction_hash, options)
+                .await
+                .is_err()
         );
     }
 
@@ -904,9 +967,17 @@ mod tests {
     #[tokio::test]
     async fn test_signer_get_block_details() {
         let provider = local_signer();
-        let block = 2;
+        let existing_block = 1;
+        let non_existing_block = provider.get_block_number().await.unwrap() + 100;
 
-        assert!(provider.get_block_details(block).await.is_ok())
+        let existing_block_details = provider.get_block_details(existing_block).await.unwrap();
+        let non_existing_block_details = provider
+            .get_block_details(non_existing_block.as_u32())
+            .await
+            .unwrap();
+
+        assert!(existing_block_details.is_some());
+        assert!(non_existing_block_details.is_none())
     }
 
     #[tokio::test]
@@ -1032,7 +1103,12 @@ mod tests {
     #[tokio::test]
     async fn test_signer_debug_trace_block_by_hash() {
         let provider = local_signer();
-        let test_block = provider.get_block_details(2).await.unwrap();
+        let block_number = provider.get_block_number().await.unwrap() - 1;
+        let test_block = provider
+            .get_block_details(block_number.as_u32())
+            .await
+            .unwrap()
+            .unwrap();
         let hash = test_block.root_hash;
 
         let options = Some(TracerConfig {
@@ -1059,7 +1135,8 @@ mod tests {
     #[tokio::test]
     async fn test_signer_debug_trace_block_by_number() {
         let provider = local_signer();
-        let block_number = U256::from(2);
+        let existing_block_number = provider.get_block_number().await.unwrap() - 1;
+        let non_existing_block_number = existing_block_number + 100;
         let options = Some(TracerConfig {
             disable_storage: None,
             disable_stack: None,
@@ -1069,16 +1146,34 @@ mod tests {
             tracer_config: Some(HashMap::from([("onlyTopCall".to_owned(), true)])),
         });
 
-        assert!(
-            ZKSProvider::debug_trace_block_by_number(&provider, block_number, None)
-                .await
-                .is_ok()
-        );
-        assert!(
-            ZKSProvider::debug_trace_block_by_number(&provider, block_number, options)
-                .await
-                .is_ok()
-        );
+        assert!(ZKSProvider::debug_trace_block_by_number(
+            &provider,
+            existing_block_number.as_u32().into(),
+            None
+        )
+        .await
+        .is_ok());
+        assert!(ZKSProvider::debug_trace_block_by_number(
+            &provider,
+            existing_block_number.as_u32().into(),
+            options.clone()
+        )
+        .await
+        .is_ok());
+        assert!(ZKSProvider::debug_trace_block_by_number(
+            &provider,
+            non_existing_block_number.as_u32().into(),
+            None
+        )
+        .await
+        .is_err());
+        assert!(ZKSProvider::debug_trace_block_by_number(
+            &provider,
+            non_existing_block_number.as_u32().into(),
+            options
+        )
+        .await
+        .is_err());
     }
 
     #[tokio::test]
@@ -1129,13 +1224,23 @@ mod tests {
         );
     }
 
-    // TODO: This test is flacky. It could fail in the future.
     #[tokio::test]
     async fn test_signer_debug_trace_transaction() {
-        let provider = local_signer();
-        let transaction_hash = "0x84472204e445cb3cd5f3ce5e23abcc2892cda5e61b35855a7f0bb1562a6e30e7"
-            .parse()
-            .unwrap();
+        let signer = local_signer();
+        let transaction_hash = signer
+            .transfer(
+                Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049").unwrap(),
+                1.into(),
+                None,
+            )
+            .await
+            .unwrap()
+            .transaction_hash;
+        let invalid_transaction_hash: H256 =
+            "0x84472204e445cb3cd5f3ce5e23abcc2892cda5e61b35855a7f0bb1562a6e30e7"
+                .parse()
+                .unwrap();
+
         let options = Some(TracerConfig {
             disable_storage: None,
             disable_stack: None,
@@ -1146,14 +1251,19 @@ mod tests {
         });
 
         assert!(
-            ZKSProvider::debug_trace_transaction(&provider, transaction_hash, None)
+            ZKSProvider::debug_trace_transaction(&signer, transaction_hash, None)
                 .await
                 .is_ok()
         );
         assert!(
-            ZKSProvider::debug_trace_transaction(&provider, transaction_hash, options)
+            ZKSProvider::debug_trace_transaction(&signer, transaction_hash, options)
                 .await
                 .is_ok()
+        );
+        assert!(
+            ZKSProvider::debug_trace_transaction(&signer, invalid_transaction_hash, None)
+                .await
+                .is_err()
         );
     }
 }
