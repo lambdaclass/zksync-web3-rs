@@ -3,7 +3,7 @@ use ethers::{
     prelude::SignerMiddleware,
     providers::{JsonRpcClient, Middleware, Provider, ProviderError},
     signers::Signer,
-    types::{Address, H256, U256},
+    types::{Address, H256, U256, U64},
 };
 use serde::Serialize;
 use serde_json::json;
@@ -41,7 +41,9 @@ pub trait ZKSProvider {
     /// * `committed`: The batch is closed and the state transition it creates exists on layer 1.
     /// * `proven`: The batch proof has been created, submitted, and accepted on layer 1.
     /// * `executed`: The batch state transition has been executed on L1; meaning the root state has been updated.
-    async fn get_block_details(&self, block: u32) -> Result<Option<BlockDetails>, ProviderError>;
+    async fn get_block_details<T>(&self, block: T) -> Result<Option<BlockDetails>, ProviderError>
+    where
+        T: Into<U64> + Send + Sync + Serialize + Debug;
 
     /// Returns L1/L2 addresses of default bridges.
     async fn get_bridge_contracts(&self) -> Result<BridgeContracts, ProviderError>;
@@ -63,10 +65,14 @@ pub trait ZKSProvider {
     /// Returns the range of blocks contained within a batch given by batch number.
     ///
     /// The range is given by beginning/end block numbers in hexadecimal.
-    async fn get_l1_batch_block_range(&self, batch: u32) -> Result<BlockRange, ProviderError>;
+    async fn get_l1_batch_block_range<T>(&self, batch: T) -> Result<BlockRange, ProviderError>
+    where
+        T: Into<U64> + Send + Sync + Serialize + Debug;
 
     /// Returns data pertaining to a given batch.
-    async fn get_l1_batch_details(&self, batch: u32) -> Result<L1BatchDetails, ProviderError>;
+    async fn get_l1_batch_details<T>(&self, batch: T) -> Result<L1BatchDetails, ProviderError>
+    where
+        T: Into<U64> + Send + Sync + Serialize + Debug;
 
     /// Given a transaction hash, and an index of the L2 to L1 log produced within the
     /// transaction, it returns the proof for the corresponding L2 to L1 log.
@@ -82,22 +88,26 @@ pub trait ZKSProvider {
     /// Given a block, a sender, a message, and an optional message log index in the
     /// block containing the L1->L2 message, it returns the proof for the message sent
     /// via the L1Messenger system contract.
-    async fn get_l2_to_l1_msg_proof(
+    async fn get_l2_to_l1_msg_proof<T>(
         &self,
-        block: u32,
+        block: T,
         sender: Address,
         msg: H256,
         l2_log_position: Option<u64>,
-    ) -> Result<Option<Proof>, ProviderError>;
+    ) -> Result<Option<Proof>, ProviderError>
+    where
+        T: Into<U64> + Send + Sync + Serialize + Debug;
 
     /// Returns the address of the zkSync Era contract.
     async fn get_main_contract(&self) -> Result<Address, ProviderError>;
 
     /// Returns data of transactions in a block.
-    async fn get_raw_block_transactions(
+    async fn get_raw_block_transactions<T>(
         &self,
-        block: u32,
-    ) -> Result<Vec<Transaction>, ProviderError>;
+        block: T,
+    ) -> Result<Vec<Transaction>, ProviderError>
+    where
+        T: Into<U64> + Send + Sync + Serialize + Debug;
 
     /// Returns the address of the [testnet paymaster](https://era.zksync.io/docs/dev/developer-guides/aa.html#testnet-paymaster): the paymaster that is available
     /// on testnets and enables paying fees in ERC-20 compatible tokens.
@@ -126,21 +136,24 @@ pub trait ZKSProvider {
     ) -> Result<DebugTrace, ProviderError>;
 
     /// Returns debug trace of all executed calls contained in a block given by its L2 block number.
-    async fn debug_trace_block_by_number(
+    async fn debug_trace_block_by_number<T>(
         &self,
-        block: U256,
-        options: Option<TracerConfig>,
-    ) -> Result<DebugTrace, ProviderError>;
-
-    /// Returns debug trace containing information on a specific calls given by the call request.
-    async fn debug_trace_call<T>(
-        &self,
-        request: T,
-        block: Option<U256>,
+        block: T,
         options: Option<TracerConfig>,
     ) -> Result<DebugTrace, ProviderError>
     where
-        T: Debug + Serialize + Send + Sync;
+        T: Into<U64> + Send + Sync + Serialize + Debug;
+
+    /// Returns debug trace containing information on a specific calls given by the call request.
+    async fn debug_trace_call<R, T>(
+        &self,
+        request: R,
+        block: Option<T>,
+        options: Option<TracerConfig>,
+    ) -> Result<DebugTrace, ProviderError>
+    where
+        R: Debug + Serialize + Send + Sync,
+        T: Into<U64> + Send + Sync + Serialize + Debug;
 
     /// Uses the EVM's callTracer to return a debug trace of a specific transaction given by its transaction hash.
     async fn debug_trace_transaction(
@@ -173,7 +186,10 @@ impl<M: Middleware + ZKSProvider, S: Signer> ZKSProvider for SignerMiddleware<M,
         self.inner().get_all_account_balances(address).await
     }
 
-    async fn get_block_details(&self, block: u32) -> Result<Option<BlockDetails>, ProviderError> {
+    async fn get_block_details<T>(&self, block: T) -> Result<Option<BlockDetails>, ProviderError>
+    where
+        T: Into<U64> + Send + Sync + Serialize + Debug,
+    {
         self.inner().get_block_details(block).await
     }
 
@@ -193,11 +209,17 @@ impl<M: Middleware + ZKSProvider, S: Signer> ZKSProvider for SignerMiddleware<M,
         self.inner().get_confirmed_tokens(from, limit).await
     }
 
-    async fn get_l1_batch_block_range(&self, batch_id: u32) -> Result<BlockRange, ProviderError> {
+    async fn get_l1_batch_block_range<T>(&self, batch_id: T) -> Result<BlockRange, ProviderError>
+    where
+        T: Into<U64> + Send + Sync + Serialize + Debug,
+    {
         self.inner().get_l1_batch_block_range(batch_id).await
     }
 
-    async fn get_l1_batch_details(&self, batch_id: u32) -> Result<L1BatchDetails, ProviderError> {
+    async fn get_l1_batch_details<T>(&self, batch_id: T) -> Result<L1BatchDetails, ProviderError>
+    where
+        T: Into<U64> + Send + Sync + Serialize + Debug,
+    {
         self.inner().get_l1_batch_details(batch_id).await
     }
 
@@ -211,13 +233,16 @@ impl<M: Middleware + ZKSProvider, S: Signer> ZKSProvider for SignerMiddleware<M,
             .await
     }
 
-    async fn get_l2_to_l1_msg_proof(
+    async fn get_l2_to_l1_msg_proof<T>(
         &self,
-        block: u32,
+        block: T,
         sender: Address,
         msg: H256,
         l2_log_position: Option<u64>,
-    ) -> Result<Option<Proof>, ProviderError> {
+    ) -> Result<Option<Proof>, ProviderError>
+    where
+        T: Into<U64> + Send + Sync + Serialize + Debug,
+    {
         self.inner()
             .get_l2_to_l1_msg_proof(block, sender, msg, l2_log_position)
             .await
@@ -227,10 +252,13 @@ impl<M: Middleware + ZKSProvider, S: Signer> ZKSProvider for SignerMiddleware<M,
         self.inner().get_main_contract().await
     }
 
-    async fn get_raw_block_transactions(
+    async fn get_raw_block_transactions<T>(
         &self,
-        block: u32,
-    ) -> Result<Vec<Transaction>, ProviderError> {
+        block: T,
+    ) -> Result<Vec<Transaction>, ProviderError>
+    where
+        T: Into<U64> + Send + Sync + Serialize + Debug,
+    {
         self.inner().get_raw_block_transactions(block).await
     }
 
@@ -265,22 +293,26 @@ impl<M: Middleware + ZKSProvider, S: Signer> ZKSProvider for SignerMiddleware<M,
         ZKSProvider::debug_trace_block_by_hash(self.inner(), hash, options).await
     }
 
-    async fn debug_trace_block_by_number(
+    async fn debug_trace_block_by_number<T>(
         &self,
-        block: U256,
-        options: Option<TracerConfig>,
-    ) -> Result<DebugTrace, ProviderError> {
-        ZKSProvider::debug_trace_block_by_number(self.inner(), block, options).await
-    }
-
-    async fn debug_trace_call<T>(
-        &self,
-        request: T,
-        block: Option<U256>,
+        block: T,
         options: Option<TracerConfig>,
     ) -> Result<DebugTrace, ProviderError>
     where
-        T: Debug + Serialize + Send + Sync,
+        T: Into<U64> + Send + Sync + Serialize + Debug,
+    {
+        ZKSProvider::debug_trace_block_by_number(self.inner(), block, options).await
+    }
+
+    async fn debug_trace_call<R, T>(
+        &self,
+        request: R,
+        block: Option<T>,
+        options: Option<TracerConfig>,
+    ) -> Result<DebugTrace, ProviderError>
+    where
+        R: Debug + Serialize + Send + Sync,
+        T: Into<U64> + Send + Sync + Serialize + Debug,
     {
         ZKSProvider::debug_trace_call(self.inner(), request, block, options).await
     }
@@ -317,7 +349,10 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
         self.request("zks_getAllAccountBalances", [address]).await
     }
 
-    async fn get_block_details(&self, block: u32) -> Result<Option<BlockDetails>, ProviderError> {
+    async fn get_block_details<T>(&self, block: T) -> Result<Option<BlockDetails>, ProviderError>
+    where
+        T: Into<U64> + Send + Sync + Serialize + Debug,
+    {
         self.request("zks_getBlockDetails", [block]).await
     }
 
@@ -338,11 +373,17 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
             .await
     }
 
-    async fn get_l1_batch_block_range(&self, batch: u32) -> Result<BlockRange, ProviderError> {
+    async fn get_l1_batch_block_range<T>(&self, batch: T) -> Result<BlockRange, ProviderError>
+    where
+        T: Into<U64> + Send + Sync + Serialize + Debug,
+    {
         self.request("zks_getL1BatchBlockRange", [batch]).await
     }
 
-    async fn get_l1_batch_details(&self, batch: u32) -> Result<L1BatchDetails, ProviderError> {
+    async fn get_l1_batch_details<T>(&self, batch: T) -> Result<L1BatchDetails, ProviderError>
+    where
+        T: Into<U64> + Send + Sync + Serialize + Debug,
+    {
         self.request("zks_getL1BatchDetails", [batch]).await
     }
 
@@ -358,13 +399,16 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
         .await
     }
 
-    async fn get_l2_to_l1_msg_proof(
+    async fn get_l2_to_l1_msg_proof<T>(
         &self,
-        block: u32,
+        block: T,
         sender: Address,
         msg: H256,
         l2_log_position: Option<u64>,
-    ) -> Result<Option<Proof>, ProviderError> {
+    ) -> Result<Option<Proof>, ProviderError>
+    where
+        T: Into<U64> + Send + Sync + Serialize + Debug,
+    {
         self.request(
             "zks_getL2ToL1MsgProof",
             json!([block, sender, msg, l2_log_position]),
@@ -376,10 +420,13 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
         self.request("zks_getMainContract", ()).await
     }
 
-    async fn get_raw_block_transactions(
+    async fn get_raw_block_transactions<T>(
         &self,
-        block: u32,
-    ) -> Result<Vec<Transaction>, ProviderError> {
+        block: T,
+    ) -> Result<Vec<Transaction>, ProviderError>
+    where
+        T: Into<U64> + Send + Sync + Serialize + Debug,
+    {
         self.request("zks_getRawBlockTransactions", [block]).await
     }
 
@@ -421,11 +468,14 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
         serde_json::from_value(processable_response).map_err(ProviderError::SerdeJson)
     }
 
-    async fn debug_trace_block_by_number(
+    async fn debug_trace_block_by_number<T>(
         &self,
-        block: U256,
+        block: T,
         options: Option<TracerConfig>,
-    ) -> Result<DebugTrace, ProviderError> {
+    ) -> Result<DebugTrace, ProviderError>
+    where
+        T: Into<U64> + Send + Sync + Serialize + Debug,
+    {
         let processable_response = self
             .request::<serde_json::Value, serde_json::Value>(
                 "debug_traceBlockByNumber",
@@ -436,14 +486,15 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
         serde_json::from_value(processable_response).map_err(ProviderError::SerdeJson)
     }
 
-    async fn debug_trace_call<T>(
+    async fn debug_trace_call<R, T>(
         &self,
-        request: T,
-        block: Option<U256>,
+        request: R,
+        block: Option<T>,
         options: Option<TracerConfig>,
     ) -> Result<DebugTrace, ProviderError>
     where
-        T: Debug + Serialize + Send + Sync,
+        R: Debug + Serialize + Send + Sync,
+        T: Into<U64> + Send + Sync + Serialize + Debug,
     {
         self.request("debug_traceCall", json!([request, block, options]))
             .await
@@ -760,30 +811,28 @@ mod tests {
             tracer_config: Some(HashMap::from([("onlyTopCall".to_owned(), true)])),
         });
 
+        assert!(
+            ZKSProvider::debug_trace_block_by_number(&provider, existing_block_number, None)
+                .await
+                .is_ok()
+        );
         assert!(ZKSProvider::debug_trace_block_by_number(
             &provider,
-            existing_block_number.as_u32().into(),
-            None
-        )
-        .await
-        .is_ok());
-        assert!(ZKSProvider::debug_trace_block_by_number(
-            &provider,
-            existing_block_number.as_u32().into(),
+            existing_block_number,
             options.clone()
         )
         .await
         .is_ok());
         assert!(ZKSProvider::debug_trace_block_by_number(
             &provider,
-            non_existing_block_number.as_u32().into(),
+            non_existing_block_number,
             None
         )
         .await
         .is_err());
         assert!(ZKSProvider::debug_trace_block_by_number(
             &provider,
-            non_existing_block_number.as_u32().into(),
+            non_existing_block_number,
             options
         )
         .await
@@ -806,7 +855,7 @@ mod tests {
             data: "0x608060405234801561001057600080fd5b50610228806100206000396000f3fe608060405234801561001057600080fd5b506004361061002b5760003560e01c80639146769014610030575b600080fd5b61003861004e565b6040516100459190610170565b60405180910390f35b60606000805461005d906101c1565b80601f0160208091040260200160405190810160405280929190818152602001828054610089906101c1565b80156100d65780601f106100ab576101008083540402835291602001916100d6565b820191906000526020600020905b8154815290600101906020018083116100b957829003601f168201915b5050505050905090565b600081519050919050565b600082825260208201905092915050565b60005b8381101561011a5780820151818401526020810190506100ff565b60008484015250505050565b6000601f19601f8301169050919050565b6000610142826100e0565b61014c81856100eb565b935061015c8185602086016100fc565b61016581610126565b840191505092915050565b6000602082019050818103600083015261018a8184610137565b905092915050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052602260045260246000fd5b600060028204905060018216806101d957607f821691505b6020821081036101ec576101eb610192565b5b5091905056fea26469706673582212203d7f62ad5ef1f9670aa630c438f1a75844e1d2cfaf92e6985c698b7009e3dfa864736f6c63430008140033".to_owned(),
         };
 
-        let block = Some(U256::from(2));
+        let block = provider.get_block_number().await.ok();
         let options = Some(TracerConfig {
             disable_storage: None,
             disable_stack: None,
@@ -816,11 +865,17 @@ mod tests {
             tracer_config: Some(HashMap::from([("onlyTopCall".to_owned(), true)])),
         });
 
-        assert!(
-            ZKSProvider::debug_trace_call(&provider, &request, None, None)
+        println!(
+            "{:?}",
+            ZKSProvider::debug_trace_call::<&TestTransaction, u64>(&provider, &request, None, None)
                 .await
-                .is_ok()
         );
+
+        assert!(ZKSProvider::debug_trace_call::<&TestTransaction, u64>(
+            &provider, &request, None, None
+        )
+        .await
+        .is_ok());
         assert!(
             ZKSProvider::debug_trace_call(&provider, &request, block, None)
                 .await
@@ -832,7 +887,7 @@ mod tests {
                 .is_ok()
         );
         assert!(
-            ZKSProvider::debug_trace_call(&provider, request, None, options)
+            ZKSProvider::debug_trace_call::<_, u64>(&provider, request, None, options)
                 .await
                 .is_ok()
         );
@@ -1146,30 +1201,28 @@ mod tests {
             tracer_config: Some(HashMap::from([("onlyTopCall".to_owned(), true)])),
         });
 
+        assert!(
+            ZKSProvider::debug_trace_block_by_number(&provider, existing_block_number, None)
+                .await
+                .is_ok()
+        );
         assert!(ZKSProvider::debug_trace_block_by_number(
             &provider,
-            existing_block_number.as_u32().into(),
-            None
-        )
-        .await
-        .is_ok());
-        assert!(ZKSProvider::debug_trace_block_by_number(
-            &provider,
-            existing_block_number.as_u32().into(),
+            existing_block_number,
             options.clone()
         )
         .await
         .is_ok());
         assert!(ZKSProvider::debug_trace_block_by_number(
             &provider,
-            non_existing_block_number.as_u32().into(),
+            non_existing_block_number,
             None
         )
         .await
         .is_err());
         assert!(ZKSProvider::debug_trace_block_by_number(
             &provider,
-            non_existing_block_number.as_u32().into(),
+            non_existing_block_number,
             options
         )
         .await
@@ -1192,7 +1245,7 @@ mod tests {
             data: "0x608060405234801561001057600080fd5b50610228806100206000396000f3fe608060405234801561001057600080fd5b506004361061002b5760003560e01c80639146769014610030575b600080fd5b61003861004e565b6040516100459190610170565b60405180910390f35b60606000805461005d906101c1565b80601f0160208091040260200160405190810160405280929190818152602001828054610089906101c1565b80156100d65780601f106100ab576101008083540402835291602001916100d6565b820191906000526020600020905b8154815290600101906020018083116100b957829003601f168201915b5050505050905090565b600081519050919050565b600082825260208201905092915050565b60005b8381101561011a5780820151818401526020810190506100ff565b60008484015250505050565b6000601f19601f8301169050919050565b6000610142826100e0565b61014c81856100eb565b935061015c8185602086016100fc565b61016581610126565b840191505092915050565b6000602082019050818103600083015261018a8184610137565b905092915050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052602260045260246000fd5b600060028204905060018216806101d957607f821691505b6020821081036101ec576101eb610192565b5b5091905056fea26469706673582212203d7f62ad5ef1f9670aa630c438f1a75844e1d2cfaf92e6985c698b7009e3dfa864736f6c63430008140033".to_owned(),
         };
 
-        let block = Some(U256::from(2));
+        let block = provider.get_block_number().await.ok();
         let options = Some(TracerConfig {
             disable_storage: None,
             disable_stack: None,
@@ -1203,7 +1256,7 @@ mod tests {
         });
 
         assert!(
-            ZKSProvider::debug_trace_call(&provider, &request, None, None)
+            ZKSProvider::debug_trace_call::<_, u64>(&provider, &request, None, None)
                 .await
                 .is_ok()
         );
@@ -1218,7 +1271,7 @@ mod tests {
                 .is_ok()
         );
         assert!(
-            ZKSProvider::debug_trace_call(&provider, request, None, options)
+            ZKSProvider::debug_trace_call::<_, u64>(&provider, request, None, options)
                 .await
                 .is_ok()
         );
