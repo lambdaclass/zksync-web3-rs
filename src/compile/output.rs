@@ -1,58 +1,129 @@
 use std::collections::HashMap;
 
-use serde::{Deserialize, Serialize};
+use ethers::{
+    abi::{Function, Param, StateMutability},
+    solc::info::ContractInfoRef,
+    types::Bytes,
+};
+use serde::{Deserialize, Deserializer, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct ContractOutput {
+pub struct ZKSArtifact {
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_function"
+    )]
+    pub abi: Option<Vec<Function>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    abi: Option<Vec<ContractFunctionOutput>>,
+    pub bin: Option<Bytes>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    bin: Option<String>,
+    pub metadata: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    metadata: Option<String>,
+    pub devdoc: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    devdoc: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    userdoc: Option<String>,
+    pub userdoc: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none", rename = "kebab-case")]
-    storage_layout: Option<String>,
+    pub storage_layout: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    ast: Option<String>,
+    pub ast: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    asm: Option<String>,
+    pub asm: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none", rename = "kebab-case")]
-    bin_runtime: Option<String>,
+    pub bin_runtime: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    hashes: Option<HashMap<String, String>>,
+    pub hashes: Option<HashMap<String, String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    factory_deps: Option<HashMap<String, String>>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct FunctionArgsTypesOutput {
-    pub internal_type: String,
-    pub name: String,
-    #[serde(rename = "type")]
-    pub sol_type: String,
+    pub factory_deps: Option<HashMap<String, String>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct ContractFunctionOutput {
-    pub inputs: Vec<FunctionArgsTypesOutput>,
+    pub inputs: Vec<Param>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub outputs: Option<Vec<FunctionArgsTypesOutput>>,
-    pub state_mutability: String,
+    pub outputs: Option<Vec<Param>>,
+    pub state_mutability: StateMutability,
     #[serde(rename = "type")]
     pub sol_struct_type: String,
 }
 
+fn deserialize_function<'de, D>(deserializer: D) -> Result<Option<Vec<Function>>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Ok(Some(
+        <Vec<ContractFunctionOutput>>::deserialize(deserializer)?
+            .into_iter()
+            .map(Into::into)
+            .collect::<Vec<Function>>(),
+    ))
+}
+
+impl From<ContractFunctionOutput> for Function {
+    fn from(output: ContractFunctionOutput) -> Self {
+        let ContractFunctionOutput {
+            inputs,
+            name,
+            outputs,
+            state_mutability,
+            ..
+        } = output;
+        Self {
+            name: name.unwrap_or_default(),
+            inputs,
+            outputs: outputs.unwrap_or_default(),
+            state_mutability,
+            constant: None,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug)]
-pub struct ZKCompilationOutput {
-    pub contracts: HashMap<String, ContractOutput>,
+pub struct ZKSCompilationOutput {
+    #[serde(rename = "contracts")]
+    pub artifacts: HashMap<String, ZKSArtifact>,
     pub version: String,
     pub zk_version: String,
+}
+
+impl ZKSCompilationOutput {
+    pub fn find_contract<'a>(&self, info: impl Into<ContractInfoRef<'a>>) -> Option<&ZKSArtifact> {
+        let ContractInfoRef { path, name } = info.into();
+        if let Some(path) = path {
+            self.find(path, name)
+        } else {
+            self.find_first(name)
+        }
+    }
+
+    pub fn find(&self, path: impl AsRef<str>, contract: impl AsRef<str>) -> Option<&ZKSArtifact> {
+        let contract_path = path.as_ref();
+        let contract_name = contract.as_ref();
+        self.artifacts
+            .get(&format!("{contract_path}:{contract_name}"))
+        // TODO: handle cached artifacts.
+        // if let artifact @ Some(_) = self.artifacts.get(&format!("{contract_path}:{contract_name}")) {
+        //     return artifact
+        // }
+        // self.cached_artifacts.find(contract_path, contract_name)
+    }
+
+    /// Finds the first contract with the given name
+    pub fn find_first(&self, contract_name: impl AsRef<str>) -> Option<&ZKSArtifact> {
+        let contract_name = contract_name.as_ref();
+        self.artifacts.keys().find_map(|key| {
+            if key.ends_with(contract_name) {
+                self.artifacts.get(key)
+            } else {
+                None
+            }
+        })
+        // TODO: handle cached artifacts.
+        // if let artifact @ Some(_) = self.compiled_artifacts.find_first(contract_name) {
+        //     return artifact
+        // }
+        // self.cached_artifacts.find_first(contract_name)
+    }
 }
