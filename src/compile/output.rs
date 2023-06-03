@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use ethers::{
-    abi::{Function, Param, StateMutability},
+    abi::{Abi, Function, Param, StateMutability},
     solc::info::ContractInfoRef,
     types::Bytes,
 };
@@ -9,11 +9,8 @@ use serde::{Deserialize, Deserializer, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ZKSArtifact {
-    #[serde(
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "deserialize_function"
-    )]
-    pub abi: Option<Vec<Function>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub abi: Option<Abi>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bin: Option<Bytes>,
     #[serde(skip_serializing_if = "Option::is_none")]
