@@ -1,4 +1,4 @@
-use crate::zks_utils::{EIP712_TX_TYPE, ERA_CHAIN_ID};
+use crate::zks_utils::{EIP712_TX_TYPE, ERA_CHAIN_ID, MAX_PRIORITY_FEE_PER_GAS};
 
 use super::Eip712Meta;
 use ethers::{
@@ -201,7 +201,7 @@ impl Default for Eip712TransactionRequest {
             chain_id: ERA_CHAIN_ID.into(),
             r#type: EIP712_TX_TYPE.into(),
             access_list: Default::default(),
-            max_priority_fee_per_gas: Default::default(),
+            max_priority_fee_per_gas: MAX_PRIORITY_FEE_PER_GAS.into(),
             max_fee_per_gas: Default::default(),
             custom_data: Default::default(),
             ccip_read_enabled: Default::default(),
