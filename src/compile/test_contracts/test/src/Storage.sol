@@ -1,18 +1,14 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.0;
 
-contract ValueStorage {
-    uint256 private storedValue;
+contract Storage {
+    uint256 counter;
 
-    constructor(uint256 initialValue) {
-        storedValue = initialValue;
+    function set(uint256 _value) public {
+        counter = _value;
     }
 
-    function setValue(uint256 newValue) public {
-        storedValue = newValue;
-    }
-
-    function getValue() public view returns (uint256) {
-        return storedValue;
+    function get() public view returns (uint256) {
+        return counter;
     }
 }
