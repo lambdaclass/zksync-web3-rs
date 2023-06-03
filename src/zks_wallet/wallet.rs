@@ -12,7 +12,7 @@ use ethers::{
             ecdsa::{RecoveryId, Signature as RecoverableSignature},
             schnorr::signature::hazmat::PrehashSigner,
         },
-        MiddlewareBuilder, SignerMiddleware, ContractError,
+        ContractError, MiddlewareBuilder, SignerMiddleware,
     },
     providers::Middleware,
     signers::{Signer, Wallet},
@@ -21,7 +21,7 @@ use ethers::{
         Signature, TransactionReceipt, U256,
     },
 };
-use std::{str::FromStr, io::BufReader, fs::File};
+use std::{fs::File, io::BufReader, str::FromStr};
 
 pub struct ZKSWallet<M, D>
 where
@@ -297,15 +297,24 @@ where
             )
             .gas_price(era_provider.get_gas_price().await?)
             .data({
-                let contract_deployer = Abi::load(BufReader::new(File::open("./src/abi/ContractDeployer.json").unwrap())).unwrap();
+                let contract_deployer = Abi::load(BufReader::new(
+                    File::open("./src/abi/ContractDeployer.json").unwrap(),
+                ))
+                .unwrap();
                 let create = contract_deployer.function("create").unwrap();
                 // TODO: User could provide this instead of defaulting.
                 let salt = [0_u8; 32];
                 let bytecode_hash = hash_bytecode(&contract_bytecode)?;
-                let call_data : Bytes = match (contract_abi.constructor(), constructor_parameters.is_empty()) {
+                let call_data: Bytes = match (
+                    contract_abi.constructor(),
+                    constructor_parameters.is_empty(),
+                ) {
                     (None, false) => return Err(ContractError::ConstructorError)?,
                     (None, true) => contract_bytecode.clone(),
-                    (Some(constructor), _) => constructor.encode_input(contract_bytecode.to_vec(), &constructor_parameters).unwrap().into()
+                    (Some(constructor), _) => constructor
+                        .encode_input(contract_bytecode.to_vec(), &constructor_parameters)
+                        .unwrap()
+                        .into(),
                 };
 
                 encode_function_data(create, (salt, bytecode_hash, call_data))?
@@ -552,10 +561,8 @@ mod zks_signer_tests {
         let compilation_output = zk_project.compile().unwrap();
         let artifact = compilation_output
             .find_contract(
-                ContractInfo::from_str(
-                    "src/compile/test_contracts/test/src/Storage.sol:Storage",
-                )
-                .unwrap(),
+                ContractInfo::from_str("src/compile/test_contracts/test/src/Storage.sol:Storage")
+                    .unwrap(),
             )
             .unwrap();
 
