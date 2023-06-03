@@ -21,6 +21,10 @@ use self::types::{
 /// https://era.zksync.io/docs/api/api.html#zksync-era-json-rpc-methods
 #[async_trait]
 pub trait ZKSProvider {
+    async fn estimate_gas<T>(&self, transaction: T) -> Result<U256, ProviderError>
+    where
+        T: Debug + Serialize + Send + Sync;
+
     /// Returns the fee for the transaction.
     async fn estimate_fee<T>(&self, transaction: T) -> Result<Fee, ProviderError>
     where
@@ -152,6 +156,13 @@ pub trait ZKSProvider {
 
 #[async_trait]
 impl<M: Middleware + ZKSProvider, S: Signer> ZKSProvider for SignerMiddleware<M, S> {
+    async fn estimate_gas<T>(&self, transaction: T) -> Result<U256, ProviderError>
+    where
+        T: Debug + Serialize + Send + Sync,
+    {
+        <M as ZKSProvider>::estimate_gas(self.inner(), transaction).await
+    }
+
     async fn estimate_fee<T>(&self, transaction: T) -> Result<Fee, ProviderError>
     where
         T: Debug + Serialize + Send + Sync,
@@ -296,6 +307,13 @@ impl<M: Middleware + ZKSProvider, S: Signer> ZKSProvider for SignerMiddleware<M,
 
 #[async_trait]
 impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
+    async fn estimate_gas<T>(&self, transaction: T) -> Result<U256, ProviderError>
+    where
+        T: Debug + Serialize + Send + Sync,
+    {
+        self.request("eth_estimateGas", [transaction]).await
+    }
+
     async fn estimate_fee<T>(&self, transaction: T) -> Result<Fee, ProviderError>
     where
         T: Debug + Serialize + Send + Sync,
