@@ -9,6 +9,10 @@ pub const EIP712_TX_TYPE: u8 = 0x71;
 // In the future releases, we will provide a way to estimate the current gasPerPubdata.
 pub const DEFAULT_GAS_PER_PUBDATA_LIMIT: u64 = 50000;
 
+pub const RECOMMENDED_DEPOSIT_L1_GAS_LIMIT: u64 = 10000000;
+pub const RECOMMENDED_DEPOSIT_L2_GAS_LIMIT: u64 = 10000000;
+pub const DEPOSIT_GAS_PER_PUBDATA_LIMIT: u64 = 800;
+
 /* Contracts */
 
 pub const CHAIN_STATE_KEEPER_BOOTLOADER_HASH: &str =
