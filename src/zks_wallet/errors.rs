@@ -28,6 +28,10 @@ where
     AbiError(#[from] AbiError),
     #[error("EIP712 error: {0}")]
     Eip712Error(#[from] Eip712Error),
+    #[error("No L1 Ethereum provider")]
+    NoL1ProviderError(),
+    #[error("No L2 Ethereum provider")]
+    NoL2ProviderError(),
     #[error("{0}")]
     CustomError(String),
 }

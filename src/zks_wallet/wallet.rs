@@ -79,6 +79,20 @@ where
     //     self.era_provider = Provider::try_from(format!("http://{host}:{port}")).ok().map(|p| p.with_signer(self.wallet));
     // }
 
+    fn get_eth_provider(&self) -> Result<&SignerMiddleware<M, Wallet<D>>, ZKSWalletError<M, D>> {
+        match &self.eth_provider {
+            Some(eth_provider) => Ok(eth_provider),
+            None => Err(ZKSWalletError::NoL1ProviderError()),
+        }
+    }
+
+    fn get_era_provider(&self) -> Result<&SignerMiddleware<M, Wallet<D>>, ZKSWalletError<M, D>> {
+        match &self.era_provider {
+            Some(era_provider) => Ok(era_provider),
+            None => Err(ZKSWalletError::NoL2ProviderError()),
+        }
+    }
+
     pub fn address(&self) -> Address {
         self.wallet.address()
     }
@@ -90,7 +104,7 @@ where
         match &self.eth_provider {
             // TODO: Should we have a balance_on_block method?
             Some(eth_provider) => Ok(eth_provider.get_balance(self.address(), None).await?),
-            None => Err(ZKSWalletError::CustomError("no era provider".to_string())),
+            None => Err(ZKSWalletError::CustomError("no eth provider".to_string())),
         }
     }
 
