@@ -22,6 +22,7 @@ use ethers::{
         transaction::eip2718::TypedTransaction, Address, Bytes, Eip1559TransactionRequest,
         Signature, TransactionReceipt, U256,
     },
+    utils::keccak256,
 };
 use std::{fmt::Display, fs::File, io::BufReader, path::PathBuf, str::FromStr};
 
@@ -381,6 +382,37 @@ where
                 "no transaction receipt".to_owned(),
             ))
     }
+
+    pub async fn call(
+        &self,
+        address: Address,
+        function: String,
+        args: Option<Vec<String>>,
+    ) -> Result<TransactionReceipt, ZKSWalletError<M, D>>
+    where
+        M: ZKSProvider,
+    {
+        let era_provider = match &self.era_provider {
+            Some(era_provider) => era_provider,
+            None => return Err(ZKSWalletError::CustomError("no era provider".to_owned())),
+        };
+        let request = Eip1559TransactionRequest::new().to(address).data(
+            keccak256(function.as_bytes())
+                .get(0..4)
+                .ok_or_else(|| {
+                    ZKSWalletError::CustomError("Invalid function signature".to_owned())
+                })?
+                .to_vec(),
+        );
+
+        let transaction: TypedTransaction = request.into();
+        println!("{transaction:?}");
+        let response = era_provider
+            .send_transaction(transaction, None)
+            .await?
+            .await?;
+        Ok(response.unwrap())
+    }
 }
 
 #[cfg(test)]
@@ -394,8 +426,8 @@ mod zks_signer_tests {
     use ethers::signers::{LocalWallet, Signer};
     use ethers::solc::info::ContractInfo;
     use ethers::solc::{Project, ProjectPathsConfig};
-    use ethers::types::Address;
     use ethers::types::U256;
+    use ethers::types::{Address, H160};
     use std::str::FromStr;
 
     fn era_provider() -> Provider<Http> {
@@ -566,5 +598,26 @@ mod zks_signer_tests {
         let recovered_bytecode = era_provider.get_code(contract_address, None).await.unwrap();
 
         assert_eq!(compiled_bytecode, recovered_bytecode);
+    }
+
+    #[tokio::test]
+    async fn test_call() {
+        let deployer_private_key =
+            "0x28a574ab2de8a00364d5dd4b07c4f2f574ef7fcc2a86a197f65abaec836d1959";
+        let era_provider = era_provider();
+        let wallet = LocalWallet::from_str(deployer_private_key)
+            .unwrap()
+            .with_chain_id(ERA_CHAIN_ID);
+        let zk_wallet = ZKSWallet::new(wallet, Some(era_provider.clone()), None).unwrap();
+
+        let response = zk_wallet
+            .call(
+                Address::from_str("0x111C3E89Ce80e62EE88318C2804920D4c96f92bb").unwrap(),
+                String::from("str_out()"),
+                None,
+            )
+            .await;
+        println!("{:?}", response);
+        assert!(response.is_ok());
     }
 }
