@@ -311,10 +311,12 @@ where
                 ) {
                     (None, false) => return Err(ContractError::ConstructorError)?,
                     (None, true) => contract_bytecode.clone(),
-                    (Some(constructor), _) => constructor
-                        .encode_input(contract_bytecode.to_vec(), &constructor_parameters)
-                        .unwrap()
-                        .into(),
+                    (Some(constructor), _) => {
+                        constructor
+                            .encode_input(contract_bytecode.to_vec(), &constructor_parameters)
+                            .map_err(|err| ZKSWalletError::CustomError(err.to_string()))?
+                            .into()
+                    }
                 };
 
                 encode_function_data(create, (salt, bytecode_hash, call_data))?
@@ -355,6 +357,7 @@ mod zks_signer_tests {
     use crate::compile::project::ZKProject;
     use crate::zks_utils::ERA_CHAIN_ID;
     use crate::zks_wallet::ZKSWallet;
+    use ethers::abi::Token;
     use ethers::providers::Middleware;
     use ethers::providers::{Http, Provider};
     use ethers::signers::{LocalWallet, Signer};
@@ -561,8 +564,10 @@ mod zks_signer_tests {
         let compilation_output = zk_project.compile().unwrap();
         let artifact = compilation_output
             .find_contract(
-                ContractInfo::from_str("src/compile/test_contracts/test/src/Storage.sol:Storage")
-                    .unwrap(),
+                ContractInfo::from_str(
+                    "src/compile/test_contracts/test/src/Storage.sol:Storage"
+                )
+                .unwrap(),
             )
             .unwrap();
 
@@ -572,7 +577,12 @@ mod zks_signer_tests {
         println!("abi: {:?}", abi);
 
         let contract_address = zk_wallet
-            .deploy(abi, bytecode.clone(), None, Vec::new())
+            .deploy(
+                abi,
+                bytecode.clone(),
+                None,
+                vec![Token::Uint(U256::from(0))],
+            )
             .await
             .unwrap();
 
