@@ -1,3 +1,4 @@
+use super::rlp_append_option;
 use ethers::{
     types::{Address, Bytes},
     utils::rlp::Encodable,
@@ -26,7 +27,7 @@ impl PaymasterParams {
 impl Encodable for PaymasterParams {
     fn rlp_append(&self, stream: &mut ethers::utils::rlp::RlpStream) {
         stream.begin_list(2);
-        stream.append(&self.paymaster.as_bytes());
-        stream.append(&self.paymaster_input.to_vec());
+        rlp_append_option(stream, self.paymaster);
+        rlp_append_option(stream, self.paymaster_input.clone().map(|v| v.to_vec()));
     }
 }

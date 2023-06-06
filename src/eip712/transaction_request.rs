@@ -1,6 +1,5 @@
+use super::{rlp_append_option, Eip712Meta};
 use crate::zks_utils::{EIP712_TX_TYPE, ERA_CHAIN_ID, MAX_PRIORITY_FEE_PER_GAS};
-
-use super::Eip712Meta;
 use ethers::{
     types::{transaction::eip2930::AccessList, Address, Bytes, Signature, U256, U64},
     utils::rlp::{Encodable, RlpStream},
@@ -162,9 +161,9 @@ impl Eip712TransactionRequest {
         // 1
         stream.append(&self.max_priority_fee_per_gas);
         // 2
-        stream.append(&self.max_fee_per_gas);
+        rlp_append_option(&mut stream, self.max_fee_per_gas);
         // 3 (supped to be gas)
-        stream.append(&self.gas_limit);
+        rlp_append_option(&mut stream, self.gas_limit);
         // 4
         stream.append(&self.to);
         // 5

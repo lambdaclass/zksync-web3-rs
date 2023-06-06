@@ -260,12 +260,10 @@ impl TryFrom<Eip712TransactionRequest> for Eip712Transaction {
     type Error = Eip712Error;
 
     fn try_from(tx: Eip712TransactionRequest) -> Result<Self, Self::Error> {
-        let eip712_transaction = Eip712Transaction::default()
+        let mut eip712_transaction = Eip712Transaction::default()
             .tx_type(tx.r#type)
             .from(tx.from)
             .to(tx.to)
-            .gas_limit(tx.gas_limit)
-            .max_fee_per_gas(tx.max_fee_per_gas)
             .max_priority_fee_per_gas(tx.max_priority_fee_per_gas)
             .nonce(tx.nonce)
             .value(tx.value)
@@ -273,12 +271,35 @@ impl TryFrom<Eip712TransactionRequest> for Eip712Transaction {
             .factory_deps(
                 tx.custom_data
                     .factory_deps
-                    .iter()
-                    .map(|dependency_bytecode| hash_bytecode(dependency_bytecode).map(Bytes::from))
+                    .into_iter()
+                    .map(|dependency_bytecode| {
+                        hash_bytecode(&Bytes::from(dependency_bytecode)).map(Bytes::from)
+                    })
                     .collect::<Result<Vec<Bytes>, _>>()?,
-            )
-            .paymaster(tx.custom_data.paymaster_params.paymaster)
-            .paymaster_input(tx.custom_data.paymaster_params.paymaster_input);
+            );
+
+        if let Some(paymaster_params) = tx.custom_data.paymaster_params {
+            if let Some(paymaster) = paymaster_params.paymaster {
+                eip712_transaction = eip712_transaction.paymaster(paymaster)
+            }
+            if let Some(paymaster_input) = paymaster_params.paymaster_input {
+                eip712_transaction = eip712_transaction.paymaster_input(paymaster_input)
+            }
+        }
+
+        if let Some(gas_limit) = tx.gas_limit {
+            eip712_transaction = eip712_transaction.gas_limit(gas_limit)
+        } else {
+            return Err(Eip712Error::Message("gas_limit is missing".to_owned()));
+        }
+
+        if let Some(max_fee_per_gas) = tx.max_fee_per_gas {
+            eip712_transaction = eip712_transaction.max_fee_per_gas(max_fee_per_gas)
+        } else {
+            return Err(Eip712Error::Message(
+                "max_fee_per_gas is missing".to_owned(),
+            ));
+        }
 
         Ok(eip712_transaction)
     }

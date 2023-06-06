@@ -1,4 +1,4 @@
-use super::PaymasterParams;
+use super::{rlp_append_option, PaymasterParams};
 use crate::zks_utils::DEFAULT_GAS_PER_PUBDATA_LIMIT;
 use ethers::{
     types::{Bytes, U256},
@@ -71,14 +71,18 @@ impl Encodable for Eip712Meta {
         if !self.factory_deps.is_empty() {
             stream.begin_list(self.factory_deps.len());
             for dep in self.factory_deps.iter() {
-                stream.append(&dep.to_vec());
+                stream.append(dep);
             }
         } else {
             stream.begin_list(0);
         }
         // 14
-        stream.append(&self.custom_signature.to_vec());
+        rlp_append_option(stream, self.custom_signature.clone().map(|v| v.to_vec()));
         // 15
-        self.paymaster_params.rlp_append(stream);
+        if let Some(paymaster_params) = &self.paymaster_params {
+            paymaster_params.rlp_append(stream);
+        } else {
+            stream.begin_list(0);
+        }
     }
 }
