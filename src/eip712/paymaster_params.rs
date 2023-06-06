@@ -7,18 +7,18 @@ use serde::Serialize;
 #[derive(Serialize, serde::Deserialize, Clone, Debug, Default)]
 #[serde(rename_all(serialize = "camelCase", deserialize = "camelCase"))]
 pub struct PaymasterParams {
-    pub paymaster: Address,
-    pub paymaster_input: Bytes,
+    pub paymaster: Option<Address>,
+    pub paymaster_input: Option<Bytes>,
 }
 
 impl PaymasterParams {
     pub fn paymaster(mut self, paymaster: Address) -> Self {
-        self.paymaster = paymaster;
+        self.paymaster = Some(paymaster);
         self
     }
 
     pub fn paymaster_input(mut self, paymaster_input: Bytes) -> Self {
-        self.paymaster_input = paymaster_input;
+        self.paymaster_input = Some(paymaster_input);
         self
     }
 }

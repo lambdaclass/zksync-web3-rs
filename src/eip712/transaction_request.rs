@@ -11,19 +11,29 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all(serialize = "camelCase", deserialize = "camelCase"))]
 pub struct Eip712TransactionRequest {
+    /* These need to be filled before estimating the gas */
     pub to: Address,
     pub from: Address,
     pub nonce: U256,
-    pub gas_limit: U256,
+    pub gas: U256,
     pub gas_price: U256,
     pub data: Bytes,
     pub value: U256,
     pub chain_id: U256,
     pub r#type: U256,
-    pub access_list: AccessList,
     pub max_priority_fee_per_gas: U256,
-    pub max_fee_per_gas: U256,
+    #[serde(rename = "eip712Meta")]
     pub custom_data: Eip712Meta,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub access_list: Option<AccessList>,
+
+    /* Filled after estimating the gas */
+    // Unknown until we estimate the gas.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gas_limit: Option<U256>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_fee_per_gas: Option<U256>, // conflicts with gas_price
+
     pub ccip_read_enabled: bool,
 }
 
@@ -60,7 +70,7 @@ impl Eip712TransactionRequest {
     where
         T: Into<U256>,
     {
-        self.gas_limit = gas_limit.into();
+        self.gas_limit = Some(gas_limit.into());
         self
     }
 
@@ -105,7 +115,7 @@ impl Eip712TransactionRequest {
     }
 
     pub fn access_list<T>(mut self, access_list: AccessList) -> Self {
-        self.access_list = access_list;
+        self.access_list = Some(access_list);
         self
     }
 
@@ -121,7 +131,7 @@ impl Eip712TransactionRequest {
     where
         T: Into<U256>,
     {
-        self.max_fee_per_gas = max_fee_per_gas.into();
+        self.max_fee_per_gas = Some(max_fee_per_gas.into());
         self
     }
 
@@ -194,6 +204,7 @@ impl Default for Eip712TransactionRequest {
             to: Default::default(),
             from: Default::default(),
             nonce: Default::default(),
+            gas: Default::default(),
             gas_limit: Default::default(),
             gas_price: Default::default(),
             data: Default::default(),
