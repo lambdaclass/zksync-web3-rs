@@ -305,16 +305,12 @@ where
                 factory_deps.extend(contract_dependencies);
             }
             factory_deps.push(contract_bytecode.clone());
-            factory_deps.push(contract_bytecode.clone());
             factory_deps
         });
 
         let mut deploy_request = Eip712TransactionRequest::new()
             .r#type(EIP712_TX_TYPE)
             .from(self.address())
-            .to(Address::from_str(CONTRACT_DEPLOYER_ADDR).map_err(|e| {
-                ZKSWalletError::CustomError(format!("invalid contract deployer address: {e}"))
-            })?)
             .to(Address::from_str(CONTRACT_DEPLOYER_ADDR).map_err(|e| {
                 ZKSWalletError::CustomError(format!("invalid contract deployer address: {e}"))
             })?)
@@ -325,7 +321,6 @@ where
                     .await?,
             )
             .gas_price(era_provider.get_gas_price().await?)
-            .max_fee_per_gas(era_provider.get_gas_price().await?)
             .max_fee_per_gas(era_provider.get_gas_price().await?)
             .data({
                 let contract_deployer = Abi::load(BufReader::new(
