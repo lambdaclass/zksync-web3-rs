@@ -420,6 +420,46 @@ where
         let response = era_provider.call(&transaction, None).await.unwrap();
         Ok(response)
     }
+
+    // async withdraw(transaction) {
+    //     const withdrawTx = await this._providerL2().getWithdrawTx({
+    //         from: await this.getAddress(),
+    //         ...transaction
+    //     });
+    //     const txResponse = await this.sendTransaction(withdrawTx);
+    //     return this._providerL2()._wrapTransaction(txResponse);
+    // }
+    pub async fn withdraw(&self, amount: U256) -> Result<TransactionReceipt, ZKSWalletError<M, D>>
+    where
+        M: ZKSProvider,
+    {
+        let (era_provider, eth_provider) = match (&self.era_provider, &self.eth_provider) {
+            (Some(era_provider), Some(eth_provider)) => (era_provider, eth_provider),
+            _ => {
+                return Err(ZKSWalletError::CustomError(
+                    "Both eth and era providers must be present".to_owned(),
+                ))
+            }
+        };
+
+        let mut transaction = Eip1559TransactionRequest::new()
+            .to(self.wallet.address())
+            .from(self.wallet.address())
+            .nonce(
+                era_provider
+                    .get_transaction_count(self.wallet.address(), None)
+                    .await?,
+            )
+            .chain_id(ERA_CHAIN_ID)
+            .value(amount);
+
+        let fee = era_provider.estimate_fee(transaction.clone()).await?;
+        transaction = transaction
+            .max_priority_fee_per_gas(fee.max_priority_fee_per_gas)
+            .max_fee_per_gas(fee.max_fee_per_gas);
+
+        todo!()
+    }
 }
 
 #[cfg(test)]
