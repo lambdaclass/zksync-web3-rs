@@ -69,7 +69,7 @@ impl Eip712TransactionRequest {
     where
         T: Into<U256>,
     {
-        self.gas_limit = Some(gas_limit.into());
+        self.gas_limit = gas_limit.into();
         self
     }
 
@@ -130,7 +130,7 @@ impl Eip712TransactionRequest {
     where
         T: Into<U256>,
     {
-        self.max_fee_per_gas = Some(max_fee_per_gas.into());
+        self.max_fee_per_gas = max_fee_per_gas.into();
         self
     }
 

@@ -24,6 +24,18 @@ impl PaymasterParams {
     }
 }
 
+impl PaymasterParams {
+    pub fn paymaster(mut self, paymaster: Address) -> Self {
+        self.paymaster = paymaster;
+        self
+    }
+
+    pub fn paymaster_input(mut self, paymaster_input: Bytes) -> Self {
+        self.paymaster_input = paymaster_input;
+        self
+    }
+}
+
 impl Encodable for PaymasterParams {
     fn rlp_append(&self, stream: &mut ethers::utils::rlp::RlpStream) {
         stream.begin_list(2);

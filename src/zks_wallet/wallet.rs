@@ -193,7 +193,7 @@ where
 
         // TODO: Should we wait here for the transaction to be confirmed on-chain?
 
-        let transaction_receipt = pending_transaction
+        pending_transaction
             .await?
             .ok_or(ZKSWalletError::CustomError(
                 "no transaction receipt".to_owned(),
