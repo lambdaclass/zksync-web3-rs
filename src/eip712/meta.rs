@@ -79,10 +79,6 @@ impl Encodable for Eip712Meta {
         // 14
         rlp_append_option(stream, self.custom_signature.clone().map(|v| v.to_vec()));
         // 15
-        if let Some(paymaster_params) = &self.paymaster_params {
-            paymaster_params.rlp_append(stream);
-        } else {
-            stream.begin_list(0);
-        }
+        self.paymaster_params.rlp_append(stream);
     }
 }

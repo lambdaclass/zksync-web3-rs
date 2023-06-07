@@ -94,6 +94,7 @@ where
             // TODO: Should we have a balance_on_block method?
             Some(eth_provider) => Ok(eth_provider.get_balance(self.address(), None).await?),
             None => Err(ZKSWalletError::CustomError("no era provider".to_owned())),
+            None => Err(ZKSWalletError::CustomError("no era provider".to_owned())),
         }
     }
 
@@ -104,6 +105,7 @@ where
         match &self.era_provider {
             // TODO: Should we have a balance_on_block method?
             Some(era_provider) => Ok(era_provider.get_balance(self.address(), None).await?),
+            None => Err(ZKSWalletError::CustomError("no era provider".to_owned())),
             None => Err(ZKSWalletError::CustomError("no era provider".to_owned())),
         }
     }
@@ -120,6 +122,7 @@ where
     {
         let era_provider = match &self.era_provider {
             Some(era_provider) => era_provider,
+            None => return Err(ZKSWalletError::CustomError("no era provider".to_owned())),
             None => return Err(ZKSWalletError::CustomError("no era provider".to_owned())),
         };
 
@@ -308,12 +311,16 @@ where
                 factory_deps.extend(contract_dependencies);
             }
             factory_deps.push(contract_bytecode.clone());
+            factory_deps.push(contract_bytecode.clone());
             factory_deps
         });
 
         let mut deploy_request = Eip712TransactionRequest::new()
             .r#type(EIP712_TX_TYPE)
             .from(self.address())
+            .to(Address::from_str(CONTRACT_DEPLOYER_ADDR).map_err(|e| {
+                ZKSWalletError::CustomError(format!("invalid contract deployer address: {e}"))
+            })?)
             .to(Address::from_str(CONTRACT_DEPLOYER_ADDR).map_err(|e| {
                 ZKSWalletError::CustomError(format!("invalid contract deployer address: {e}"))
             })?)
@@ -324,6 +331,7 @@ where
                     .await?,
             )
             .gas_price(era_provider.get_gas_price().await?)
+            .max_fee_per_gas(era_provider.get_gas_price().await?)
             .max_fee_per_gas(era_provider.get_gas_price().await?)
             .data({
                 let contract_deployer = Abi::load(BufReader::new(
@@ -457,6 +465,8 @@ mod zks_signer_tests {
             .await
             .unwrap();
 
+        println!("Sender balance before: {sender_balance_before}");
+        println!("Receiver balance before: {receiver_balance_before}");
         println!("Sender balance before: {sender_balance_before}");
         println!("Receiver balance before: {receiver_balance_before}");
 
