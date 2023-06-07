@@ -75,6 +75,7 @@ pub use prelude::*;
 // TODO: This should be visible only for this crate and not for the library users.
 pub mod cli;
 pub mod compile;
+pub mod contracts;
 pub mod eip712;
 pub mod zks_provider;
 pub mod zks_signer;

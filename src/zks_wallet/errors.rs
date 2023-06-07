@@ -5,12 +5,15 @@ use ethers::{
             schnorr::signature::hazmat::PrehashSigner,
         },
         signer::SignerMiddlewareError,
-        AbiError,
+        AbiError, SignerMiddleware,
     },
     providers::{Middleware, ProviderError},
     signers::{Wallet, WalletError},
     types::transaction::eip712::Eip712Error,
 };
+use ethers_contract::ContractError;
+
+use crate::ZKSWallet;
 
 #[derive(thiserror::Error, Debug)]
 pub enum ZKSWalletError<M, D>
@@ -34,4 +37,14 @@ where
     NoL2ProviderError(),
     #[error("{0}")]
     CustomError(String),
+}
+
+impl<M, D> From<ContractError<SignerMiddleware<M, Wallet<D>>>> for ZKSWalletError<M, D>
+where
+    M: Middleware,
+    D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Sync + Send,
+{
+    fn from(value: ContractError<SignerMiddleware<M, Wallet<D>>>) -> Self {
+        Self::CustomError(format!("{:?}", value))
+    }
 }

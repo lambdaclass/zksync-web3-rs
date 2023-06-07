@@ -1,5 +1,6 @@
 use super::ZKSWalletError;
 use crate::{
+    contracts::main_contract::MainContract,
     eip712::{hash_bytecode, Eip712Meta, Eip712SignInput, Eip712TransactionRequest},
     zks_provider::ZKSProvider,
     zks_utils::{
@@ -20,8 +21,8 @@ use ethers::{
     providers::Middleware,
     signers::{Signer, Wallet},
     types::{
-        transaction::{eip2718::TypedTransaction, response},
-        Address, Bytes, Eip1559TransactionRequest, Signature, TransactionReceipt, U256,
+        transaction::eip2718::TypedTransaction, Address, Bytes, Eip1559TransactionRequest,
+        Signature, TransactionReceipt, U256,
     },
 };
 use ethers_contract::Contract;
@@ -32,8 +33,8 @@ where
     M: Middleware,
     D: PrehashSigner<(RecoverableSignature, RecoveryId)>,
 {
-    pub eth_provider: Option<SignerMiddleware<M, Wallet<D>>>,
-    pub era_provider: Option<SignerMiddleware<M, Wallet<D>>>,
+    pub eth_provider: Option<Arc<SignerMiddleware<M, Wallet<D>>>>,
+    pub era_provider: Option<Arc<SignerMiddleware<M, Wallet<D>>>>,
     pub wallet: Wallet<D>,
 }
 
@@ -49,29 +50,32 @@ where
     ) -> Result<Self, ZKSWalletError<M, D>> {
         Ok(Self {
             wallet: wallet.clone().with_chain_id(ERA_CHAIN_ID),
-            era_provider: era_provider
-                .map(|p| p.with_signer(wallet.clone().with_chain_id(ERA_CHAIN_ID))),
-            eth_provider: eth_provider.map(|p| p.with_signer(wallet.with_chain_id(ETH_CHAIN_ID))),
+            era_provider: era_provider.map(|p| {
+                p.with_signer(wallet.clone().with_chain_id(ERA_CHAIN_ID))
+                    .into()
+            }),
+            eth_provider: eth_provider
+                .map(|p| p.with_signer(wallet.with_chain_id(ETH_CHAIN_ID)).into()),
         })
     }
 
     pub fn connect_eth_provider(mut self, eth_provider: M) -> Self {
-        self.eth_provider = Some(eth_provider.with_signer(self.wallet.clone()));
+        self.eth_provider = Some(eth_provider.with_signer(self.wallet.clone()).into());
         self
     }
 
     pub fn connect_era_provider(mut self, era_provider: M) -> Self {
-        self.era_provider = Some(era_provider.with_signer(self.wallet.clone()));
+        self.era_provider = Some(era_provider.with_signer(self.wallet.clone()).into());
         self
     }
 
     pub fn connect_eth_signer(mut self, eth_signer: SignerMiddleware<M, Wallet<D>>) -> Self {
-        self.eth_provider = Some(eth_signer);
+        self.eth_provider = Some(eth_signer.into());
         self
     }
 
     pub fn connect_era_signer(mut self, era_signer: SignerMiddleware<M, Wallet<D>>) -> Self {
-        self.era_provider = Some(era_signer);
+        self.era_provider = Some(era_signer.into());
         self
     }
 
@@ -83,16 +87,20 @@ where
     //     self.era_provider = Provider::try_from(format!("http://{host}:{port}")).ok().map(|p| p.with_signer(self.wallet));
     // }
 
-    fn get_eth_provider(&self) -> Result<&SignerMiddleware<M, Wallet<D>>, ZKSWalletError<M, D>> {
+    pub fn get_eth_provider(
+        &self,
+    ) -> Result<Arc<SignerMiddleware<M, Wallet<D>>>, ZKSWalletError<M, D>> {
         match &self.eth_provider {
-            Some(eth_provider) => Ok(eth_provider),
+            Some(eth_provider) => Ok(eth_provider.clone()),
             None => Err(ZKSWalletError::NoL1ProviderError()),
         }
     }
 
-    fn get_era_provider(&self) -> Result<&SignerMiddleware<M, Wallet<D>>, ZKSWalletError<M, D>> {
+    pub fn get_era_provider(
+        &self,
+    ) -> Result<Arc<SignerMiddleware<M, Wallet<D>>>, ZKSWalletError<M, D>> {
         match &self.era_provider {
-            Some(era_provider) => Ok(era_provider),
+            Some(era_provider) => Ok(era_provider.clone()),
             None => Err(ZKSWalletError::NoL2ProviderError()),
         }
     }
@@ -272,10 +280,10 @@ where
     where
         M: ZKSProvider,
     {
-        let to = self.address();
-        let call_data = Bytes::default();
-        let l2_gas_limit: U256 = RECOMMENDED_DEPOSIT_L2_GAS_LIMIT.into();
-        let l2_value = amount;
+        let _to = self.address();
+        let _call_data = Bytes::default();
+        let _l2_gas_limit: U256 = RECOMMENDED_DEPOSIT_L2_GAS_LIMIT.into();
+        let _l2_value = amount;
         let gas_per_pubdata_byte: U256 = DEPOSIT_GAS_PER_PUBDATA_LIMIT.into();
         let gas_price = self.get_eth_provider()?.get_gas_price().await?;
         let gas_limit: U256 = RECOMMENDED_DEPOSIT_L1_GAS_LIMIT.into();
@@ -283,9 +291,9 @@ where
         let base_cost = self
             .get_base_cost(gas_limit, gas_per_pubdata_byte, gas_price)
             .await?;
-        let l1_value = base_cost + operator_tip + amount;
+        let _l1_value = base_cost + operator_tip + amount;
         // let factory_deps = [];
-        let refund_recipient = self.address();
+        let _refund_recipient = self.address();
         // FIXME check base cost
 
         // FIXME request l2 transaction
@@ -302,25 +310,30 @@ where
     where
         M: ZKSProvider,
     {
-        // self._main_contract_address = self._zksync_web3.zksync.zks_main_contract()
         let main_contract_address = self.get_era_provider()?.get_main_contract().await?;
-        let json = include_str!("../../resources/abi/IZkSync.json");
-        let abi: Abi = serde_json::from_str(json).unwrap();
-
-        let contract = Contract::new(
-            main_contract_address,
-            abi,
-            Arc::new(self.get_eth_provider()?),
-        );
-
-        let base_cost: U256 = contract
-            .method::<_, U256>(
-                "l2TransactionBaseCost",
-                (gas_price, gas_limit, gas_per_pubdata_byte),
-            )?
+        let main_contract = MainContract::new(main_contract_address, self.get_eth_provider()?);
+        let base_cost: U256 = main_contract
+            .l_2_transaction_base_cost(gas_price, gas_limit, gas_per_pubdata_byte)
             .call()
-            .await
-            .unwrap();
+            .await?;
+
+        // let _main_contract =
+        //     MainContract::new(self.get_eth_provider()?, self.get_era_provider()?).await?;
+
+        // let json = include_str!("../../resources/abi/IZkSync.json");
+        // let abi: Abi = serde_json::from_str(json).unwrap();
+
+        // let contract: ethers_contract::ContractInstance<Arc<&SignerMiddleware<M, Wallet<D>>>, _> =
+        //     Contract::new(main_contract_address, abi, &self.get_eth_provider()?);
+
+        // let base_cost: U256 = contract
+        //     .method::<_, U256>(
+        //         "l2TransactionBaseCost",
+        //         (gas_price, gas_limit, gas_per_pubdata_byte),
+        //     )?
+        //     .call()
+        //     .await
+        //     .unwrap();
 
         Ok(base_cost)
     }
