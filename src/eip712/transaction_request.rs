@@ -1,6 +1,5 @@
+use super::{rlp_append_option, Eip712Meta};
 use crate::zks_utils::{EIP712_TX_TYPE, ERA_CHAIN_ID, MAX_PRIORITY_FEE_PER_GAS};
-
-use super::Eip712Meta;
 use ethers::{
     types::{transaction::eip2930::AccessList, Address, Bytes, Signature, U256, U64},
     utils::rlp::{Encodable, RlpStream},
@@ -11,19 +10,29 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all(serialize = "camelCase", deserialize = "camelCase"))]
 pub struct Eip712TransactionRequest {
+    /* These need to be filled before estimating the gas */
     pub to: Address,
     pub from: Address,
     pub nonce: U256,
-    pub gas_limit: U256,
+    pub gas: U256,
     pub gas_price: U256,
     pub data: Bytes,
     pub value: U256,
     pub chain_id: U256,
     pub r#type: U256,
-    pub access_list: AccessList,
     pub max_priority_fee_per_gas: U256,
-    pub max_fee_per_gas: U256,
+    #[serde(rename = "eip712Meta")]
     pub custom_data: Eip712Meta,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub access_list: Option<AccessList>,
+
+    /* Filled after estimating the gas */
+    // Unknown until we estimate the gas.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gas_limit: Option<U256>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_fee_per_gas: Option<U256>, // conflicts with gas_price
+
     pub ccip_read_enabled: bool,
 }
 
@@ -105,7 +114,7 @@ impl Eip712TransactionRequest {
     }
 
     pub fn access_list<T>(mut self, access_list: AccessList) -> Self {
-        self.access_list = access_list;
+        self.access_list = Some(access_list);
         self
     }
 
@@ -152,9 +161,9 @@ impl Eip712TransactionRequest {
         // 1
         stream.append(&self.max_priority_fee_per_gas);
         // 2
-        stream.append(&self.max_fee_per_gas);
+        rlp_append_option(&mut stream, self.max_fee_per_gas);
         // 3 (supped to be gas)
-        stream.append(&self.gas_limit);
+        rlp_append_option(&mut stream, self.gas_limit);
         // 4
         stream.append(&self.to);
         // 5
@@ -194,6 +203,7 @@ impl Default for Eip712TransactionRequest {
             to: Default::default(),
             from: Default::default(),
             nonce: Default::default(),
+            gas: Default::default(),
             gas_limit: Default::default(),
             gas_price: Default::default(),
             data: Default::default(),
