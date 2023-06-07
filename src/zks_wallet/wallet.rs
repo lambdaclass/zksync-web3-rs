@@ -22,7 +22,6 @@ use ethers::{
         transaction::eip2718::TypedTransaction, Address, Bytes, Eip1559TransactionRequest,
         Signature, TransactionReceipt, U256,
     },
-    utils::keccak256,
 };
 use std::{fmt::Display, fs::File, io::BufReader, path::PathBuf, str::FromStr};
 
@@ -94,7 +93,6 @@ where
             // TODO: Should we have a balance_on_block method?
             Some(eth_provider) => Ok(eth_provider.get_balance(self.address(), None).await?),
             None => Err(ZKSWalletError::CustomError("no era provider".to_owned())),
-            None => Err(ZKSWalletError::CustomError("no era provider".to_owned())),
         }
     }
 
@@ -105,7 +103,6 @@ where
         match &self.era_provider {
             // TODO: Should we have a balance_on_block method?
             Some(era_provider) => Ok(era_provider.get_balance(self.address(), None).await?),
-            None => Err(ZKSWalletError::CustomError("no era provider".to_owned())),
             None => Err(ZKSWalletError::CustomError("no era provider".to_owned())),
         }
     }
@@ -122,7 +119,6 @@ where
     {
         let era_provider = match &self.era_provider {
             Some(era_provider) => era_provider,
-            None => return Err(ZKSWalletError::CustomError("no era provider".to_owned())),
             None => return Err(ZKSWalletError::CustomError("no era provider".to_owned())),
         };
 
@@ -432,14 +428,14 @@ mod zks_signer_tests {
     use crate::compile::project::ZKProject;
     use crate::zks_utils::ERA_CHAIN_ID;
     use crate::zks_wallet::ZKSWallet;
-    use ethers::abi::{HumanReadableParser, Token};
+    use ethers::abi::{Token, Tokenize};
     use ethers::providers::Middleware;
     use ethers::providers::{Http, Provider};
     use ethers::signers::{LocalWallet, Signer};
     use ethers::solc::info::ContractInfo;
     use ethers::solc::{Project, ProjectPathsConfig};
-    use ethers::types::Address;
     use ethers::types::U256;
+    use ethers::types::{Address, Bytes};
     use std::str::FromStr;
 
     fn era_provider() -> Provider<Http> {
@@ -630,8 +626,6 @@ mod zks_signer_tests {
             .deploy::<Token>("src/compile/test_contracts/test/src/Test.sol", "Test", None)
             .await
             .unwrap();
-
-        println!("ADDRESS {contract_address:?}");
 
         // Making the call to the contract function
         let deployer_private_key =
