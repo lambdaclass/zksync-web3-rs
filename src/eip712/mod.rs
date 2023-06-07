@@ -8,8 +8,8 @@ pub use meta::Eip712Meta;
 mod transaction_request;
 pub use transaction_request::Eip712TransactionRequest;
 
-mod sign_input;
-pub use sign_input::Eip712SignInput;
+mod transaction;
+pub use transaction::Eip712Transaction;
 
 mod paymaster_params;
 pub use paymaster_params::PaymasterParams;
@@ -44,15 +44,4 @@ pub fn hash_bytecode(bytecode: &Bytes) -> Result<[u8; 32], Eip712Error> {
         })?;
 
     Ok(contract_hash)
-}
-
-pub(crate) fn rlp_opt<T: ethers::utils::rlp::Encodable>(
-    stream: &mut ethers::utils::rlp::RlpStream,
-    opt: &Option<T>,
-) {
-    if let Some(inner) = opt {
-        stream.append(inner);
-    } else {
-        stream.append(&"");
-    }
 }
