@@ -393,7 +393,7 @@ where
         address: Address,
         function_signature: &str,
         function_parameters: Option<T>,
-    ) -> Result<Bytes, ZKSWalletError<M, D>>
+    ) -> Result<Vec<Token>, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
         T: Tokenizable,
@@ -418,8 +418,17 @@ where
                 });
 
         let transaction: TypedTransaction = request.into();
-        let response = era_provider.call(&transaction, None).await.unwrap();
-        Ok(response)
+
+        let encoded_output = era_provider.call(&transaction, None).await.unwrap();
+        let decoded_output = function.decode_output(&encoded_output[..]).map_err(|e| {
+            ZKSWalletError::CustomError(format!("failed to decode output: {e}\n{encoded_output}"))
+        })?;
+
+        Ok(if decoded_output.is_empty() {
+            encoded_output.into_tokens()
+        } else {
+            decoded_output
+        })
     }
 }
 
@@ -635,11 +644,12 @@ mod zks_signer_tests {
             .with_chain_id(ERA_CHAIN_ID);
         let zk_wallet = ZKSWallet::new(wallet, Some(era_provider.clone()), None).unwrap();
 
-        let response = zk_wallet
-            .call::<Token>(contract_address, "str_out()", None)
-            .await;
+        let output = zk_wallet
+            .call::<Token>(contract_address, "str_out()(string)", None)
+            .await
+            .unwrap();
 
-        assert!(response.is_ok());
+        assert_eq!(output, String::from("Hello World!").into_tokens());
     }
 
     #[tokio::test]
@@ -658,10 +668,28 @@ mod zks_signer_tests {
             .await
             .unwrap();
 
-        let response = zk_wallet
+        let no_return_type_output = zk_wallet
             .call(contract_address, "plus_one(uint256)", Some(U256::one()))
-            .await;
+            .await
+            .unwrap();
 
-        assert!(response.is_ok());
+        let known_return_type_output = zk_wallet
+            .call(
+                contract_address,
+                "plus_one(uint256)(uint256)",
+                Some(U256::one()),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(
+            no_return_type_output,
+            Bytes::from([
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 2
+            ])
+            .into_tokens()
+        );
+        assert_eq!(known_return_type_output, U256::from(2).into_tokens());
     }
 }
