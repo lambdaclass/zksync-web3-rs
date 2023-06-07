@@ -653,7 +653,7 @@ mod zks_signer_tests {
         let response = zk_wallet
             .call(contract_address, String::from("str_out()"), None)
             .await;
-        
+
         assert!(response.is_ok());
     }
 }
