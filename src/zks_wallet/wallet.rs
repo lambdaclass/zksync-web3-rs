@@ -22,7 +22,7 @@ use ethers::{
         transaction::eip2718::TypedTransaction, Address, Bytes, Eip1559TransactionRequest,
         Signature, TransactionReceipt, U256,
     },
-    utils::keccak256,
+    utils::{keccak256, parse_units},
 };
 use std::{fmt::Display, fs::File, io::BufReader, path::PathBuf, str::FromStr};
 
@@ -451,7 +451,7 @@ where
                     .await?,
             )
             .chain_id(ERA_CHAIN_ID)
-            .value(amount);
+            .value(parse_units(amount, "wei").unwrap());
 
         let fee = era_provider.estimate_fee(transaction.clone()).await?;
         transaction = transaction
