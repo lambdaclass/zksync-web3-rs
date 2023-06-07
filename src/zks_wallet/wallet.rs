@@ -458,7 +458,17 @@ where
             .max_priority_fee_per_gas(fee.max_priority_fee_per_gas)
             .max_fee_per_gas(fee.max_fee_per_gas);
 
-        todo!()
+        let transaction: TypedTransaction = transaction.into();
+
+        // TODO: add block as an override.
+        let pending_transaction = era_provider.send_transaction(transaction, None).await?;
+        // TODO: Should we wait here for the transaction to be confirmed on-chain?
+
+        pending_transaction
+            .await?
+            .ok_or(ZKSWalletError::CustomError(
+                "no transaction receipt".to_owned(),
+            ))
     }
 }
 
