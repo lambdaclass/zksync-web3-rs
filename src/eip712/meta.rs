@@ -42,12 +42,12 @@ impl Eip712Meta {
     where
         T: Into<Bytes>,
     {
-        self.custom_signature = custom_signature.into();
+        self.custom_signature = Some(custom_signature.into());
         self
     }
 
     pub fn paymaster_params(mut self, paymaster_params: PaymasterParams) -> Self {
-        self.paymaster_params = paymaster_params;
+        self.paymaster_params = Some(paymaster_params);
         self
     }
 }

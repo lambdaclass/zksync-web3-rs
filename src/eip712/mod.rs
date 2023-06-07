@@ -1,5 +1,5 @@
 use ethers::{
-    types::{transaction::eip712::Eip712Error, Bytes},
+    types::transaction::eip712::Eip712Error,
     utils::rlp::{Encodable, RlpStream},
 };
 use sha2::Digest;
