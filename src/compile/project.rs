@@ -2,7 +2,7 @@ use ethers::solc::utils::source_files;
 
 use super::{errors::ZKCompilerError, output::ZKSCompilationOutput};
 use crate::{cli::commands, compile::constants, solc::Project};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 pub struct ZKProject {
     pub base_project: Project,
