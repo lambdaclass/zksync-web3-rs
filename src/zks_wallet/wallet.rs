@@ -611,7 +611,7 @@ mod zks_signer_tests {
     }
 
     #[tokio::test]
-    async fn test_call() {
+    async fn test_call_view_function_with_no_parameters() {
         // Deploying a test contract
         let deployer_private_key =
             "7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110";
@@ -620,31 +620,11 @@ mod zks_signer_tests {
             .unwrap()
             .with_chain_id(ERA_CHAIN_ID);
         let zk_wallet = ZKSWallet::new(wallet, Some(era_provider.clone()), None).unwrap();
-        let project_root = "./src/compile/test_contracts/test";
-        let contract_name = "Test";
-
-        let zk_project = ZKProject::from(
-            Project::builder()
-                .paths(ProjectPathsConfig::builder().build_with_root(project_root))
-                .set_auto_detect(true)
-                .build()
-                .unwrap(),
-        );
-        let compilation_output = zk_project.compile().unwrap();
-        let artifact = compilation_output
-            .find_contract(
-                ContractInfo::from_str(&format!(
-                    "src/compile/test_contracts/test/src/Test.sol:{contract_name}"
-                ))
-                .unwrap(),
-            )
-            .unwrap();
-        let _ = artifact.bin.clone().unwrap();
 
         let contract_address = zk_wallet
             .deploy::<Token>(
                 "src/compile/test_contracts/test/src/Test.sol",
-                contract_name,
+                "Test",
                 None,
             )
             .await
