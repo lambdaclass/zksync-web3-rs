@@ -6,7 +6,7 @@ use crate::{
     zks_utils::{CONTRACT_DEPLOYER_ADDR, EIP712_TX_TYPE, ERA_CHAIN_ID, ETH_CHAIN_ID},
 };
 use ethers::{
-    abi::{Abi, Tokenizable, Tokenize},
+    abi::{Abi, HumanReadableParser, Token, Tokenizable, Tokenize},
     prelude::{
         encode_function_data,
         k256::{
@@ -287,8 +287,6 @@ where
         Ok((contract_address, transaction_receipt))
     }
 
-    // The field `constant` of ethers::abi::Function is deprecated.
-    #[allow(deprecated)]
     async fn _deploy<T>(
         &self,
         contract_abi: Abi,
@@ -394,27 +392,34 @@ where
             ))
     }
 
-    pub async fn call(
+    pub async fn call<T>(
         &self,
         address: Address,
-        function: String,
-        args: Option<Vec<String>>,
+        function_signature: &str,
+        function_parameters: Option<T>,
     ) -> Result<Bytes, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
+        T: Tokenizable,
     {
         let era_provider = match &self.era_provider {
             Some(era_provider) => era_provider,
             None => return Err(ZKSWalletError::CustomError("no era provider".to_owned())),
         };
-        let request = Eip1559TransactionRequest::new().to(address).data(
-            keccak256(function.as_bytes())
-                .get(0..4)
-                .ok_or_else(|| {
-                    ZKSWalletError::CustomError("Invalid function signature".to_owned())
-                })?
-                .to_vec(),
-        );
+
+        // Note: We couldn't implement ZKSWalletError::LexerError because ethers-rs's LexerError is not exposed.
+        let function = HumanReadableParser::parse_function(function_signature)
+            .map_err(|e| ZKSWalletError::CustomError(e.to_string()))?;
+
+        let request =
+            Eip1559TransactionRequest::new()
+                .to(address)
+                .data(match function_parameters {
+                    Some(parameters) => function
+                        .encode_input(&parameters.into_tokens())
+                        .map_err(|e| ZKSWalletError::CustomError(e.to_string()))?,
+                    None => function.short_signature().into(),
+                });
 
         let transaction: TypedTransaction = request.into();
         let response = era_provider.call(&transaction, None).await.unwrap();
@@ -427,7 +432,7 @@ mod zks_signer_tests {
     use crate::compile::project::ZKProject;
     use crate::zks_utils::ERA_CHAIN_ID;
     use crate::zks_wallet::ZKSWallet;
-    use ethers::abi::Token;
+    use ethers::abi::{HumanReadableParser, Token};
     use ethers::providers::Middleware;
     use ethers::providers::{Http, Provider};
     use ethers::signers::{LocalWallet, Signer};
@@ -622,11 +627,7 @@ mod zks_signer_tests {
         let zk_wallet = ZKSWallet::new(wallet, Some(era_provider.clone()), None).unwrap();
 
         let contract_address = zk_wallet
-            .deploy::<Token>(
-                "src/compile/test_contracts/test/src/Test.sol",
-                "Test",
-                None,
-            )
+            .deploy::<Token>("src/compile/test_contracts/test/src/Test.sol", "Test", None)
             .await
             .unwrap();
 
@@ -641,7 +642,30 @@ mod zks_signer_tests {
         let zk_wallet = ZKSWallet::new(wallet, Some(era_provider.clone()), None).unwrap();
 
         let response = zk_wallet
-            .call(contract_address, String::from("str_out()"), None)
+            .call::<Token>(contract_address, "str_out()", None)
+            .await;
+
+        assert!(response.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_call_view_function_with_arguments() {
+        // Deploying a test contract
+        let deployer_private_key =
+            "7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110";
+        let era_provider = era_provider();
+        let wallet = LocalWallet::from_str(deployer_private_key)
+            .unwrap()
+            .with_chain_id(ERA_CHAIN_ID);
+        let zk_wallet = ZKSWallet::new(wallet, Some(era_provider.clone()), None).unwrap();
+
+        let contract_address = zk_wallet
+            .deploy::<Token>("src/compile/test_contracts/test/src/Test.sol", "Test", None)
+            .await
+            .unwrap();
+
+        let response = zk_wallet
+            .call(contract_address, "plus_one(uint256)", Some(U256::one()))
             .await;
 
         assert!(response.is_ok());
