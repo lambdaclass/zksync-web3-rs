@@ -6,7 +6,7 @@ use crate::{
     zks_utils::{CONTRACT_DEPLOYER_ADDR, EIP712_TX_TYPE, ERA_CHAIN_ID, ETH_CHAIN_ID},
 };
 use ethers::{
-    abi::{Abi, Token, Tokenizable, Tokenize},
+    abi::{Abi, Tokenizable, Tokenize},
     prelude::{
         encode_function_data,
         k256::{
@@ -203,14 +203,15 @@ where
         Ok(transaction_receipt)
     }
 
-    pub async fn deploy(
+    pub async fn deploy<T>(
         &self,
         contract_path: impl Into<PathBuf> + Display + Clone,
         contract_name: &str,
-        constructor_parameters: impl Tokenizable,
+        constructor_parameters: Option<T>,
     ) -> Result<Address, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
+        T: Tokenizable,
     {
         let mut root = PathBuf::from("./");
         root.push::<PathBuf>(contract_path.clone().into());
@@ -239,7 +240,7 @@ where
                     .ok_or(ZKSWalletError::CustomError("no contract bin".to_owned()))?
                     .to_vec(),
                 None,
-                constructor_parameters.into_tokens(),
+                constructor_parameters,
             )
             .await?;
 
@@ -253,15 +254,16 @@ where
         Ok(contract_address)
     }
 
-    pub async fn deploy_with_receipt(
+    pub async fn deploy_with_receipt<T>(
         &self,
         contract_abi: Abi,
         contract_bytecode: Vec<u8>,
         contract_dependencies: Option<Vec<Vec<u8>>>,
-        constructor_parameters: Vec<Token>,
+        constructor_parameters: Option<T>,
     ) -> Result<(Address, TransactionReceipt), ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
+        T: Tokenizable,
     {
         let transaction_receipt = self
             ._deploy(
@@ -284,15 +286,16 @@ where
 
     // The field `constant` of ethers::abi::Function is deprecated.
     #[allow(deprecated)]
-    async fn _deploy(
+    async fn _deploy<T>(
         &self,
         contract_abi: Abi,
         contract_bytecode: Vec<u8>,
         contract_dependencies: Option<Vec<Vec<u8>>>,
-        constructor_parameters: Vec<Token>,
+        constructor_parameters: Option<T>,
     ) -> Result<TransactionReceipt, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
+        T: Tokenizable,
     {
         let era_provider = match &self.era_provider {
             Some(era_provider) => era_provider,
@@ -339,14 +342,14 @@ where
                 // TODO: User could provide this instead of defaulting.
                 let salt = [0_u8; 32];
                 let bytecode_hash = hash_bytecode(&contract_bytecode)?;
-                let call_data: Bytes = match (
-                    contract_abi.constructor(),
-                    constructor_parameters.is_empty(),
-                ) {
-                    (None, false) => return Err(ContractError::ConstructorError)?,
-                    (None, true) => contract_bytecode.clone().into(),
-                    (Some(constructor), _) => constructor
-                        .encode_input(contract_bytecode.to_vec(), &constructor_parameters)
+                let call_data: Bytes = match (contract_abi.constructor(), constructor_parameters) {
+                    (None, Some(_)) => return Err(ContractError::ConstructorError)?,
+                    (None, None) | (Some(_), None) => contract_bytecode.clone().into(),
+                    (Some(constructor), Some(constructor_parameters)) => constructor
+                        .encode_input(
+                            contract_bytecode.to_vec(),
+                            &constructor_parameters.into_tokens(),
+                        )
                         .map_err(|err| ZKSWalletError::CustomError(err.to_string()))?
                         .into(),
                 };
@@ -388,7 +391,7 @@ where
         address: Address,
         function: String,
         args: Option<Vec<String>>,
-    ) -> Result<TransactionReceipt, ZKSWalletError<M, D>>
+    ) -> Result<Bytes, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
     {
@@ -406,12 +409,8 @@ where
         );
 
         let transaction: TypedTransaction = request.into();
-        println!("{transaction:?}");
-        let response = era_provider
-            .send_transaction(transaction, None)
-            .await?
-            .await?;
-        Ok(response.unwrap())
+        let response = era_provider.call(&transaction, None).await.unwrap();
+        Ok(response)
     }
 }
 
@@ -420,18 +419,18 @@ mod zks_signer_tests {
     use crate::compile::project::ZKProject;
     use crate::zks_utils::ERA_CHAIN_ID;
     use crate::zks_wallet::ZKSWallet;
-    use ethers::abi::{Token, Tokenize};
+    use ethers::abi::Token;
     use ethers::providers::Middleware;
     use ethers::providers::{Http, Provider};
     use ethers::signers::{LocalWallet, Signer};
     use ethers::solc::info::ContractInfo;
     use ethers::solc::{Project, ProjectPathsConfig};
+    use ethers::types::Address;
     use ethers::types::U256;
-    use ethers::types::{Address, H160};
     use std::str::FromStr;
 
     fn era_provider() -> Provider<Http> {
-        Provider::try_from("http://65.21.140.36:3050".to_owned()).unwrap()
+        Provider::try_from("http://localhost:3050".to_owned()).unwrap()
     }
 
     #[tokio::test]
@@ -590,11 +589,12 @@ mod zks_signer_tests {
             .deploy(
                 "src/compile/test_contracts/storage/src/ValueStorage.sol",
                 contract_name,
-                U256::from(10),
+                Some(U256::from(10)),
             )
             .await
             .unwrap();
 
+        println!("CONTRACT ADDRESS: {contract_address:?}");
         let recovered_bytecode = era_provider.get_code(contract_address, None).await.unwrap();
 
         assert_eq!(compiled_bytecode, recovered_bytecode);
@@ -602,22 +602,58 @@ mod zks_signer_tests {
 
     #[tokio::test]
     async fn test_call() {
+        // Deploying a test contract
+        let deployer_private_key =
+            "7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110";
+        let era_provider = era_provider();
+        let wallet = LocalWallet::from_str(deployer_private_key)
+            .unwrap()
+            .with_chain_id(ERA_CHAIN_ID);
+        let zk_wallet = ZKSWallet::new(wallet, Some(era_provider.clone()), None).unwrap();
+        let project_root = "./src/compile/test_contracts/test";
+        let contract_name = "Test";
+
+        let zk_project = ZKProject::from(
+            Project::builder()
+                .paths(ProjectPathsConfig::builder().build_with_root(project_root))
+                .set_auto_detect(true)
+                .build()
+                .unwrap(),
+        );
+        let compilation_output = zk_project.compile().unwrap();
+        let artifact = compilation_output
+            .find_contract(
+                ContractInfo::from_str(&format!(
+                    "src/compile/test_contracts/test/src/Test.sol:{contract_name}"
+                ))
+                .unwrap(),
+            )
+            .unwrap();
+        let _ = artifact.bin.clone().unwrap();
+
+        let contract_address = zk_wallet
+            .deploy::<Token>(
+                "src/compile/test_contracts/test/src/Test.sol",
+                contract_name,
+                None,
+            )
+            .await
+            .unwrap();
+
+        println!("ADDRESS {contract_address:?}");
+
+        // Making the call to the contract function
         let deployer_private_key =
             "0x28a574ab2de8a00364d5dd4b07c4f2f574ef7fcc2a86a197f65abaec836d1959";
-        let era_provider = era_provider();
         let wallet = LocalWallet::from_str(deployer_private_key)
             .unwrap()
             .with_chain_id(ERA_CHAIN_ID);
         let zk_wallet = ZKSWallet::new(wallet, Some(era_provider.clone()), None).unwrap();
 
         let response = zk_wallet
-            .call(
-                Address::from_str("0x111C3E89Ce80e62EE88318C2804920D4c96f92bb").unwrap(),
-                String::from("str_out()"),
-                None,
-            )
+            .call(contract_address, String::from("str_out()"), None)
             .await;
-        println!("{:?}", response);
+        
         assert!(response.is_ok());
     }
 }
