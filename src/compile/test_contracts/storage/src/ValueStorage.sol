@@ -8,6 +8,10 @@ contract ValueStorage {
         storedValue = initialValue;
     }
 
+    function incrementValue() public {
+        storedValue += 1;
+    }
+
     function setValue(uint256 newValue) public {
         storedValue = newValue;
     }
