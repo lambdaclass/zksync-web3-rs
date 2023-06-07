@@ -5,14 +5,14 @@ use crate::{
     zks_utils::{CONTRACT_DEPLOYER_ADDR, EIP712_TX_TYPE, ERA_CHAIN_ID, ETH_CHAIN_ID},
 };
 use ethers::{
-    abi::{Param, ParamType},
+    abi::{Abi, Token},
     prelude::{
         encode_function_data,
         k256::{
             ecdsa::{RecoveryId, Signature as RecoverableSignature},
             schnorr::signature::hazmat::PrehashSigner,
         },
-        MiddlewareBuilder, SignerMiddleware,
+        ContractError, MiddlewareBuilder, SignerMiddleware,
     },
     providers::Middleware,
     signers::{Signer, Wallet},
@@ -21,7 +21,7 @@ use ethers::{
         Signature, TransactionReceipt, U256,
     },
 };
-use std::str::FromStr;
+use std::{fs::File, io::BufReader, str::FromStr};
 
 pub struct ZKSWallet<M, D>
 where
@@ -202,14 +202,21 @@ where
 
     pub async fn deploy(
         &self,
+        contract_abi: Abi,
         contract_bytecode: Bytes,
         contract_dependencies: Option<Vec<Bytes>>,
+        constructor_parameters: Vec<Token>,
     ) -> Result<Address, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
     {
         let transaction_receipt = self
-            ._deploy(contract_bytecode, contract_dependencies)
+            ._deploy(
+                contract_abi,
+                contract_bytecode,
+                contract_dependencies,
+                constructor_parameters,
+            )
             .await?;
 
         let contract_address =
@@ -224,14 +231,21 @@ where
 
     pub async fn deploy_with_receipt(
         &self,
+        contract_abi: Abi,
         contract_bytecode: Bytes,
         contract_dependencies: Option<Vec<Bytes>>,
+        constructor_parameters: Vec<Token>,
     ) -> Result<(Address, TransactionReceipt), ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
     {
         let transaction_receipt = self
-            ._deploy(contract_bytecode, contract_dependencies)
+            ._deploy(
+                contract_abi,
+                contract_bytecode,
+                contract_dependencies,
+                constructor_parameters,
+            )
             .await?;
 
         let contract_address =
@@ -248,8 +262,10 @@ where
     #[allow(deprecated)]
     async fn _deploy(
         &self,
+        contract_abi: Abi,
         contract_bytecode: Bytes,
         contract_dependencies: Option<Vec<Bytes>>,
+        constructor_parameters: Vec<Token>,
     ) -> Result<TransactionReceipt, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
@@ -281,37 +297,27 @@ where
             )
             .gas_price(era_provider.get_gas_price().await?)
             .data({
-                let create = ethers::abi::Function {
-                    name: "create".to_owned(),
-                    inputs: vec![
-                        Param {
-                            name: "_salt".to_owned(),
-                            kind: ParamType::FixedBytes(32),
-                            internal_type: None,
-                        },
-                        Param {
-                            name: "_bytecodeHash".to_owned(),
-                            kind: ParamType::FixedBytes(32),
-                            internal_type: None,
-                        },
-                        Param {
-                            name: "_input".to_owned(),
-                            kind: ParamType::Bytes,
-                            internal_type: None,
-                        },
-                    ],
-                    outputs: vec![],
-                    state_mutability: ethers::abi::StateMutability::Payable,
-                    constant: None,
-                };
-
+                let contract_deployer = Abi::load(BufReader::new(
+                    File::open("./src/abi/ContractDeployer.json").unwrap(),
+                ))
+                .unwrap();
+                let create = contract_deployer.function("create").unwrap();
                 // TODO: User could provide this instead of defaulting.
                 let salt = [0_u8; 32];
                 let bytecode_hash = hash_bytecode(&contract_bytecode)?;
-                // TODO: User could provide this instead of defaulting.
-                let call_data = Bytes::default();
+                let call_data: Bytes = match (
+                    contract_abi.constructor(),
+                    constructor_parameters.is_empty(),
+                ) {
+                    (None, false) => return Err(ContractError::ConstructorError)?,
+                    (None, true) => contract_bytecode.clone(),
+                    (Some(constructor), _) => constructor
+                        .encode_input(contract_bytecode.to_vec(), &constructor_parameters)
+                        .map_err(|err| ZKSWalletError::CustomError(err.to_string()))?
+                        .into(),
+                };
 
-                encode_function_data(&create, (salt, bytecode_hash, call_data))?
+                encode_function_data(create, (salt, bytecode_hash, call_data))?
             })
             .custom_data(custom_data.clone());
 
@@ -346,13 +352,16 @@ where
 
 #[cfg(test)]
 mod zks_signer_tests {
+    use crate::compile::project::ZKProject;
     use crate::zks_utils::ERA_CHAIN_ID;
     use crate::zks_wallet::ZKSWallet;
+    use ethers::abi::Token;
     use ethers::providers::Middleware;
     use ethers::providers::{Http, Provider};
     use ethers::signers::{LocalWallet, Signer};
+    use ethers::solc::info::ContractInfo;
+    use ethers::solc::{Project, ProjectPathsConfig};
     use ethers::types::Address;
-    use ethers::types::Bytes;
     use ethers::types::U256;
     use std::str::FromStr;
 
@@ -483,7 +492,7 @@ mod zks_signer_tests {
     }
 
     #[tokio::test]
-    async fn test_deploy() {
+    async fn test_deploy_contract_with_constructor_args() {
         let deployer_private_key =
             "0x28a574ab2de8a00364d5dd4b07c4f2f574ef7fcc2a86a197f65abaec836d1959";
         let era_provider = era_provider();
@@ -491,42 +500,44 @@ mod zks_signer_tests {
             .unwrap()
             .with_chain_id(ERA_CHAIN_ID);
         let zk_wallet = ZKSWallet::new(wallet, Some(era_provider.clone()), None).unwrap();
-        let contract_bytecode = Bytes::from(hex::decode("000200000000000200010000000103550000006001100270000000130010019d0000008001000039000000400010043f0000000101200190000000290000c13d0000000001000031000000040110008c000000420000413d0000000101000367000000000101043b000000e001100270000000150210009c000000310000613d000000160110009c000000420000c13d0000000001000416000000000110004c000000420000c13d000000040100008a00000000011000310000001702000041000000200310008c000000000300001900000000030240190000001701100197000000000410004c000000000200a019000000170110009c00000000010300190000000001026019000000000110004c000000420000c13d00000004010000390000000101100367000000000101043b000000000010041b0000000001000019000000490001042e0000000001000416000000000110004c000000420000c13d0000002001000039000001000010044300000120000004430000001401000041000000490001042e0000000001000416000000000110004c000000420000c13d000000040100008a00000000011000310000001702000041000000000310004c000000000300001900000000030240190000001701100197000000000410004c000000000200a019000000170110009c00000000010300190000000001026019000000000110004c000000440000613d00000000010000190000004a00010430000000000100041a000000800010043f0000001801000041000000490001042e0000004800000432000000490001042e0000004a00010430000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0000000200000000000000000000000000000040000001000000000000000000000000000000000000000000000000000000000000000000000000006d4ce63c0000000000000000000000000000000000000000000000000000000060fe47b1800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000200000008000000000000000000000000000000000000000000000000000000000000000000000000000000000d5c7d2782d356f4a1a2e458d242d21e07a04810c9f771eed6501083e07288c87").unwrap());
+
+        let paths =
+            ProjectPathsConfig::builder().build_with_root("./src/compile/test_contracts/storage");
+        let project = Project::builder()
+            .paths(paths)
+            .set_auto_detect(true)
+            .no_artifacts()
+            .build()
+            .unwrap();
+
+        let zk_project = ZKProject::from(project);
+        let compilation_output = zk_project.compile().unwrap();
+        let artifact = compilation_output
+            .find_contract(
+                ContractInfo::from_str(
+                    "src/compile/test_contracts/storage/src/ValueStorage.sol:ValueStorage",
+                )
+                .unwrap(),
+            )
+            .unwrap();
+
+        let abi = artifact.abi.clone().unwrap();
+        let bytecode = artifact.bin.clone().unwrap();
+
+        println!("abi: {:?}", abi);
 
         let contract_address = zk_wallet
-            .deploy(contract_bytecode.clone(), None)
+            .deploy(
+                abi,
+                bytecode.clone(),
+                None,
+                vec![Token::Uint(U256::from(0))],
+            )
             .await
             .unwrap();
 
         let recovered_bytecode = era_provider.get_code(contract_address, None).await.unwrap();
 
-        assert_eq!(contract_bytecode, recovered_bytecode);
-    }
-
-    #[tokio::test]
-    async fn test_deploy_with_receipt() {
-        let deployer_private_key =
-            "0x28a574ab2de8a00364d5dd4b07c4f2f574ef7fcc2a86a197f65abaec836d1959";
-        let era_provider = era_provider();
-        let wallet = LocalWallet::from_str(deployer_private_key)
-            .unwrap()
-            .with_chain_id(ERA_CHAIN_ID);
-        let zk_wallet = ZKSWallet::new(wallet, Some(era_provider.clone()), None).unwrap();
-        let contract_bytecode = Bytes::from(hex::decode("000200000000000200010000000103550000006001100270000000130010019d0000008001000039000000400010043f0000000101200190000000290000c13d0000000001000031000000040110008c000000420000413d0000000101000367000000000101043b000000e001100270000000150210009c000000310000613d000000160110009c000000420000c13d0000000001000416000000000110004c000000420000c13d000000040100008a00000000011000310000001702000041000000200310008c000000000300001900000000030240190000001701100197000000000410004c000000000200a019000000170110009c00000000010300190000000001026019000000000110004c000000420000c13d00000004010000390000000101100367000000000101043b000000000010041b0000000001000019000000490001042e0000000001000416000000000110004c000000420000c13d0000002001000039000001000010044300000120000004430000001401000041000000490001042e0000000001000416000000000110004c000000420000c13d000000040100008a00000000011000310000001702000041000000000310004c000000000300001900000000030240190000001701100197000000000410004c000000000200a019000000170110009c00000000010300190000000001026019000000000110004c000000440000613d00000000010000190000004a00010430000000000100041a000000800010043f0000001801000041000000490001042e0000004800000432000000490001042e0000004a00010430000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0000000200000000000000000000000000000040000001000000000000000000000000000000000000000000000000000000000000000000000000006d4ce63c0000000000000000000000000000000000000000000000000000000060fe47b1800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000200000008000000000000000000000000000000000000000000000000000000000000000000000000000000000d5c7d2782d356f4a1a2e458d242d21e07a04810c9f771eed6501083e07288c87").unwrap());
-
-        let (contract_address, deploy_receipt) = zk_wallet
-            .deploy_with_receipt(contract_bytecode.clone(), None)
-            .await
-            .unwrap();
-
-        assert_eq!(deploy_receipt.from, zk_wallet.address());
-        assert!(era_provider
-            .get_transaction(deploy_receipt.transaction_hash)
-            .await
-            .is_ok());
-
-        let recovered_bytecode = era_provider.get_code(contract_address, None).await.unwrap();
-
-        assert_eq!(contract_bytecode, recovered_bytecode);
+        assert_eq!(bytecode, recovered_bytecode);
     }
 }

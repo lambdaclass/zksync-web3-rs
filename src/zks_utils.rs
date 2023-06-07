@@ -8,6 +8,7 @@ pub const EIP712_TX_TYPE: u8 = 0x71;
 // use the honest value of gas per pubdata and it can use any value up to the one signed by the user.
 // In the future releases, we will provide a way to estimate the current gasPerPubdata.
 pub const DEFAULT_GAS_PER_PUBDATA_LIMIT: u64 = 50000;
+pub const MAX_PRIORITY_FEE_PER_GAS: u64 = 100000000;
 
 /* Contracts */
 

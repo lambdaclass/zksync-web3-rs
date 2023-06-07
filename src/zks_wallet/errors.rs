@@ -5,7 +5,7 @@ use ethers::{
             schnorr::signature::hazmat::PrehashSigner,
         },
         signer::SignerMiddlewareError,
-        AbiError,
+        AbiError, ContractError,
     },
     providers::{Middleware, ProviderError},
     signers::{Wallet, WalletError},
@@ -28,6 +28,8 @@ where
     AbiError(#[from] AbiError),
     #[error("EIP712 error: {0}")]
     Eip712Error(#[from] Eip712Error),
+    #[error("Contract error: {0}")]
+    ContractError(#[from] ContractError<M>),
     #[error("{0}")]
     CustomError(String),
 }

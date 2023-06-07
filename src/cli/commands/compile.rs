@@ -1,9 +1,12 @@
-use crate::compile::{constants, output::ZKCompilationOutput};
+use crate::compile::{constants, output::ZKSCompilationOutput};
 use clap::Parser;
 use std::path::PathBuf;
 
 #[derive(Parser)]
 pub struct CompileArgs {
+    // TODO: Handle this like Foundry does.
+    #[clap(long, num_args(1..), name = "CONTRACT_PATH")]
+    pub contract_paths: Vec<PathBuf>,
     #[clap(long, name = "PATH_TO_SOLC")]
     pub solc: Option<PathBuf>,
     #[clap(long, name = "COMBINED_JSON")]
@@ -12,7 +15,7 @@ pub struct CompileArgs {
     pub standard_json: bool,
 }
 
-pub(crate) fn run(args: CompileArgs) -> eyre::Result<ZKCompilationOutput> {
+pub(crate) fn run(args: CompileArgs) -> eyre::Result<ZKSCompilationOutput> {
     let mut command = &mut std::process::Command::new(constants::ZK_SOLC_PATH);
     if let Some(solc) = args.solc {
         command = command.arg("--solc").arg(solc);
@@ -49,12 +52,11 @@ pub(crate) fn run(args: CompileArgs) -> eyre::Result<ZKCompilationOutput> {
         command = command.arg("--standard-json");
     }
 
-    command = command
-        .arg("--")
-        .arg("src/compile/test_contracts/test/src/Test.sol");
+    command = command.arg("--").args(args.contract_paths);
 
     let command_output = command.output()?;
-    let compilation_output: ZKCompilationOutput = serde_json::from_slice(&command_output.stdout)?;
+
+    let compilation_output: ZKSCompilationOutput = serde_json::from_slice(&command_output.stdout)?;
 
     log::info!("{compilation_output:?}");
 
