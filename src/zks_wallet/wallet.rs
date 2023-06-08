@@ -315,8 +315,7 @@ where
                 gas_limit,
                 l1_value,
             )
-            .await
-            .expect("FIXME");
+            .await?;
 
         Ok(receipt)
     }

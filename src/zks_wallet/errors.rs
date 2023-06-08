@@ -13,7 +13,7 @@ use ethers::{
 };
 use ethers_contract::ContractError;
 
-use crate::ZKSWallet;
+use crate::{contracts::main_contract::MainContractError, ZKSWallet};
 
 #[derive(thiserror::Error, Debug)]
 pub enum ZKSWalletError<M, D>
@@ -37,6 +37,8 @@ where
     NoL2ProviderError(),
     #[error("{0}")]
     CustomError(String),
+    #[error("Main contract error: {0}")]
+    MainContractError(#[from] MainContractError<M, D>),
 }
 
 impl<M, D> From<ContractError<SignerMiddleware<M, Wallet<D>>>> for ZKSWalletError<M, D>

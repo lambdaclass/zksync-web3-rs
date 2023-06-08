@@ -3,18 +3,38 @@ use std::sync::Arc;
 use ethers::prelude::k256::ecdsa::{RecoveryId, Signature};
 use ethers::prelude::k256::schnorr::signature::hazmat::PrehashSigner;
 use ethers::prelude::signer::SignerMiddlewareError;
+use ethers::prelude::ProviderError;
 use ethers::prelude::SignerMiddleware;
 use ethers::providers::Middleware;
-use ethers::signers::{Signer, Wallet};
+use ethers::signers::Wallet;
 use ethers::types::{Address, Bytes, TransactionReceipt, U256};
-use ethers_contract::providers::MiddlewareError;
 use ethers_contract::{abigen, ContractError};
-use sha2::digest::consts::{U2, U25};
-
-use thiserror::Error as ThisError;
 
 abigen!(MainContract, "./resources/abi/IZkSync.json");
 
+// ╔══════════════════════════════════════════════════════════════════════════════════════════╗
+// ║ Error enum:                                                                              ║
+// ╚══════════════════════════════════════════════════════════════════════════════════════════╝
+
+#[derive(thiserror::Error, Debug)]
+pub enum MainContractError<M, D>
+where
+    M: Middleware,
+    D: PrehashSigner<(Signature, RecoveryId)> + Sync + Send,
+{
+    #[error("Middleware error: {0}")]
+    MiddlewareError(#[from] SignerMiddlewareError<M, Wallet<D>>),
+    #[error("Contract error: {0}")]
+    ContractError(#[from] ContractError<SignerMiddleware<M, Wallet<D>>>),
+    #[error("Provider error: {0}")]
+    ProviderError(#[from] ProviderError),
+    #[error("Transaction receipt not found")]
+    TransactionReceiptNotFound,
+}
+
+// ╔══════════════════════════════════════════════════════════════════════════════════════════╗
+// ║ Decorator:                                                                               ║
+// ╚══════════════════════════════════════════════════════════════════════════════════════════╝
 type SM<M, D> = SignerMiddleware<M, Wallet<D>>;
 
 pub struct MainContractInstance<M, D>
@@ -51,11 +71,13 @@ where
             .await
     }
 
-    async fn nonce(&self) -> Result<U256, SignerMiddlewareError<M, Wallet<D>>> {
+    async fn nonce(&self) -> Result<U256, MainContractError<M, D>> {
         let signer_address = self.provider.address();
-        self.provider
+        let nonce = self
+            .provider
             .get_transaction_count(signer_address, None)
-            .await
+            .await?;
+        Ok(nonce)
     }
 
     pub async fn request_l2_transaction(
@@ -70,9 +92,8 @@ where
         gas_price: U256,
         gas_limit: U256,
         l1_value: U256,
-    ) -> Result<TransactionReceipt, ()> // FIXME error type
-    {
-        let nonce = self.nonce().await.expect("FIXME");
+    ) -> Result<TransactionReceipt, MainContractError<M, D>> {
+        let nonce = self.nonce().await?;
         let function_call = self
             .contract
             .request_l2_transaction(
@@ -91,11 +112,11 @@ where
             .value(l1_value);
         let receipt = function_call
             .send()
-            .await
-            .expect("FIXME")
-            .await
-            .expect("FIXME")
-            .expect("FIXME");
+            .await?
+            // FIXME: Awaiting on a `PendingTransaction` results in an
+            // `Option<TransactionReceipt>`. Under which circumpstances does it return `None`?
+            .await?
+            .ok_or(MainContractError::<M, D>::TransactionReceiptNotFound)?;
 
         Ok(receipt)
     }
