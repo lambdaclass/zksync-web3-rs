@@ -481,7 +481,15 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
                 "debug_traceBlockByHash",
                 json!([hash, options]),
             )
-            .await?[0]["result"]
+            .await?
+            .get(0)
+            .ok_or(ProviderError::CustomError(
+                "error on debug_trace_block_by_hash".to_owned(),
+            ))?
+            .get("result")
+            .ok_or(ProviderError::CustomError(
+                "error on debug_trace_block_by_hash".to_owned(),
+            ))?
             .clone();
         serde_json::from_value(processable_response).map_err(ProviderError::SerdeJson)
     }
@@ -499,7 +507,15 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
                 "debug_traceBlockByNumber",
                 json!([block, options]),
             )
-            .await?[0]["result"]
+            .await?
+            .get(0)
+            .ok_or(ProviderError::CustomError(
+                "error on debug_trace_block_by_hash".to_owned(),
+            ))?
+            .get("result")
+            .ok_or(ProviderError::CustomError(
+                "error on debug_trace_block_by_hash".to_owned(),
+            ))?
             .clone();
         serde_json::from_value(processable_response).map_err(ProviderError::SerdeJson)
     }
@@ -534,7 +550,8 @@ mod tests {
 
     use crate::{
         zks_provider::{types::TracerConfig, ZKSProvider},
-        zks_signer::ZKSSigner,
+        zks_utils::ERA_CHAIN_ID,
+        zks_wallet::ZKSWallet,
     };
     use ethers::{
         prelude::{k256::ecdsa::SigningKey, MiddlewareBuilder, SignerMiddleware},
@@ -546,35 +563,36 @@ mod tests {
 
     const L2_CHAIN_ID: u64 = 270;
 
-    fn local_provider() -> Provider<ethers::providers::Http> {
+    fn era_provider() -> Provider<ethers::providers::Http> {
         Provider::try_from(format!(
             "http://{host}:{port}",
             host = "65.21.140.36",
             port = 3_050_i32
         ))
         .unwrap()
-        .interval(std::time::Duration::from_millis(10))
+        .interval(std::time::Duration::from_millis(10_u64))
     }
 
     fn local_wallet() -> LocalWallet {
         "0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110"
             .parse::<LocalWallet>()
             .unwrap()
+            .with_chain_id(ERA_CHAIN_ID)
     }
 
-    fn local_signer() -> SignerMiddleware<Provider<ethers::providers::Http>, Wallet<SigningKey>> {
+    fn era_signer() -> SignerMiddleware<Provider<ethers::providers::Http>, Wallet<SigningKey>> {
         let signer = Wallet::with_chain_id(
             "0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110"
                 .parse::<Wallet<SigningKey>>()
                 .unwrap(),
             L2_CHAIN_ID,
         );
-        local_provider().with_signer(signer)
+        era_provider().with_signer(signer)
     }
 
     #[tokio::test]
     async fn test_provider_estimate_fee() {
-        let provider = local_provider();
+        let provider = era_provider();
         #[derive(Serialize, Deserialize, Debug)]
         struct TestTransaction {
             from: String,
@@ -590,22 +608,22 @@ mod tests {
 
         let estimated_fee = provider.estimate_fee(transaction).await.unwrap();
 
-        assert_eq!(estimated_fee.gas_limit, U256::from(162_436_i32));
-        assert_eq!(estimated_fee.gas_per_pubdata_limit, U256::from(66_i32));
-        assert_eq!(estimated_fee.max_fee_per_gas, U256::from(250_000_000_i32));
-        assert_eq!(estimated_fee.max_priority_fee_per_gas, U256::from(0_i32));
+        assert_eq!(estimated_fee.gas_limit, U256::from(162_436_u32));
+        assert_eq!(estimated_fee.gas_per_pubdata_limit, U256::from(66_u32));
+        assert_eq!(estimated_fee.max_fee_per_gas, U256::from(250_000_000_u32));
+        assert_eq!(estimated_fee.max_priority_fee_per_gas, U256::from(0_u32));
     }
 
     #[tokio::test]
     async fn test_provider_get_testnet_paymaster() {
-        let provider = local_provider();
+        let provider = era_provider();
 
         assert!(provider.get_testnet_paymaster().await.is_ok());
     }
 
     #[tokio::test]
     async fn test_provider_estimate_gas_l1_to_l2() {
-        let provider = local_provider();
+        let provider = era_provider();
         #[derive(Serialize, Deserialize, Debug)]
         struct TestTransaction {
             from: String,
@@ -621,13 +639,13 @@ mod tests {
 
         let estimated_fee = provider.estimate_gas_l1_to_l2(transaction).await.unwrap();
 
-        assert_eq!(estimated_fee, U256::from(36_768_868_i32));
+        assert_eq!(estimated_fee, U256::from(36_768_868_u64));
     }
 
     #[tokio::test]
     // TODO: This test is flacky. It could fail in the future.
     async fn test_provider_get_all_account_balances() {
-        let provider = local_provider();
+        let provider = era_provider();
         let address: Address = "0xbd29a1b981925b94eec5c4f1125af02a2ec4d1ca"
             .parse()
             .unwrap();
@@ -650,9 +668,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_provider_get_block_details() {
-        let provider = local_provider();
-        let existing_block = 1;
-        let non_existing_block = provider.get_block_number().await.unwrap() + 100;
+        let provider = era_provider();
+        let existing_block = 1_u64;
+        let non_existing_block = provider.get_block_number().await.unwrap() + 100_u64;
 
         let existing_block_details = provider.get_block_details(existing_block).await.unwrap();
         let non_existing_block_details = provider
@@ -666,18 +684,18 @@ mod tests {
 
     #[tokio::test]
     async fn test_provider_get_bridge_contracts() {
-        let provider = local_provider();
+        let provider = era_provider();
 
         assert!(provider.get_bridge_contracts().await.is_ok());
     }
 
     #[tokio::test]
     async fn test_provider_get_bytecode_by_hash() {
-        let provider = local_provider();
+        let provider = era_provider();
         let invalid_hash = "0x7641711d8997f701a4d5929b6661185aeb5ae1fdff33288b6b5df1c05135cfc9"
             .parse()
             .unwrap();
-        let test_block = provider.get_block_details(2).await.unwrap().unwrap();
+        let test_block = provider.get_block_details(2_u64).await.unwrap().unwrap();
         let valid_hash = test_block.root_hash;
 
         assert!(provider.get_bytecode_by_hash(invalid_hash).await.is_ok());
@@ -687,7 +705,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "fix"]
     async fn test_provider_get_confirmed_tokens() {
-        let provider = local_provider();
+        let provider = era_provider();
         let from = 0;
         let limit = 10;
 
@@ -697,23 +715,23 @@ mod tests {
     // TODO: This test is flacky. It could fail in the future.
     #[tokio::test]
     async fn test_provider_get_l1_batch_block_range() {
-        let provider = local_provider();
-        let batch = 1;
+        let provider = era_provider();
+        let batch = 1_u64;
 
         assert!(provider.get_l1_batch_block_range(batch).await.is_ok());
     }
 
     #[tokio::test]
     async fn test_provider_get_l1_batch_details() {
-        let provider = local_provider();
-        let batch = 1;
+        let provider = era_provider();
+        let batch = 1_u64;
 
         assert!(provider.get_l1_batch_details(batch).await.is_ok());
     }
 
     #[tokio::test]
     async fn test_provider_get_l2_to_l1_log_proof() {
-        let provider = local_provider();
+        let provider = era_provider();
         let tx_hash: H256 = "0xac9cf301af3b11760feb9d84283513f993dcd29de6e5fd28a8f41b1c7c0469ed"
             .parse()
             .unwrap();
@@ -733,7 +751,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_provider_get_main_contract() {
-        let provider = local_provider();
+        let provider = era_provider();
 
         assert!(provider.get_main_contract().await.is_ok());
     }
@@ -742,15 +760,15 @@ mod tests {
     // transaction, send it, and the assert that the details match.
     #[tokio::test]
     async fn test_provider_get_raw_block_transactions() {
-        let provider = local_provider();
-        let block = 1;
+        let provider = era_provider();
+        let block = 1_u64;
 
         assert!(provider.get_raw_block_transactions(block).await.is_ok());
     }
 
     #[tokio::test]
     async fn test_provider_get_token_price() {
-        let provider = local_provider();
+        let provider = era_provider();
         let address: Address = "0x0000000000000000000000000000000000000000"
             .parse()
             .unwrap();
@@ -762,8 +780,8 @@ mod tests {
     // transaction, send it, and the assert that the details match.
     #[tokio::test]
     async fn test_provider_get_transaction_details() {
-        let provider = local_provider();
-        let test_block = provider.get_block_details(2).await.unwrap().unwrap();
+        let provider = era_provider();
+        let test_block = provider.get_block_details(2_u64).await.unwrap().unwrap();
         let hash = test_block.root_hash;
 
         assert!(provider.get_transaction_details(hash).await.is_ok());
@@ -771,22 +789,22 @@ mod tests {
 
     #[tokio::test]
     async fn test_provider_get_l1_batch_number() {
-        let provider = local_provider();
+        let provider = era_provider();
 
         assert!(provider.get_l1_batch_number().await.is_ok());
     }
 
     #[tokio::test]
     async fn test_provider_get_l1_chain_id() {
-        let provider = local_provider();
+        let provider = era_provider();
 
         assert!(provider.get_l1_chain_id().await.is_ok());
     }
 
     #[tokio::test]
     async fn test_provider_debug_trace_block_by_hash() {
-        let provider = local_provider();
-        let block_number = provider.get_block_number().await.unwrap() - 1;
+        let provider = era_provider();
+        let block_number = provider.get_block_number().await.unwrap() - 1_u64;
         let test_block = provider
             .get_block_details(block_number.as_u32())
             .await
@@ -817,9 +835,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_provider_debug_trace_block_by_number() {
-        let provider = local_provider();
-        let existing_block_number = provider.get_block_number().await.unwrap() - 1;
-        let non_existing_block_number = existing_block_number + 100;
+        let provider = era_provider();
+        let existing_block_number = provider.get_block_number().await.unwrap() - 1_u64;
+        let non_existing_block_number = existing_block_number + 100_u64;
         let options = Some(TracerConfig {
             disable_storage: None,
             disable_stack: None,
@@ -859,7 +877,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_provider_debug_trace_call() {
-        let provider = local_provider();
+        let provider = era_provider();
         #[derive(Serialize, Deserialize, Debug)]
         struct TestTransaction {
             from: String,
@@ -914,12 +932,13 @@ mod tests {
     // TODO: This test is flacky. It could fail in the future.
     #[tokio::test]
     async fn test_provider_debug_trace_transaction() {
-        let provider = local_provider();
-        let signer = local_signer();
-        let transaction_hash = signer
+        let era_provider = era_provider();
+        let zk_wallet = ZKSWallet::new(local_wallet(), Some(era_signer()), None).unwrap();
+
+        let transaction_hash = zk_wallet
             .transfer(
                 Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049").unwrap(),
-                1.into(),
+                1_u64.into(),
                 None,
             )
             .await
@@ -940,30 +959,36 @@ mod tests {
         });
 
         assert!(
-            ZKSProvider::debug_trace_transaction(&provider, transaction_hash, None)
+            ZKSProvider::debug_trace_transaction(&era_provider, transaction_hash, None)
                 .await
                 .is_ok()
         );
-        assert!(
-            ZKSProvider::debug_trace_transaction(&provider, transaction_hash, options.clone())
-                .await
-                .is_ok()
-        );
-        assert!(
-            ZKSProvider::debug_trace_transaction(&provider, invalid_transaction_hash, None)
-                .await
-                .is_err()
-        );
-        assert!(
-            ZKSProvider::debug_trace_transaction(&provider, invalid_transaction_hash, options)
-                .await
-                .is_err()
-        );
+        assert!(ZKSProvider::debug_trace_transaction(
+            &era_provider,
+            transaction_hash,
+            options.clone()
+        )
+        .await
+        .is_ok());
+        assert!(ZKSProvider::debug_trace_transaction(
+            &era_provider,
+            invalid_transaction_hash,
+            None
+        )
+        .await
+        .is_err());
+        assert!(ZKSProvider::debug_trace_transaction(
+            &era_provider,
+            invalid_transaction_hash,
+            options
+        )
+        .await
+        .is_err());
     }
 
     #[tokio::test]
     async fn test_signer_estimate_fee() {
-        let provider = local_signer();
+        let provider = era_signer();
         #[derive(Serialize, Deserialize, Debug)]
         struct TestTransaction {
             from: String,
@@ -979,22 +1004,22 @@ mod tests {
 
         let estimated_fee = provider.estimate_fee(transaction).await.unwrap();
 
-        assert_eq!(estimated_fee.gas_limit, U256::from(162_436_i32));
-        assert_eq!(estimated_fee.gas_per_pubdata_limit, U256::from(66_i32));
-        assert_eq!(estimated_fee.max_fee_per_gas, U256::from(250_000_000_i32));
-        assert_eq!(estimated_fee.max_priority_fee_per_gas, U256::from(0_i32));
+        assert_eq!(estimated_fee.gas_limit, U256::from(162_436_u32));
+        assert_eq!(estimated_fee.gas_per_pubdata_limit, U256::from(66_u32));
+        assert_eq!(estimated_fee.max_fee_per_gas, U256::from(250_000_000_u32));
+        assert_eq!(estimated_fee.max_priority_fee_per_gas, U256::from(0_u32));
     }
 
     #[tokio::test]
     async fn test_signer_get_testnet_paymaster() {
-        let provider = local_signer();
+        let provider = era_signer();
 
         assert!(provider.get_testnet_paymaster().await.is_ok());
     }
 
     #[tokio::test]
     async fn test_signer_estimate_gas_l1_to_l2() {
-        let provider = local_signer();
+        let provider = era_signer();
         #[derive(Serialize, Deserialize, Debug)]
         struct TestTransaction {
             from: String,
@@ -1010,13 +1035,13 @@ mod tests {
 
         let estimated_fee = provider.estimate_gas_l1_to_l2(transaction).await.unwrap();
 
-        assert_eq!(estimated_fee, U256::from(36_768_868_i32));
+        assert_eq!(estimated_fee, U256::from(36_768_868_u32));
     }
 
     #[tokio::test]
     // TODO: This test is flacky. It could fail in the future.
     async fn test_signer_get_all_account_balances() {
-        let provider = local_signer();
+        let provider = era_signer();
         let address: Address = "0xbd29a1b981925b94eec5c4f1125af02a2ec4d1ca"
             .parse()
             .unwrap();
@@ -1039,9 +1064,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_signer_get_block_details() {
-        let provider = local_signer();
-        let existing_block = 1;
-        let non_existing_block = provider.get_block_number().await.unwrap() + 100;
+        let provider = era_signer();
+        let existing_block = 1_u64;
+        let non_existing_block = provider.get_block_number().await.unwrap() + 100_u64;
 
         let existing_block_details = provider.get_block_details(existing_block).await.unwrap();
         let non_existing_block_details = provider
@@ -1055,14 +1080,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_signer_get_bridge_contracts() {
-        let provider = local_signer();
+        let provider = era_signer();
 
         assert!(provider.get_bridge_contracts().await.is_ok());
     }
 
     #[tokio::test]
     async fn test_signer_get_bytecode_by_hash() {
-        let provider = local_signer();
+        let provider = era_signer();
         let invalid_hash = "0xac9cf301af3b11760feb9d84283513f993dcd29de6e5fd28a8f41b1c7c0469ed"
             .parse()
             .unwrap();
@@ -1076,7 +1101,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_signer_get_confirmed_tokens() {
-        let provider = local_signer();
+        let provider = era_signer();
         let from = 0;
         let limit = 10;
 
@@ -1086,23 +1111,23 @@ mod tests {
     // TODO: This test is flacky. It could fail in the future.
     #[tokio::test]
     async fn test_signer_get_l1_batch_block_range() {
-        let provider = local_signer();
-        let batch = 1;
+        let provider = era_signer();
+        let batch = 1_u64;
 
         assert!(provider.get_l1_batch_block_range(batch).await.is_ok());
     }
 
     #[tokio::test]
     async fn test_signer_get_l1_batch_details() {
-        let provider = local_signer();
-        let batch = 1;
+        let provider = era_signer();
+        let batch = 1_u64;
 
         assert!(provider.get_l1_batch_details(batch).await.is_ok());
     }
 
     #[tokio::test]
     async fn test_signer_get_l2_to_l1_log_proof() {
-        let provider = local_signer();
+        let provider = era_signer();
         let tx_hash: H256 = "0xac9cf301af3b11760feb9d84283513f993dcd29de6e5fd28a8f41b1c7c0469ed"
             .parse()
             .unwrap();
@@ -1122,7 +1147,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_signer_get_main_contract() {
-        let provider = local_signer();
+        let provider = era_signer();
 
         assert!(provider.get_main_contract().await.is_ok());
     }
@@ -1131,15 +1156,15 @@ mod tests {
     // transaction, send it, and the assert that the details match.
     #[tokio::test]
     async fn test_signer_get_raw_block_transactions() {
-        let provider = local_signer();
-        let block = 1;
+        let provider = era_signer();
+        let block = 1_u64;
 
         assert!(provider.get_raw_block_transactions(block).await.is_ok());
     }
 
     #[tokio::test]
     async fn test_signer_get_token_price() {
-        let provider = local_signer();
+        let provider = era_signer();
         let address: Address = "0x0000000000000000000000000000000000000000"
             .parse()
             .unwrap();
@@ -1151,7 +1176,7 @@ mod tests {
     // transaction, send it, and the assert that the details match.
     #[tokio::test]
     async fn test_signer_get_transaction_details() {
-        let provider = local_signer();
+        let provider = era_signer();
         let hash: H256 = "0xac9cf301af3b11760feb9d84283513f993dcd29de6e5fd28a8f41b1c7c0469ed"
             .parse()
             .unwrap();
@@ -1161,22 +1186,22 @@ mod tests {
 
     #[tokio::test]
     async fn test_signer_get_l1_batch_number() {
-        let provider = local_signer();
+        let provider = era_signer();
 
         assert!(provider.get_l1_batch_number().await.is_ok());
     }
 
     #[tokio::test]
     async fn test_signer_get_l1_chain_id() {
-        let provider = local_signer();
+        let provider = era_signer();
 
         assert!(provider.get_l1_chain_id().await.is_ok());
     }
 
     #[tokio::test]
     async fn test_signer_debug_trace_block_by_hash() {
-        let provider = local_signer();
-        let block_number = provider.get_block_number().await.unwrap() - 1;
+        let provider = era_signer();
+        let block_number = provider.get_block_number().await.unwrap() - 1_u64;
         let test_block = provider
             .get_block_details(block_number.as_u32())
             .await
@@ -1207,9 +1232,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_signer_debug_trace_block_by_number() {
-        let provider = local_signer();
-        let existing_block_number = provider.get_block_number().await.unwrap() - 1;
-        let non_existing_block_number = existing_block_number + 100;
+        let provider = era_signer();
+        let existing_block_number = provider.get_block_number().await.unwrap() - 1_u64;
+        let non_existing_block_number = existing_block_number + 100_u64;
         let options = Some(TracerConfig {
             disable_storage: None,
             disable_stack: None,
@@ -1249,7 +1274,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_signer_debug_trace_call() {
-        let provider = local_signer();
+        let provider = era_signer();
         #[derive(Serialize, Deserialize, Debug)]
         struct TestTransaction {
             from: String,
@@ -1297,11 +1322,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_signer_debug_trace_transaction() {
-        let signer = local_signer();
-        let transaction_hash = signer
+        let era_signer = era_signer();
+        let zk_wallet = ZKSWallet::new(local_wallet(), Some(era_signer.clone()), None).unwrap();
+
+        let transaction_hash = zk_wallet
             .transfer(
                 Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049").unwrap(),
-                1.into(),
+                1_i32.into(),
                 None,
             )
             .await
@@ -1322,17 +1349,17 @@ mod tests {
         });
 
         assert!(
-            ZKSProvider::debug_trace_transaction(&signer, transaction_hash, None)
+            ZKSProvider::debug_trace_transaction(&era_signer, transaction_hash, None)
                 .await
                 .is_ok()
         );
         assert!(
-            ZKSProvider::debug_trace_transaction(&signer, transaction_hash, options)
+            ZKSProvider::debug_trace_transaction(&era_signer, transaction_hash, options)
                 .await
                 .is_ok()
         );
         assert!(
-            ZKSProvider::debug_trace_transaction(&signer, invalid_transaction_hash, None)
+            ZKSProvider::debug_trace_transaction(&era_signer, invalid_transaction_hash, None)
                 .await
                 .is_err()
         );

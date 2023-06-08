@@ -6,7 +6,7 @@ use crate::{
     zks_utils::{CONTRACT_DEPLOYER_ADDR, EIP712_TX_TYPE, ERA_CHAIN_ID, ETH_CHAIN_ID},
 };
 use ethers::{
-    abi::{Abi, HumanReadableParser, Token, Tokenizable, Tokenize},
+    abi::{Abi, HumanReadableParser, Tokenizable, Tokenize},
     prelude::{
         encode_function_data,
         k256::{
@@ -22,7 +22,6 @@ use ethers::{
         transaction::eip2718::TypedTransaction, Address, Bytes, Eip1559TransactionRequest,
         Signature, TransactionReceipt, U256,
     },
-    utils::keccak256,
 };
 use std::{fmt::Display, fs::File, io::BufReader, path::PathBuf, str::FromStr};
 
@@ -94,7 +93,6 @@ where
             // TODO: Should we have a balance_on_block method?
             Some(eth_provider) => Ok(eth_provider.get_balance(self.address(), None).await?),
             None => Err(ZKSWalletError::CustomError("no era provider".to_owned())),
-            None => Err(ZKSWalletError::CustomError("no era provider".to_owned())),
         }
     }
 
@@ -105,7 +103,6 @@ where
         match &self.era_provider {
             // TODO: Should we have a balance_on_block method?
             Some(era_provider) => Ok(era_provider.get_balance(self.address(), None).await?),
-            None => Err(ZKSWalletError::CustomError("no era provider".to_owned())),
             None => Err(ZKSWalletError::CustomError("no era provider".to_owned())),
         }
     }
@@ -122,7 +119,6 @@ where
     {
         let era_provider = match &self.era_provider {
             Some(era_provider) => era_provider,
-            None => return Err(ZKSWalletError::CustomError("no era provider".to_owned())),
             None => return Err(ZKSWalletError::CustomError("no era provider".to_owned())),
         };
 
@@ -349,7 +345,7 @@ where
                 let salt = [0_u8; 32];
                 let bytecode_hash = hash_bytecode(&contract_bytecode)?;
                 let call_data: Bytes = match (contract_abi.constructor(), constructor_parameters) {
-                    (None, Some(_)) => return Err(ContractError::ConstructorError)?,
+                    (None, Some(_)) => return Err(ContractError::ConstructorError.into()),
                     (None, None) | (Some(_), None) => contract_bytecode.clone().into(),
                     (Some(constructor), Some(constructor_parameters)) => constructor
                         .encode_input(
@@ -422,7 +418,7 @@ where
                 });
 
         let transaction: TypedTransaction = request.into();
-        let response = era_provider.call(&transaction, None).await.unwrap();
+        let response = era_provider.call(&transaction, None).await?;
         Ok(response)
     }
 }
@@ -432,7 +428,7 @@ mod zks_signer_tests {
     use crate::compile::project::ZKProject;
     use crate::zks_utils::ERA_CHAIN_ID;
     use crate::zks_wallet::ZKSWallet;
-    use ethers::abi::{HumanReadableParser, Token};
+    use ethers::abi::Token;
     use ethers::providers::Middleware;
     use ethers::providers::{Http, Provider};
     use ethers::signers::{LocalWallet, Signer};
@@ -604,7 +600,7 @@ mod zks_signer_tests {
             .deploy(
                 "src/compile/test_contracts/storage/src/ValueStorage.sol",
                 contract_name,
-                Some(U256::from(10)),
+                Some(U256::from(10_i32)),
             )
             .await
             .unwrap();
