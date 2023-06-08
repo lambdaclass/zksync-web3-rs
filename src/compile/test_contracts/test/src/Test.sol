@@ -9,4 +9,8 @@ contract Test {
     function str_out() public view returns(string memory){
         return str;
     }
+
+    function plus_one(uint256 value) public view returns(uint256) {
+        return value + 1;
+    }
 }
