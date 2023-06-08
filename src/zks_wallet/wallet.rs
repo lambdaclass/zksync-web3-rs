@@ -567,6 +567,7 @@ mod zks_signer_tests {
     }
 
     #[tokio::test]
+    #[ignore = "skipped until the compiler OS version is fixed"]
     async fn test_deploy_contract_with_constructor_args() {
         let deployer_private_key =
             "7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110";
@@ -612,6 +613,7 @@ mod zks_signer_tests {
     }
 
     #[tokio::test]
+    #[ignore = "skipped until the compiler OS version is fixed"]
     async fn test_call_view_function_with_no_parameters() {
         // Deploying a test contract
         let deployer_private_key =
@@ -645,6 +647,7 @@ mod zks_signer_tests {
     }
 
     #[tokio::test]
+    #[ignore = "skipped until the compiler OS version is fixed"]
     async fn test_call_view_function_with_arguments() {
         // Deploying a test contract
         let deployer_private_key =

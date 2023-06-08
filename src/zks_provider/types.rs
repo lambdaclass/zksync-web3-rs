@@ -27,8 +27,10 @@ pub struct BlockDetails {
     pub l2_tx_count: u128,
     pub number: u128,
     pub operator_address: Address,
-    pub prove_tx_hash: H256,
-    pub proven_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prove_tx_hash: Option<H256>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub proven_at: Option<String>,
     pub root_hash: H256,
     pub status: String,
     pub timestamp: u128,
