@@ -9,7 +9,7 @@ use crate::{
     },
 };
 use ethers::{
-    abi::{Abi, Param, ParamType},
+    abi::{Param, ParamType},
     prelude::{
         encode_function_data,
         k256::{
@@ -25,7 +25,6 @@ use ethers::{
         Signature, TransactionReceipt, U256,
     },
 };
-use ethers_contract::Contract;
 use std::{str::FromStr, sync::Arc};
 
 pub struct ZKSWallet<M, D>

@@ -13,7 +13,7 @@ use ethers::{
 };
 use ethers_contract::ContractError;
 
-use crate::{contracts::main_contract::MainContractError, ZKSWallet};
+use crate::contracts::main_contract::MainContractError;
 
 #[derive(thiserror::Error, Debug)]
 pub enum ZKSWalletError<M, D>
