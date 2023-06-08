@@ -1,4 +1,4 @@
-use ethers::types::{Address, Bytes, H256, U256};
+use ethers::types::{Address, Bytes, H256, U256, U64};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -52,7 +52,7 @@ pub struct BridgeContracts {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct TokenInfo {
-    pub decimals: u64,
+    pub decimals: U64,
     pub l1_address: Address,
     pub l2_address: Address,
     pub name: String,
@@ -85,7 +85,7 @@ pub struct L1BatchDetails {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Proof {
-    pub id: u64,
+    pub id: U64,
     pub proof: Vec<String>,
     pub root: String,
 }
