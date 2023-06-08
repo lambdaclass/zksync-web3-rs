@@ -8,6 +8,16 @@ pub const EIP712_TX_TYPE: u8 = 0x71;
 // use the honest value of gas per pubdata and it can use any value up to the one signed by the user.
 // In the future releases, we will provide a way to estimate the current gasPerPubdata.
 pub const DEFAULT_GAS_PER_PUBDATA_LIMIT: u64 = 50000;
+pub const MAX_PRIORITY_FEE_PER_GAS: u64 = 100000000;
+/// This the number of pubdata such that it should be always possible to publish
+/// from a single transaction. Note, that these pubdata bytes include only bytes that are
+/// to be published inside the body of transaction (i.e. excluding of factory deps).
+pub const GUARANTEED_PUBDATA_PER_L1_BATCH: u64 = 4000;
+pub const MAX_L2_TX_GAS_LIMIT: u64 = 80000000;
+// The users should always be able to provide `MAX_GAS_PER_PUBDATA_BYTE` gas per pubdata in their
+// transactions so that they are able to send at least GUARANTEED_PUBDATA_PER_L1_BATCH bytes per
+// transaction.
+pub const MAX_GAS_PER_PUBDATA_BYTE: u64 = MAX_L2_TX_GAS_LIMIT / GUARANTEED_PUBDATA_PER_L1_BATCH;
 
 pub const RECOMMENDED_DEPOSIT_L1_GAS_LIMIT: u64 = 10000000;
 pub const RECOMMENDED_DEPOSIT_L2_GAS_LIMIT: u64 = 10000000;

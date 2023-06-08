@@ -1,4 +1,7 @@
-use ethers::types::{transaction::eip712::Eip712Error, Bytes};
+use ethers::{
+    types::transaction::eip712::Eip712Error,
+    utils::rlp::{Encodable, RlpStream},
+};
 use sha2::Digest;
 use std::num::TryFromIntError;
 
@@ -8,8 +11,8 @@ pub use meta::Eip712Meta;
 mod transaction_request;
 pub use transaction_request::Eip712TransactionRequest;
 
-mod sign_input;
-pub use sign_input::Eip712SignInput;
+mod transaction;
+pub use transaction::Eip712Transaction;
 
 mod paymaster_params;
 pub use paymaster_params::PaymasterParams;
@@ -19,7 +22,7 @@ pub use paymaster_params::PaymasterParams;
 /// * The first 2 bytes denote the version of bytecode hash format and are currently equal to [1,0].
 /// * The second 2 bytes denote the length of the bytecode in 32-byte words.
 /// * The rest of the 28-byte (i.e. 28 low big-endian bytes) are equal to the last 28 bytes of the sha256 hash of the contract's bytecode.
-pub fn hash_bytecode(bytecode: &Bytes) -> Result<[u8; 32], Eip712Error> {
+pub fn hash_bytecode(bytecode: &[u8]) -> Result<[u8; 32], Eip712Error> {
     let step_1: [u8; 2] = 0x0100_u16.to_be_bytes();
     let bytecode_length: u16 = (bytecode.len() / 32)
         .try_into()
@@ -46,12 +49,12 @@ pub fn hash_bytecode(bytecode: &Bytes) -> Result<[u8; 32], Eip712Error> {
     Ok(contract_hash)
 }
 
-pub(crate) fn rlp_opt<T: ethers::utils::rlp::Encodable>(
-    stream: &mut ethers::utils::rlp::RlpStream,
-    opt: &Option<T>,
-) {
-    if let Some(inner) = opt {
-        stream.append(inner);
+pub(crate) fn rlp_append_option<T>(stream: &mut RlpStream, value: Option<T>)
+where
+    T: Encodable,
+{
+    if let Some(v) = value {
+        stream.append(&v);
     } else {
         stream.append(&"");
     }

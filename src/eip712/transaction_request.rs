@@ -1,4 +1,5 @@
-use super::{rlp_opt, Eip712Meta};
+use super::{rlp_append_option, Eip712Meta};
+use crate::zks_utils::{EIP712_TX_TYPE, ERA_CHAIN_ID, MAX_PRIORITY_FEE_PER_GAS};
 use ethers::{
     types::{transaction::eip2930::AccessList, Address, Bytes, Signature, U256, U64},
     utils::rlp::{Encodable, RlpStream},
@@ -6,32 +7,33 @@ use ethers::{
 use serde::{Deserialize, Serialize};
 
 // TODO: Not all the fields are optional. This was copied from the JS implementation.
-#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all(serialize = "camelCase", deserialize = "camelCase"))]
 pub struct Eip712TransactionRequest {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub to: Option<Address>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub from: Option<Address>,
+    /* These need to be filled before estimating the gas */
+    pub to: Address,
+    pub from: Address,
     pub nonce: U256,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub gas_limit: Option<U256>,
+    pub gas: U256,
     pub gas_price: U256,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub data: Option<Bytes>,
+    pub data: Bytes,
     pub value: U256,
     pub chain_id: U256,
     pub r#type: U256,
+    pub max_priority_fee_per_gas: U256,
+    #[serde(rename = "eip712Meta")]
+    pub custom_data: Eip712Meta,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub access_list: Option<AccessList>,
+
+    /* Filled after estimating the gas */
+    // Unknown until we estimate the gas.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_priority_fee_per_gas: Option<U256>,
+    pub gas_limit: Option<U256>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_fee_per_gas: Option<U256>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub custom_data: Option<Eip712Meta>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub ccip_read_enabled: Option<bool>,
+    pub max_fee_per_gas: Option<U256>, // conflicts with gas_price
+
+    pub ccip_read_enabled: bool,
 }
 
 impl Eip712TransactionRequest {
@@ -43,7 +45,7 @@ impl Eip712TransactionRequest {
     where
         T: Into<Address>,
     {
-        self.to = Some(to.into());
+        self.to = to.into();
         self
     }
 
@@ -51,7 +53,7 @@ impl Eip712TransactionRequest {
     where
         T: Into<Address>,
     {
-        self.from = Some(from.into());
+        self.from = from.into();
         self
     }
 
@@ -83,7 +85,7 @@ impl Eip712TransactionRequest {
     where
         T: Into<Bytes>,
     {
-        self.data = Some(data.into());
+        self.data = data.into();
         self
     }
 
@@ -120,7 +122,7 @@ impl Eip712TransactionRequest {
     where
         T: Into<U256>,
     {
-        self.max_priority_fee_per_gas = Some(max_priority_fee_per_gas.into());
+        self.max_priority_fee_per_gas = max_priority_fee_per_gas.into();
         self
     }
 
@@ -133,28 +135,12 @@ impl Eip712TransactionRequest {
     }
 
     pub fn custom_data(mut self, custom_data: Eip712Meta) -> Self {
-        self.custom_data = Some(custom_data);
+        self.custom_data = custom_data;
         self
     }
 
     pub fn ccip_read_enabled(mut self, ccip_read_enabled: bool) -> Self {
-        self.ccip_read_enabled = Some(ccip_read_enabled);
-        self
-    }
-
-    pub fn custom_signature<T>(mut self, signature: T) -> Self
-    where
-        T: Into<Bytes>,
-    {
-        if let Some(mut custom_data) = self.custom_data {
-            custom_data.custom_signature = Some(signature.into());
-            self.custom_data = Some(custom_data);
-        } else {
-            self.custom_data = Some(Eip712Meta {
-                custom_signature: Some(signature.into()),
-                ..Default::default()
-            });
-        }
+        self.ccip_read_enabled = ccip_read_enabled;
         self
     }
 
@@ -173,17 +159,17 @@ impl Eip712TransactionRequest {
         // 0
         stream.append(&self.nonce);
         // 1
-        rlp_opt(&mut stream, &self.max_priority_fee_per_gas);
+        stream.append(&self.max_priority_fee_per_gas);
         // 2
-        rlp_opt(&mut stream, &self.max_fee_per_gas);
+        rlp_append_option(&mut stream, self.max_fee_per_gas);
         // 3 (supped to be gas)
-        rlp_opt(&mut stream, &self.gas_limit);
+        rlp_append_option(&mut stream, self.gas_limit);
         // 4
-        rlp_opt(&mut stream, &self.to);
+        stream.append(&self.to);
         // 5
         stream.append(&self.value);
         // 6
-        rlp_opt(&mut stream, &self.data.clone().map(|d| d.0));
+        stream.append(&self.data.0);
         if let Some(signature) = signature {
             // 7
             stream.append(&U64::from(signature.v));
@@ -202,13 +188,33 @@ impl Eip712TransactionRequest {
         // 10
         stream.append(&self.chain_id);
         // 11
-        rlp_opt(&mut stream, &self.from);
-        if let Some(meta) = &self.custom_data {
-            // 12, 13, 14, 15
-            meta.rlp_append(&mut stream);
-        }
+        stream.append(&self.from);
+        // 12, 13, 14, 15
+        self.custom_data.rlp_append(&mut stream);
 
         stream.finalize_unbounded_list();
         stream.out().freeze().into()
+    }
+}
+
+impl Default for Eip712TransactionRequest {
+    fn default() -> Self {
+        Self {
+            to: Default::default(),
+            from: Default::default(),
+            nonce: Default::default(),
+            gas: Default::default(),
+            gas_limit: Default::default(),
+            gas_price: Default::default(),
+            data: Default::default(),
+            value: Default::default(),
+            chain_id: ERA_CHAIN_ID.into(),
+            r#type: EIP712_TX_TYPE.into(),
+            access_list: Default::default(),
+            max_priority_fee_per_gas: MAX_PRIORITY_FEE_PER_GAS.into(),
+            max_fee_per_gas: Default::default(),
+            custom_data: Default::default(),
+            ccip_read_enabled: Default::default(),
+        }
     }
 }
