@@ -22,7 +22,6 @@ use ethers::{
         transaction::eip2718::TypedTransaction, Address, Bytes, Eip1559TransactionRequest,
         Signature, TransactionReceipt, U256,
     },
-    utils::keccak256,
 };
 use std::{fmt::Display, fs::File, io::BufReader, path::PathBuf, str::FromStr};
 
@@ -94,7 +93,6 @@ where
             // TODO: Should we have a balance_on_block method?
             Some(eth_provider) => Ok(eth_provider.get_balance(self.address(), None).await?),
             None => Err(ZKSWalletError::CustomError("no era provider".to_owned())),
-            None => Err(ZKSWalletError::CustomError("no era provider".to_owned())),
         }
     }
 
@@ -105,7 +103,6 @@ where
         match &self.era_provider {
             // TODO: Should we have a balance_on_block method?
             Some(era_provider) => Ok(era_provider.get_balance(self.address(), None).await?),
-            None => Err(ZKSWalletError::CustomError("no era provider".to_owned())),
             None => Err(ZKSWalletError::CustomError("no era provider".to_owned())),
         }
     }
@@ -122,7 +119,6 @@ where
     {
         let era_provider = match &self.era_provider {
             Some(era_provider) => era_provider,
-            None => return Err(ZKSWalletError::CustomError("no era provider".to_owned())),
             None => return Err(ZKSWalletError::CustomError("no era provider".to_owned())),
         };
 
@@ -397,7 +393,7 @@ where
         address: Address,
         function_signature: &str,
         function_parameters: Option<T>,
-    ) -> Result<Bytes, ZKSWalletError<M, D>>
+    ) -> Result<Vec<Token>, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
         T: Tokenizable,
@@ -422,8 +418,17 @@ where
                 });
 
         let transaction: TypedTransaction = request.into();
-        let response = era_provider.call(&transaction, None).await.unwrap();
-        Ok(response)
+
+        let encoded_output = era_provider.call(&transaction, None).await.unwrap();
+        let decoded_output = function.decode_output(&encoded_output[..]).map_err(|e| {
+            ZKSWalletError::CustomError(format!("failed to decode output: {e}\n{encoded_output}"))
+        })?;
+
+        Ok(if decoded_output.is_empty() {
+            encoded_output.into_tokens()
+        } else {
+            decoded_output
+        })
     }
 }
 
@@ -432,14 +437,14 @@ mod zks_signer_tests {
     use crate::compile::project::ZKProject;
     use crate::zks_utils::ERA_CHAIN_ID;
     use crate::zks_wallet::ZKSWallet;
-    use ethers::abi::{HumanReadableParser, Token};
+    use ethers::abi::{Token, Tokenize};
     use ethers::providers::Middleware;
     use ethers::providers::{Http, Provider};
     use ethers::signers::{LocalWallet, Signer};
     use ethers::solc::info::ContractInfo;
     use ethers::solc::{Project, ProjectPathsConfig};
-    use ethers::types::Address;
     use ethers::types::U256;
+    use ethers::types::{Address, Bytes};
     use std::str::FromStr;
 
     fn era_provider() -> Provider<Http> {
@@ -631,8 +636,6 @@ mod zks_signer_tests {
             .await
             .unwrap();
 
-        println!("ADDRESS {contract_address:?}");
-
         // Making the call to the contract function
         let deployer_private_key =
             "0x28a574ab2de8a00364d5dd4b07c4f2f574ef7fcc2a86a197f65abaec836d1959";
@@ -641,11 +644,12 @@ mod zks_signer_tests {
             .with_chain_id(ERA_CHAIN_ID);
         let zk_wallet = ZKSWallet::new(wallet, Some(era_provider.clone()), None).unwrap();
 
-        let response = zk_wallet
-            .call::<Token>(contract_address, "str_out()", None)
-            .await;
+        let output = zk_wallet
+            .call::<Token>(contract_address, "str_out()(string)", None)
+            .await
+            .unwrap();
 
-        assert!(response.is_ok());
+        assert_eq!(output, String::from("Hello World!").into_tokens());
     }
 
     #[tokio::test]
@@ -664,10 +668,28 @@ mod zks_signer_tests {
             .await
             .unwrap();
 
-        let response = zk_wallet
+        let no_return_type_output = zk_wallet
             .call(contract_address, "plus_one(uint256)", Some(U256::one()))
-            .await;
+            .await
+            .unwrap();
 
-        assert!(response.is_ok());
+        let known_return_type_output = zk_wallet
+            .call(
+                contract_address,
+                "plus_one(uint256)(uint256)",
+                Some(U256::one()),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(
+            no_return_type_output,
+            Bytes::from([
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 2
+            ])
+            .into_tokens()
+        );
+        assert_eq!(known_return_type_output, U256::from(2).into_tokens());
     }
 }
