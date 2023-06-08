@@ -3,7 +3,10 @@ use crate::{
     compile::project::ZKProject,
     eip712::{hash_bytecode, Eip712Meta, Eip712Transaction, Eip712TransactionRequest},
     zks_provider::ZKSProvider,
-    zks_utils::{CONTRACT_DEPLOYER_ADDR, EIP712_TX_TYPE, ERA_CHAIN_ID, ETH_CHAIN_ID},
+    zks_utils::{
+        CONTRACTS_L1_MESSENGER_ADDR, CONTRACT_DEPLOYER_ADDR, EIP712_TX_TYPE, ERA_CHAIN_ID,
+        ETH_CHAIN_ID,
+    },
 };
 use ethers::{
     abi::{Abi, Tokenizable, Tokenize},
@@ -19,8 +22,8 @@ use ethers::{
     signers::{Signer, Wallet},
     solc::{info::ContractInfo, Project, ProjectPathsConfig},
     types::{
-        transaction::eip2718::TypedTransaction, Address, Bytes, Eip1559TransactionRequest,
-        Signature, TransactionReceipt, U256,
+        transaction::eip2718::TypedTransaction, Address, Bytes, Eip1559TransactionRequest, Log,
+        Signature, TransactionReceipt, H256, U256,
     },
     utils::{keccak256, parse_units},
 };
@@ -470,6 +473,61 @@ where
                 "no transaction receipt".to_owned(),
             ))
     }
+
+    async fn finalize_withdraw(
+        &self,
+        tx_hash: H256,
+    ) -> Result<TransactionReceipt, ZKSWalletError<M, D>>
+    where
+        M: ZKSProvider,
+    {
+        let era_provider = match &self.era_provider {
+            Some(era_provider) => era_provider,
+            None => return Err(ZKSWalletError::CustomError("no era provider".to_owned())),
+        };
+        let withdrawal_receipt = era_provider
+            .get_transaction_receipt(tx_hash)
+            .await?
+            .unwrap();
+        //let topic = decode_event("L1MessageSent").unwrap();
+        let logs: Vec<Log> = withdrawal_receipt
+            .logs
+            .into_iter()
+            .filter(|log| {
+                //log.topics[0] == topic
+                log.address == Address::from_str(CONTRACTS_L1_MESSENGER_ADDR).unwrap()
+            })
+            .collect();
+        let filtered_log = logs[0].clone();
+        let proof = era_provider
+            .get_l2_to_l1_msg_proof(
+                filtered_log.block_number.unwrap().as_u32(),
+                filtered_log.address,
+                H256::from_slice(&filtered_log.data[..]),
+                None,
+            )
+            .await?
+            .unwrap();
+        // Maybe we should consider change the type of proof to Vec<u8> instead of Vec<String>
+        let merkle_proof: Vec<Bytes> = proof
+            .proof
+            .iter()
+            .map(String::as_bytes)
+            .map(Bytes::from_iter)
+            .collect();
+
+        // let withdraw_params = FinalizeParams {
+        //     l1_batch_number: self.get_l1_batch_number().await?,
+        //     l2_message_index: proof.id,
+        //     message: filtered_log.data,
+        //     l2_tx_number_in_block: withdrawal_receipt.other["l1BatchTxIndex"].to_string(),
+        //     merkle_proof,
+        //     //sender: Address::from_str(&withdrawal_receipt.other["sender"].to_string()).unwrap(),
+        // };
+        let main_contract = era_provider.get_main_contract().await?;
+
+        todo!();
+    }
 }
 
 #[cfg(test)]
@@ -489,6 +547,10 @@ mod zks_signer_tests {
 
     fn era_provider() -> Provider<Http> {
         Provider::try_from("http://localhost:3050".to_owned()).unwrap()
+    }
+
+    fn eth_provider() -> Provider<Http> {
+        Provider::try_from("http://localhost:8545".to_owned()).unwrap()
     }
 
     #[tokio::test]
