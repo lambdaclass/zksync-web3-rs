@@ -767,6 +767,7 @@ mod zks_signer_tests {
     }
 
     #[tokio::test]
+    #[ignore = "skipped until the compiler OS version is fixed"]
     async fn test_send_function_with_arguments() {
         // Deploying a test contract
         let deployer_private_key =
