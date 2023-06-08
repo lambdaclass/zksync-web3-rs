@@ -346,7 +346,7 @@ where
                 let salt = [0_u8; 32];
                 let bytecode_hash = hash_bytecode(&contract_bytecode)?;
                 let call_data: Bytes = match (contract_abi.constructor(), constructor_parameters) {
-                    (None, Some(_)) => return Err(ContractError::ConstructorError)?,
+                    (None, Some(_)) => return Err(ContractError::ConstructorError.into()),
                     (None, None) | (Some(_), None) => Bytes::default(),
                     (Some(constructor), Some(constructor_parameters)) => constructor
                         .encode_input(
@@ -420,8 +420,8 @@ where
 
         let transaction: TypedTransaction = request.into();
 
-        let encoded_output = era_provider.call(&transaction, None).await.unwrap();
-        let decoded_output = function.decode_output(&encoded_output[..]).map_err(|e| {
+        let encoded_output = era_provider.call(&transaction, None).await?;
+        let decoded_output = function.decode_output(&encoded_output).map_err(|e| {
             ZKSWalletError::CustomError(format!("failed to decode output: {e}\n{encoded_output}"))
         })?;
 
@@ -763,7 +763,7 @@ mod zks_signer_tests {
             ])
             .into_tokens()
         );
-        assert_eq!(known_return_type_output, U256::from(2).into_tokens());
+        assert_eq!(known_return_type_output, U256::from(2_u64).into_tokens());
     }
 
     #[tokio::test]
@@ -786,7 +786,7 @@ mod zks_signer_tests {
             .await
             .unwrap();
 
-        let value_to_set = U256::from(10);
+        let value_to_set = U256::from(10_u64);
         zk_wallet
             .send(contract_address, "setValue(uint256)", Some(value_to_set))
             .await
@@ -807,6 +807,6 @@ mod zks_signer_tests {
             .await
             .unwrap();
 
-        assert_eq!(incremented_value, (value_to_set + 1).into_tokens());
+        assert_eq!(incremented_value, (value_to_set + 1_u64).into_tokens());
     }
 }
