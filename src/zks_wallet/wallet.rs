@@ -439,7 +439,7 @@ mod zks_signer_tests {
     use std::str::FromStr;
 
     fn era_provider() -> Provider<Http> {
-        Provider::try_from("http://localhost:3050".to_owned()).unwrap()
+        Provider::try_from("http://65.21.140.36:3050".to_owned()).unwrap()
     }
 
     #[tokio::test]
