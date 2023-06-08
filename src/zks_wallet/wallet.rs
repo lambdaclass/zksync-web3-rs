@@ -778,4 +778,43 @@ mod zks_signer_tests {
 
         assert!(response.is_ok());
     }
+
+    #[tokio::test]
+    async fn test_withdraw() {
+        let deployer_private_key =
+            "7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110";
+        let wallet = LocalWallet::from_str(deployer_private_key)
+            .unwrap()
+            .with_chain_id(ERA_CHAIN_ID);
+        let zk_wallet = ZKSWallet::new(wallet, Some(era_provider()), Some(eth_provider())).unwrap();
+
+        // See balances before withdraw
+        let l1_balance_before = zk_wallet.eth_balance().await.unwrap();
+        let l2_balance_before = zk_wallet.era_balance().await.unwrap();
+
+        println!("Balance on L1 before withdrawal: {l1_balance_before}");
+        println!("Balance on L2 before withdrawal: {l2_balance_before}");
+
+        // Withdraw
+        let amount_to_withdraw = U256::from(1);
+        let tx_receipt = zk_wallet.withdraw(amount_to_withdraw).await.unwrap();
+        println!("Transaction receipt {tx_receipt:?}");
+
+        // Check that transaction in L2 is successful
+        assert_eq!(1, tx_receipt.status.unwrap().as_u64());
+
+        // Check that L2 balance inmediately after withdrawal has decreased by the used gas
+        let l2_balance_after_used_gas = zk_wallet.era_balance().await.unwrap();
+        println!("Balance on L2 with used gas: {l2_balance_after_used_gas}");
+        assert_eq!(
+            l2_balance_after_used_gas,
+            l2_balance_before
+                - tx_receipt.effective_gas_price.unwrap() * tx_receipt.gas_used.unwrap()
+        );
+
+        // assert_eq!(
+        //     l1_balance_after,
+        //     l1_balance_after + amount_to_withdraw
+        // );
+    }
 }
