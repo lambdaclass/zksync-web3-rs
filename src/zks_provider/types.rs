@@ -85,9 +85,10 @@ pub struct L1BatchDetails {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Proof {
-    pub id: U64,
-    pub proof: Vec<String>,
-    pub root: String,
+    pub id: u64,
+    #[serde(rename = "proof")]
+    pub merkle_proof: Vec<H256>,
+    pub root: Bytes,
 }
 
 // TODO: Complete struct.
