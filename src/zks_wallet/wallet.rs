@@ -18,7 +18,7 @@ use ethers::{
         },
         ContractError, MiddlewareBuilder, SignerMiddleware,
     },
-    providers::Middleware,
+    providers::{Middleware, Provider},
     signers::{Signer, Wallet},
     solc::{info::ContractInfo, Project, ProjectPathsConfig},
     types::{
@@ -546,6 +546,11 @@ where
             Some(era_provider) => era_provider,
             None => return Err(ZKSWalletError::CustomError("no era provider".to_owned())),
         };
+
+        let eth_provider = match &self.eth_provider {
+            Some(eth_provider) => eth_provider,
+            None => return Err(ZKSWalletError::CustomError("no eth provider".to_owned())),
+        };
         let withdrawal_receipt = era_provider
             .get_transaction_receipt(tx_hash)
             .await?
@@ -554,10 +559,11 @@ where
             .logs
             .into_iter()
             .filter(|log| {
-                //log.topics[0] == topic
+                //log.topics[0] == topic &&
                 log.address == Address::from_str(CONTRACTS_L1_MESSENGER_ADDR).unwrap()
             })
             .collect();
+
         let filtered_log = logs[0].clone();
         let proof = era_provider
             .get_l2_to_l1_log_proof(filtered_log.transaction_hash.unwrap(), None)
@@ -580,14 +586,45 @@ where
             message,
             merkle_proof,
         );
+        let function_signature = "function finalizeEthWithdrawal(uint256 _l2BlockNumber,uint256 _l2MessageIndex,uint16 _l2TxNumberInBlock,bytes calldata _message,bytes32[] calldata _merkleProof) external";
 
-        let response: (Vec<Token>, H256) = self.send(main_contract, "function finalizeEthWithdrawal(uint256 _l2BlockNumber,uint256 _l2MessageIndex,uint16 _l2TxNumberInBlock,bytes calldata _message,bytes32[] calldata _merkleProof) external", Some(parameters), None).await?;
+        //let response: (Vec<Token>, H256) = self.send(main_contract, "function finalizeEthWithdrawal(uint256 _l2BlockNumber,uint256 _l2MessageIndex,uint16 _l2TxNumberInBlock,bytes calldata _message,bytes32[] calldata _merkleProof) external", Some(parameters), None).await?;
 
-        Ok(era_provider
-            .get_transaction_receipt(response.1)
-            .await
-            .unwrap()
-            .unwrap())
+        // Note: We couldn't implement ZKSWalletError::LexerError because ethers-rs's LexerError is not exposed.
+        let function = HumanReadableParser::parse_function(function_signature)
+            .map_err(|e| ZKSWalletError::CustomError(e.to_string()))?;
+
+        let send_request = Eip1559TransactionRequest::new()
+            .from(self.address())
+            .to(main_contract)
+            .chain_id(ETH_CHAIN_ID)
+            .nonce(
+                eth_provider
+                    .get_transaction_count(self.address(), None)
+                    .await?,
+            )
+            .data(
+                function
+                    .encode_input(&parameters.into_tokens())
+                    .map_err(|e| ZKSWalletError::CustomError(e.to_string()))?,
+            );
+
+        let tx: TypedTransaction = send_request.clone().into();
+        println!("tx: {:?}", tx);
+
+        // FIXME this transaction is failing
+        let pending_transaction = eth_provider.send_transaction(tx, None).await?;
+
+        println!("a");
+        // TODO: Should we wait here for the transaction to be confirmed on-chain?
+
+        let transaction_receipt = pending_transaction
+            .await?
+            .ok_or(ZKSWalletError::CustomError(
+                "no transaction receipt".to_owned(),
+            ))?;
+
+        Ok(transaction_receipt)
     }
 }
 
