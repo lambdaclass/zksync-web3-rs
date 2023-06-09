@@ -35,3 +35,7 @@ sha2 = "0.9.5"
 [[example]]
 name = "simple_payment"
 path = "examples/simple_payment/main.rs"
+
+[profile.test]
+opt-level = 3
+debug-assertions = true

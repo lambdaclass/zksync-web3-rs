@@ -28,7 +28,7 @@ pub fn hash_bytecode(bytecode: &[u8]) -> Result<[u8; 32], Eip712Error> {
         .try_into()
         .map_err(|e: TryFromIntError| Eip712Error::Message(e.to_string()))?;
     let step_2: [u8; 2] = bytecode_length.to_be_bytes();
-    let step_3: [u8; 28] = sha2::Sha256::digest(bytecode.as_ref())
+    let step_3: [u8; 28] = sha2::Sha256::digest(bytecode)
         .into_iter()
         .skip(4)
         .collect::<Vec<u8>>()

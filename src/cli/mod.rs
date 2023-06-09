@@ -18,7 +18,7 @@ struct ZKSyncWeb3 {
 
 #[derive(Args)]
 pub struct ZKSyncWeb3Config {
-    #[clap(long, default_value = "65.108.204.116")]
+    #[clap(long, default_value = "65.21.140.36")]
     pub host: String,
     #[clap(short, long, default_value = "8545")]
     pub port: u16,
