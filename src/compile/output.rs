@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
 use ethers::{
-    abi::{Abi, Function, Param, StateMutability},
+    abi::{Abi, Param, StateMutability},
     solc::info::ContractInfoRef,
     types::Bytes,
 };
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ZKSArtifact {
@@ -46,37 +46,6 @@ pub struct ContractFunctionOutput {
     pub sol_struct_type: String,
 }
 
-fn deserialize_function<'de, D>(deserializer: D) -> Result<Option<Vec<Function>>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    Ok(Some(
-        <Vec<ContractFunctionOutput>>::deserialize(deserializer)?
-            .into_iter()
-            .map(Into::into)
-            .collect::<Vec<Function>>(),
-    ))
-}
-
-impl From<ContractFunctionOutput> for Function {
-    fn from(output: ContractFunctionOutput) -> Self {
-        let ContractFunctionOutput {
-            inputs,
-            name,
-            outputs,
-            state_mutability,
-            ..
-        } = output;
-        Self {
-            name: name.unwrap_or_default(),
-            inputs,
-            outputs: outputs.unwrap_or_default(),
-            state_mutability,
-            constant: None,
-        }
-    }
-}
-
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ZKSCompilationOutput {
     #[serde(rename = "contracts")]
@@ -86,7 +55,10 @@ pub struct ZKSCompilationOutput {
 }
 
 impl ZKSCompilationOutput {
-    pub fn find_contract<'a>(&self, info: impl Into<ContractInfoRef<'a>>) -> Option<&ZKSArtifact> {
+    pub fn find_contract<'contract_info>(
+        &self,
+        info: impl Into<ContractInfoRef<'contract_info>>,
+    ) -> Option<&ZKSArtifact> {
         let ContractInfoRef { path, name } = info.into();
         if let Some(path) = path {
             self.find(path, name)

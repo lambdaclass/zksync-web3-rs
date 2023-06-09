@@ -23,8 +23,13 @@ use ethers::{
         Signature, TransactionReceipt, H256, U256,
     },
 };
-use std::fmt::Debug;
-use std::{fmt::Display, fs::File, io::BufReader, path::PathBuf, str::FromStr};
+use std::{
+    fmt::{Debug, Display},
+    fs::File,
+    io::BufReader,
+    path::PathBuf,
+    str::FromStr,
+};
 
 pub struct ZKSWallet<M, D>
 where
@@ -341,7 +346,7 @@ where
                 let salt = [0_u8; 32];
                 let bytecode_hash = hash_bytecode(&contract_bytecode)?;
                 let call_data: Bytes = match (contract_abi.constructor(), constructor_parameters) {
-                    (None, Some(_)) => return Err(ContractError::ConstructorError)?,
+                    (None, Some(_)) => return Err(ContractError::ConstructorError.into()),
                     (None, None) | (Some(_), None) => Bytes::default(),
                     (Some(constructor), Some(constructor_parameters)) => constructor
                         .encode_input(
@@ -415,8 +420,8 @@ where
 
         let transaction: TypedTransaction = request.into();
 
-        let encoded_output = era_provider.call(&transaction, None).await.unwrap();
-        let decoded_output = function.decode_output(&encoded_output[..]).map_err(|e| {
+        let encoded_output = era_provider.call(&transaction, None).await?;
+        let decoded_output = function.decode_output(&encoded_output).map_err(|e| {
             ZKSWalletError::CustomError(format!("failed to decode output: {e}\n{encoded_output}"))
         })?;
 
@@ -513,7 +518,7 @@ mod zks_signer_tests {
     use std::str::FromStr;
 
     fn era_provider() -> Provider<Http> {
-        Provider::try_from("http://localhost:3050".to_owned()).unwrap()
+        Provider::try_from("http://65.21.140.36:3050".to_owned()).unwrap()
     }
 
     #[tokio::test]
@@ -641,6 +646,7 @@ mod zks_signer_tests {
     }
 
     #[tokio::test]
+    #[ignore = "skipped until the compiler OS version is fixed"]
     async fn test_deploy_contract_with_constructor_args() {
         let deployer_private_key =
             "7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110";
@@ -674,7 +680,7 @@ mod zks_signer_tests {
             .deploy(
                 "src/compile/test_contracts/storage/src/ValueStorage.sol",
                 contract_name,
-                Some(U256::from(10)),
+                Some(U256::from(10_i32)),
             )
             .await
             .unwrap();
@@ -686,6 +692,7 @@ mod zks_signer_tests {
     }
 
     #[tokio::test]
+    #[ignore = "skipped until the compiler OS version is fixed"]
     async fn test_call_view_function_with_no_parameters() {
         // Deploying a test contract
         let deployer_private_key =
@@ -718,6 +725,7 @@ mod zks_signer_tests {
     }
 
     #[tokio::test]
+    #[ignore = "skipped until the compiler OS version is fixed"]
     async fn test_call_view_function_with_arguments() {
         // Deploying a test contract
         let deployer_private_key =
@@ -755,10 +763,11 @@ mod zks_signer_tests {
             ])
             .into_tokens()
         );
-        assert_eq!(known_return_type_output, U256::from(2).into_tokens());
+        assert_eq!(known_return_type_output, U256::from(2_u64).into_tokens());
     }
 
     #[tokio::test]
+    #[ignore = "skipped until the compiler OS version is fixed"]
     async fn test_send_function_with_arguments() {
         // Deploying a test contract
         let deployer_private_key =
@@ -778,7 +787,7 @@ mod zks_signer_tests {
             .await
             .unwrap();
 
-        let value_to_set = U256::from(10);
+        let value_to_set = U256::from(10_u64);
         zk_wallet
             .send(contract_address, "setValue(uint256)", Some(value_to_set))
             .await
@@ -799,6 +808,6 @@ mod zks_signer_tests {
             .await
             .unwrap();
 
-        assert_eq!(incremented_value, (value_to_set + 1).into_tokens());
+        assert_eq!(incremented_value, (value_to_set + 1_u64).into_tokens());
     }
 }

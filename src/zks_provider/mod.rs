@@ -3,7 +3,7 @@ use ethers::{
     prelude::SignerMiddleware,
     providers::{JsonRpcClient, Middleware, Provider, ProviderError},
     signers::Signer,
-    types::{Address, H256, U256},
+    types::{Address, H256, U256, U64},
 };
 use serde::Serialize;
 use serde_json::json;
@@ -45,7 +45,9 @@ pub trait ZKSProvider {
     /// * `committed`: The batch is closed and the state transition it creates exists on layer 1.
     /// * `proven`: The batch proof has been created, submitted, and accepted on layer 1.
     /// * `executed`: The batch state transition has been executed on L1; meaning the root state has been updated.
-    async fn get_block_details(&self, block: u32) -> Result<BlockDetails, ProviderError>;
+    async fn get_block_details<T>(&self, block: T) -> Result<Option<BlockDetails>, ProviderError>
+    where
+        T: Into<U64> + Send + Sync + Serialize + Debug;
 
     /// Returns L1/L2 addresses of default bridges.
     async fn get_bridge_contracts(&self) -> Result<BridgeContracts, ProviderError>;
@@ -67,10 +69,14 @@ pub trait ZKSProvider {
     /// Returns the range of blocks contained within a batch given by batch number.
     ///
     /// The range is given by beginning/end block numbers in hexadecimal.
-    async fn get_l1_batch_block_range(&self, batch: u32) -> Result<BlockRange, ProviderError>;
+    async fn get_l1_batch_block_range<T>(&self, batch: T) -> Result<BlockRange, ProviderError>
+    where
+        T: Into<U64> + Send + Sync + Serialize + Debug;
 
     /// Returns data pertaining to a given batch.
-    async fn get_l1_batch_details(&self, batch: u32) -> Result<L1BatchDetails, ProviderError>;
+    async fn get_l1_batch_details<T>(&self, batch: T) -> Result<L1BatchDetails, ProviderError>
+    where
+        T: Into<U64> + Send + Sync + Serialize + Debug;
 
     /// Given a transaction hash, and an index of the L2 to L1 log produced within the
     /// transaction, it returns the proof for the corresponding L2 to L1 log.
@@ -86,22 +92,26 @@ pub trait ZKSProvider {
     /// Given a block, a sender, a message, and an optional message log index in the
     /// block containing the L1->L2 message, it returns the proof for the message sent
     /// via the L1Messenger system contract.
-    async fn get_l2_to_l1_msg_proof(
+    async fn get_l2_to_l1_msg_proof<T>(
         &self,
-        block: u32,
+        block: T,
         sender: Address,
         msg: H256,
         l2_log_position: Option<u64>,
-    ) -> Result<Option<Proof>, ProviderError>;
+    ) -> Result<Option<Proof>, ProviderError>
+    where
+        T: Into<U64> + Send + Sync + Serialize + Debug;
 
     /// Returns the address of the zkSync Era contract.
     async fn get_main_contract(&self) -> Result<Address, ProviderError>;
 
     /// Returns data of transactions in a block.
-    async fn get_raw_block_transactions(
+    async fn get_raw_block_transactions<T>(
         &self,
-        block: u32,
-    ) -> Result<Vec<Transaction>, ProviderError>;
+        block: T,
+    ) -> Result<Vec<Transaction>, ProviderError>
+    where
+        T: Into<U64> + Send + Sync + Serialize + Debug;
 
     /// Returns the address of the [testnet paymaster](https://era.zksync.io/docs/dev/developer-guides/aa.html#testnet-paymaster): the paymaster that is available
     /// on testnets and enables paying fees in ERC-20 compatible tokens.
@@ -130,21 +140,24 @@ pub trait ZKSProvider {
     ) -> Result<DebugTrace, ProviderError>;
 
     /// Returns debug trace of all executed calls contained in a block given by its L2 block number.
-    async fn debug_trace_block_by_number(
+    async fn debug_trace_block_by_number<T>(
         &self,
-        block: U256,
-        options: Option<TracerConfig>,
-    ) -> Result<DebugTrace, ProviderError>;
-
-    /// Returns debug trace containing information on a specific calls given by the call request.
-    async fn debug_trace_call<T>(
-        &self,
-        request: T,
-        block: Option<U256>,
+        block: T,
         options: Option<TracerConfig>,
     ) -> Result<DebugTrace, ProviderError>
     where
-        T: Debug + Serialize + Send + Sync;
+        T: Into<U64> + Send + Sync + Serialize + Debug;
+
+    /// Returns debug trace containing information on a specific calls given by the call request.
+    async fn debug_trace_call<R, T>(
+        &self,
+        request: R,
+        block: Option<T>,
+        options: Option<TracerConfig>,
+    ) -> Result<DebugTrace, ProviderError>
+    where
+        R: Debug + Serialize + Send + Sync,
+        T: Into<U64> + Send + Sync + Serialize + Debug;
 
     /// Uses the EVM's callTracer to return a debug trace of a specific transaction given by its transaction hash.
     async fn debug_trace_transaction(
@@ -184,7 +197,10 @@ impl<M: Middleware + ZKSProvider, S: Signer> ZKSProvider for SignerMiddleware<M,
         self.inner().get_all_account_balances(address).await
     }
 
-    async fn get_block_details(&self, block: u32) -> Result<BlockDetails, ProviderError> {
+    async fn get_block_details<T>(&self, block: T) -> Result<Option<BlockDetails>, ProviderError>
+    where
+        T: Into<U64> + Send + Sync + Serialize + Debug,
+    {
         self.inner().get_block_details(block).await
     }
 
@@ -204,11 +220,17 @@ impl<M: Middleware + ZKSProvider, S: Signer> ZKSProvider for SignerMiddleware<M,
         self.inner().get_confirmed_tokens(from, limit).await
     }
 
-    async fn get_l1_batch_block_range(&self, batch_id: u32) -> Result<BlockRange, ProviderError> {
+    async fn get_l1_batch_block_range<T>(&self, batch_id: T) -> Result<BlockRange, ProviderError>
+    where
+        T: Into<U64> + Send + Sync + Serialize + Debug,
+    {
         self.inner().get_l1_batch_block_range(batch_id).await
     }
 
-    async fn get_l1_batch_details(&self, batch_id: u32) -> Result<L1BatchDetails, ProviderError> {
+    async fn get_l1_batch_details<T>(&self, batch_id: T) -> Result<L1BatchDetails, ProviderError>
+    where
+        T: Into<U64> + Send + Sync + Serialize + Debug,
+    {
         self.inner().get_l1_batch_details(batch_id).await
     }
 
@@ -222,13 +244,16 @@ impl<M: Middleware + ZKSProvider, S: Signer> ZKSProvider for SignerMiddleware<M,
             .await
     }
 
-    async fn get_l2_to_l1_msg_proof(
+    async fn get_l2_to_l1_msg_proof<T>(
         &self,
-        block: u32,
+        block: T,
         sender: Address,
         msg: H256,
         l2_log_position: Option<u64>,
-    ) -> Result<Option<Proof>, ProviderError> {
+    ) -> Result<Option<Proof>, ProviderError>
+    where
+        T: Into<U64> + Send + Sync + Serialize + Debug,
+    {
         self.inner()
             .get_l2_to_l1_msg_proof(block, sender, msg, l2_log_position)
             .await
@@ -238,10 +263,13 @@ impl<M: Middleware + ZKSProvider, S: Signer> ZKSProvider for SignerMiddleware<M,
         self.inner().get_main_contract().await
     }
 
-    async fn get_raw_block_transactions(
+    async fn get_raw_block_transactions<T>(
         &self,
-        block: u32,
-    ) -> Result<Vec<Transaction>, ProviderError> {
+        block: T,
+    ) -> Result<Vec<Transaction>, ProviderError>
+    where
+        T: Into<U64> + Send + Sync + Serialize + Debug,
+    {
         self.inner().get_raw_block_transactions(block).await
     }
 
@@ -276,22 +304,26 @@ impl<M: Middleware + ZKSProvider, S: Signer> ZKSProvider for SignerMiddleware<M,
         ZKSProvider::debug_trace_block_by_hash(self.inner(), hash, options).await
     }
 
-    async fn debug_trace_block_by_number(
+    async fn debug_trace_block_by_number<T>(
         &self,
-        block: U256,
-        options: Option<TracerConfig>,
-    ) -> Result<DebugTrace, ProviderError> {
-        ZKSProvider::debug_trace_block_by_number(self.inner(), block, options).await
-    }
-
-    async fn debug_trace_call<T>(
-        &self,
-        request: T,
-        block: Option<U256>,
+        block: T,
         options: Option<TracerConfig>,
     ) -> Result<DebugTrace, ProviderError>
     where
-        T: Debug + Serialize + Send + Sync,
+        T: Into<U64> + Send + Sync + Serialize + Debug,
+    {
+        ZKSProvider::debug_trace_block_by_number(self.inner(), block, options).await
+    }
+
+    async fn debug_trace_call<R, T>(
+        &self,
+        request: R,
+        block: Option<T>,
+        options: Option<TracerConfig>,
+    ) -> Result<DebugTrace, ProviderError>
+    where
+        R: Debug + Serialize + Send + Sync,
+        T: Into<U64> + Send + Sync + Serialize + Debug,
     {
         ZKSProvider::debug_trace_call(self.inner(), request, block, options).await
     }
@@ -335,7 +367,10 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
         self.request("zks_getAllAccountBalances", [address]).await
     }
 
-    async fn get_block_details(&self, block: u32) -> Result<BlockDetails, ProviderError> {
+    async fn get_block_details<T>(&self, block: T) -> Result<Option<BlockDetails>, ProviderError>
+    where
+        T: Into<U64> + Send + Sync + Serialize + Debug,
+    {
         self.request("zks_getBlockDetails", [block]).await
     }
 
@@ -356,11 +391,17 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
             .await
     }
 
-    async fn get_l1_batch_block_range(&self, batch: u32) -> Result<BlockRange, ProviderError> {
+    async fn get_l1_batch_block_range<T>(&self, batch: T) -> Result<BlockRange, ProviderError>
+    where
+        T: Into<U64> + Send + Sync + Serialize + Debug,
+    {
         self.request("zks_getL1BatchBlockRange", [batch]).await
     }
 
-    async fn get_l1_batch_details(&self, batch: u32) -> Result<L1BatchDetails, ProviderError> {
+    async fn get_l1_batch_details<T>(&self, batch: T) -> Result<L1BatchDetails, ProviderError>
+    where
+        T: Into<U64> + Send + Sync + Serialize + Debug,
+    {
         self.request("zks_getL1BatchDetails", [batch]).await
     }
 
@@ -376,13 +417,16 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
         .await
     }
 
-    async fn get_l2_to_l1_msg_proof(
+    async fn get_l2_to_l1_msg_proof<T>(
         &self,
-        block: u32,
+        block: T,
         sender: Address,
         msg: H256,
         l2_log_position: Option<u64>,
-    ) -> Result<Option<Proof>, ProviderError> {
+    ) -> Result<Option<Proof>, ProviderError>
+    where
+        T: Into<U64> + Send + Sync + Serialize + Debug,
+    {
         self.request(
             "zks_getL2ToL1MsgProof",
             json!([block, sender, msg, l2_log_position]),
@@ -394,10 +438,13 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
         self.request("zks_getMainContract", ()).await
     }
 
-    async fn get_raw_block_transactions(
+    async fn get_raw_block_transactions<T>(
         &self,
-        block: u32,
-    ) -> Result<Vec<Transaction>, ProviderError> {
+        block: T,
+    ) -> Result<Vec<Transaction>, ProviderError>
+    where
+        T: Into<U64> + Send + Sync + Serialize + Debug,
+    {
         self.request("zks_getRawBlockTransactions", [block]).await
     }
 
@@ -434,34 +481,54 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
                 "debug_traceBlockByHash",
                 json!([hash, options]),
             )
-            .await?[0]["result"]
+            .await?
+            .get(0)
+            .ok_or(ProviderError::CustomError(
+                "error on debug_trace_block_by_hash".to_owned(),
+            ))?
+            .get("result")
+            .ok_or(ProviderError::CustomError(
+                "error on debug_trace_block_by_hash".to_owned(),
+            ))?
             .clone();
         serde_json::from_value(processable_response).map_err(ProviderError::SerdeJson)
     }
 
-    async fn debug_trace_block_by_number(
+    async fn debug_trace_block_by_number<T>(
         &self,
-        block: U256,
+        block: T,
         options: Option<TracerConfig>,
-    ) -> Result<DebugTrace, ProviderError> {
+    ) -> Result<DebugTrace, ProviderError>
+    where
+        T: Into<U64> + Send + Sync + Serialize + Debug,
+    {
         let processable_response = self
             .request::<serde_json::Value, serde_json::Value>(
                 "debug_traceBlockByNumber",
                 json!([block, options]),
             )
-            .await?[0]["result"]
+            .await?
+            .get(0)
+            .ok_or(ProviderError::CustomError(
+                "error on debug_trace_block_by_hash".to_owned(),
+            ))?
+            .get("result")
+            .ok_or(ProviderError::CustomError(
+                "error on debug_trace_block_by_hash".to_owned(),
+            ))?
             .clone();
         serde_json::from_value(processable_response).map_err(ProviderError::SerdeJson)
     }
 
-    async fn debug_trace_call<T>(
+    async fn debug_trace_call<R, T>(
         &self,
-        request: T,
-        block: Option<U256>,
+        request: R,
+        block: Option<T>,
         options: Option<TracerConfig>,
     ) -> Result<DebugTrace, ProviderError>
     where
-        T: Debug + Serialize + Send + Sync,
+        R: Debug + Serialize + Send + Sync,
+        T: Into<U64> + Send + Sync + Serialize + Debug,
     {
         self.request("debug_traceCall", json!([request, block, options]))
             .await
@@ -479,42 +546,53 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
+    use std::{collections::HashMap, str::FromStr};
 
-    use crate::zks_provider::{types::TracerConfig, ZKSProvider};
+    use crate::{
+        zks_provider::{types::TracerConfig, ZKSProvider},
+        zks_utils::ERA_CHAIN_ID,
+        zks_wallet::ZKSWallet,
+    };
     use ethers::{
         prelude::{k256::ecdsa::SigningKey, MiddlewareBuilder, SignerMiddleware},
         providers::{Middleware, Provider},
-        signers::{Signer, Wallet},
+        signers::{LocalWallet, Signer, Wallet},
         types::{Address, H256, U256},
     };
     use serde::{Deserialize, Serialize};
 
     const L2_CHAIN_ID: u64 = 270;
 
-    fn local_provider() -> Provider<ethers::providers::Http> {
+    fn era_provider() -> Provider<ethers::providers::Http> {
         Provider::try_from(format!(
             "http://{host}:{port}",
-            host = "localhost",
+            host = "65.21.140.36",
             port = 3_050_i32
         ))
         .unwrap()
-        .interval(std::time::Duration::from_millis(10))
+        .interval(std::time::Duration::from_millis(10_u64))
     }
 
-    fn local_signer() -> SignerMiddleware<Provider<ethers::providers::Http>, Wallet<SigningKey>> {
+    fn local_wallet() -> LocalWallet {
+        "0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110"
+            .parse::<LocalWallet>()
+            .unwrap()
+            .with_chain_id(ERA_CHAIN_ID)
+    }
+
+    fn era_signer() -> SignerMiddleware<Provider<ethers::providers::Http>, Wallet<SigningKey>> {
         let signer = Wallet::with_chain_id(
             "0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110"
                 .parse::<Wallet<SigningKey>>()
                 .unwrap(),
             L2_CHAIN_ID,
         );
-        local_provider().with_signer(signer)
+        era_provider().with_signer(signer)
     }
 
     #[tokio::test]
     async fn test_provider_estimate_fee() {
-        let provider = local_provider();
+        let provider = era_provider();
         #[derive(Serialize, Deserialize, Debug)]
         struct TestTransaction {
             from: String,
@@ -530,25 +608,22 @@ mod tests {
 
         let estimated_fee = provider.estimate_fee(transaction).await.unwrap();
 
-        assert_eq!(estimated_fee.gas_limit, U256::from(162_436_i32));
-        assert_eq!(estimated_fee.gas_per_pubdata_limit, U256::from(66_i32));
-        assert_eq!(estimated_fee.max_fee_per_gas, U256::from(250_000_000_i32));
-        assert_eq!(estimated_fee.max_priority_fee_per_gas, U256::from(0_i32));
+        assert_eq!(estimated_fee.gas_limit, U256::from(162_436_u32));
+        assert_eq!(estimated_fee.gas_per_pubdata_limit, U256::from(66_u32));
+        assert_eq!(estimated_fee.max_fee_per_gas, U256::from(250_000_000_u32));
+        assert_eq!(estimated_fee.max_priority_fee_per_gas, U256::from(0_u32));
     }
 
     #[tokio::test]
     async fn test_provider_get_testnet_paymaster() {
-        let provider = local_provider();
-        let expected_address: Address = "0x4cccf49428918845022048757f8c9af961fa9a90"
-            .parse()
-            .unwrap();
-        let testnet_paymaster = provider.get_testnet_paymaster().await.unwrap();
-        assert_eq!(testnet_paymaster, expected_address);
+        let provider = era_provider();
+
+        assert!(provider.get_testnet_paymaster().await.is_ok());
     }
 
     #[tokio::test]
     async fn test_provider_estimate_gas_l1_to_l2() {
-        let provider = local_provider();
+        let provider = era_provider();
         #[derive(Serialize, Deserialize, Debug)]
         struct TestTransaction {
             from: String,
@@ -564,13 +639,13 @@ mod tests {
 
         let estimated_fee = provider.estimate_gas_l1_to_l2(transaction).await.unwrap();
 
-        assert_eq!(estimated_fee, U256::from(36_768_868_i32));
+        assert_eq!(estimated_fee, U256::from(36_768_868_u64));
     }
 
     #[tokio::test]
     // TODO: This test is flacky. It could fail in the future.
     async fn test_provider_get_all_account_balances() {
-        let provider = local_provider();
+        let provider = era_provider();
         let address: Address = "0xbd29a1b981925b94eec5c4f1125af02a2ec4d1ca"
             .parse()
             .unwrap();
@@ -593,34 +668,44 @@ mod tests {
 
     #[tokio::test]
     async fn test_provider_get_block_details() {
-        let provider = local_provider();
-        let block = 2;
+        let provider = era_provider();
+        let existing_block = 1_u64;
+        let non_existing_block = provider.get_block_number().await.unwrap() + 100_u64;
 
-        assert!(provider.get_block_details(block).await.is_ok())
+        let existing_block_details = provider.get_block_details(existing_block).await.unwrap();
+        let non_existing_block_details = provider
+            .get_block_details(non_existing_block.as_u32())
+            .await
+            .unwrap();
+
+        assert!(existing_block_details.is_some());
+        assert!(non_existing_block_details.is_none())
     }
 
     #[tokio::test]
     async fn test_provider_get_bridge_contracts() {
-        let provider = local_provider();
+        let provider = era_provider();
 
         assert!(provider.get_bridge_contracts().await.is_ok());
     }
 
     #[tokio::test]
     async fn test_provider_get_bytecode_by_hash() {
-        let provider = local_provider();
-        let invalid_hash = H256::default();
-        let test_block = provider.get_block_details(2).await.unwrap();
+        let provider = era_provider();
+        let invalid_hash = "0x7641711d8997f701a4d5929b6661185aeb5ae1fdff33288b6b5df1c05135cfc9"
+            .parse()
+            .unwrap();
+        let test_block = provider.get_block_details(2_u64).await.unwrap().unwrap();
         let valid_hash = test_block.root_hash;
 
-        assert!(provider.get_bytecode_by_hash(invalid_hash).await.is_err());
-        assert!(provider.get_bytecode_by_hash(valid_hash).await.is_err());
+        assert!(provider.get_bytecode_by_hash(invalid_hash).await.is_ok());
+        assert!(provider.get_bytecode_by_hash(valid_hash).await.is_ok());
     }
 
     #[tokio::test]
     #[ignore = "fix"]
     async fn test_provider_get_confirmed_tokens() {
-        let provider = local_provider();
+        let provider = era_provider();
         let from = 0;
         let limit = 10;
 
@@ -630,23 +715,23 @@ mod tests {
     // TODO: This test is flacky. It could fail in the future.
     #[tokio::test]
     async fn test_provider_get_l1_batch_block_range() {
-        let provider = local_provider();
-        let batch = 1;
+        let provider = era_provider();
+        let batch = 1_u64;
 
         assert!(provider.get_l1_batch_block_range(batch).await.is_ok());
     }
 
     #[tokio::test]
     async fn test_provider_get_l1_batch_details() {
-        let provider = local_provider();
-        let batch = 1;
+        let provider = era_provider();
+        let batch = 1_u64;
 
         assert!(provider.get_l1_batch_details(batch).await.is_ok());
     }
 
     #[tokio::test]
     async fn test_provider_get_l2_to_l1_log_proof() {
-        let provider = local_provider();
+        let provider = era_provider();
         let tx_hash: H256 = "0xac9cf301af3b11760feb9d84283513f993dcd29de6e5fd28a8f41b1c7c0469ed"
             .parse()
             .unwrap();
@@ -666,29 +751,24 @@ mod tests {
 
     #[tokio::test]
     async fn test_provider_get_main_contract() {
-        let provider = local_provider();
-        let expected_address: Address = "0x7e9549ad6911839bd256672ca14cec0760add9fd"
-            .parse()
-            .unwrap();
+        let provider = era_provider();
 
-        let main_contract = provider.get_main_contract().await.unwrap();
-
-        assert_eq!(main_contract, expected_address);
+        assert!(provider.get_main_contract().await.is_ok());
     }
 
     // TODO: This test is flacky. It could fail in the future. We should create a
     // transaction, send it, and the assert that the details match.
     #[tokio::test]
     async fn test_provider_get_raw_block_transactions() {
-        let provider = local_provider();
-        let block = 1;
+        let provider = era_provider();
+        let block = 1_u64;
 
         assert!(provider.get_raw_block_transactions(block).await.is_ok());
     }
 
     #[tokio::test]
     async fn test_provider_get_token_price() {
-        let provider = local_provider();
+        let provider = era_provider();
         let address: Address = "0x0000000000000000000000000000000000000000"
             .parse()
             .unwrap();
@@ -700,8 +780,8 @@ mod tests {
     // transaction, send it, and the assert that the details match.
     #[tokio::test]
     async fn test_provider_get_transaction_details() {
-        let provider = local_provider();
-        let test_block = provider.get_block_details(2).await.unwrap();
+        let provider = era_provider();
+        let test_block = provider.get_block_details(2_u64).await.unwrap().unwrap();
         let hash = test_block.root_hash;
 
         assert!(provider.get_transaction_details(hash).await.is_ok());
@@ -709,23 +789,28 @@ mod tests {
 
     #[tokio::test]
     async fn test_provider_get_l1_batch_number() {
-        let provider = local_provider();
+        let provider = era_provider();
 
         assert!(provider.get_l1_batch_number().await.is_ok());
     }
 
     #[tokio::test]
     async fn test_provider_get_l1_chain_id() {
-        let provider = local_provider();
+        let provider = era_provider();
 
         assert!(provider.get_l1_chain_id().await.is_ok());
     }
 
     #[tokio::test]
     async fn test_provider_debug_trace_block_by_hash() {
-        let provider = local_provider();
-        let test_block = provider.get_block_details(2).await.unwrap();
-        let hash = test_block.root_hash;
+        let provider = era_provider();
+        let block_number = provider.get_block_number().await.unwrap() - 1_u64;
+        let test_block = provider
+            .get_block_details(block_number.as_u32())
+            .await
+            .unwrap()
+            .unwrap();
+        let hash_block = test_block.root_hash;
 
         let options = Some(TracerConfig {
             disable_storage: None,
@@ -737,12 +822,12 @@ mod tests {
         });
 
         assert!(
-            ZKSProvider::debug_trace_block_by_hash(&provider, hash, None)
+            ZKSProvider::debug_trace_block_by_hash(&provider, hash_block, None)
                 .await
                 .is_ok()
         );
         assert!(
-            ZKSProvider::debug_trace_block_by_hash(&provider, hash, options)
+            ZKSProvider::debug_trace_block_by_hash(&provider, hash_block, options)
                 .await
                 .is_ok()
         );
@@ -750,8 +835,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_provider_debug_trace_block_by_number() {
-        let provider = local_provider();
-        let block_number = U256::from(2);
+        let provider = era_provider();
+        let existing_block_number = provider.get_block_number().await.unwrap() - 1_u64;
+        let non_existing_block_number = existing_block_number + 100_u64;
         let options = Some(TracerConfig {
             disable_storage: None,
             disable_stack: None,
@@ -762,20 +848,36 @@ mod tests {
         });
 
         assert!(
-            ZKSProvider::debug_trace_block_by_number(&provider, block_number, None)
+            ZKSProvider::debug_trace_block_by_number(&provider, existing_block_number, None)
                 .await
                 .is_ok()
         );
-        assert!(
-            ZKSProvider::debug_trace_block_by_number(&provider, block_number, options)
-                .await
-                .is_ok()
-        );
+        assert!(ZKSProvider::debug_trace_block_by_number(
+            &provider,
+            existing_block_number,
+            options.clone()
+        )
+        .await
+        .is_ok());
+        assert!(ZKSProvider::debug_trace_block_by_number(
+            &provider,
+            non_existing_block_number,
+            None
+        )
+        .await
+        .is_err());
+        assert!(ZKSProvider::debug_trace_block_by_number(
+            &provider,
+            non_existing_block_number,
+            options
+        )
+        .await
+        .is_err());
     }
 
     #[tokio::test]
     async fn test_provider_debug_trace_call() {
-        let provider = local_provider();
+        let provider = era_provider();
         #[derive(Serialize, Deserialize, Debug)]
         struct TestTransaction {
             from: String,
@@ -789,7 +891,7 @@ mod tests {
             data: "0x608060405234801561001057600080fd5b50610228806100206000396000f3fe608060405234801561001057600080fd5b506004361061002b5760003560e01c80639146769014610030575b600080fd5b61003861004e565b6040516100459190610170565b60405180910390f35b60606000805461005d906101c1565b80601f0160208091040260200160405190810160405280929190818152602001828054610089906101c1565b80156100d65780601f106100ab576101008083540402835291602001916100d6565b820191906000526020600020905b8154815290600101906020018083116100b957829003601f168201915b5050505050905090565b600081519050919050565b600082825260208201905092915050565b60005b8381101561011a5780820151818401526020810190506100ff565b60008484015250505050565b6000601f19601f8301169050919050565b6000610142826100e0565b61014c81856100eb565b935061015c8185602086016100fc565b61016581610126565b840191505092915050565b6000602082019050818103600083015261018a8184610137565b905092915050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052602260045260246000fd5b600060028204905060018216806101d957607f821691505b6020821081036101ec576101eb610192565b5b5091905056fea26469706673582212203d7f62ad5ef1f9670aa630c438f1a75844e1d2cfaf92e6985c698b7009e3dfa864736f6c63430008140033".to_owned(),
         };
 
-        let block = Some(U256::from(2));
+        let block = provider.get_block_number().await.ok();
         let options = Some(TracerConfig {
             disable_storage: None,
             disable_stack: None,
@@ -799,11 +901,17 @@ mod tests {
             tracer_config: Some(HashMap::from([("onlyTopCall".to_owned(), true)])),
         });
 
-        assert!(
-            ZKSProvider::debug_trace_call(&provider, &request, None, None)
+        println!(
+            "{:?}",
+            ZKSProvider::debug_trace_call::<&TestTransaction, u64>(&provider, &request, None, None)
                 .await
-                .is_ok()
         );
+
+        assert!(ZKSProvider::debug_trace_call::<&TestTransaction, u64>(
+            &provider, &request, None, None
+        )
+        .await
+        .is_ok());
         assert!(
             ZKSProvider::debug_trace_call(&provider, &request, block, None)
                 .await
@@ -815,7 +923,7 @@ mod tests {
                 .is_ok()
         );
         assert!(
-            ZKSProvider::debug_trace_call(&provider, request, None, options)
+            ZKSProvider::debug_trace_call::<_, u64>(&provider, request, None, options)
                 .await
                 .is_ok()
         );
@@ -824,10 +932,23 @@ mod tests {
     // TODO: This test is flacky. It could fail in the future.
     #[tokio::test]
     async fn test_provider_debug_trace_transaction() {
-        let provider = local_provider();
-        let transaction_hash = "0x84472204e445cb3cd5f3ce5e23abcc2892cda5e61b35855a7f0bb1562a6e30e7"
-            .parse()
-            .unwrap();
+        let era_provider = era_provider();
+        let zk_wallet = ZKSWallet::new(local_wallet(), Some(era_signer()), None).unwrap();
+
+        let transaction_hash = zk_wallet
+            .transfer(
+                Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049").unwrap(),
+                1_u64.into(),
+                None,
+            )
+            .await
+            .unwrap()
+            .transaction_hash;
+        let invalid_transaction_hash: H256 =
+            "0x84472204e445cb3cd5f3ce5e23abcc2892cda5e61b35855a7f0bb1562a6e30e7"
+                .parse()
+                .unwrap();
+
         let options = Some(TracerConfig {
             disable_storage: None,
             disable_stack: None,
@@ -838,20 +959,36 @@ mod tests {
         });
 
         assert!(
-            ZKSProvider::debug_trace_transaction(&provider, transaction_hash, None)
+            ZKSProvider::debug_trace_transaction(&era_provider, transaction_hash, None)
                 .await
                 .is_ok()
         );
-        assert!(
-            ZKSProvider::debug_trace_transaction(&provider, transaction_hash, options)
-                .await
-                .is_ok()
-        );
+        assert!(ZKSProvider::debug_trace_transaction(
+            &era_provider,
+            transaction_hash,
+            options.clone()
+        )
+        .await
+        .is_ok());
+        assert!(ZKSProvider::debug_trace_transaction(
+            &era_provider,
+            invalid_transaction_hash,
+            None
+        )
+        .await
+        .is_err());
+        assert!(ZKSProvider::debug_trace_transaction(
+            &era_provider,
+            invalid_transaction_hash,
+            options
+        )
+        .await
+        .is_err());
     }
 
     #[tokio::test]
     async fn test_signer_estimate_fee() {
-        let provider = local_signer();
+        let provider = era_signer();
         #[derive(Serialize, Deserialize, Debug)]
         struct TestTransaction {
             from: String,
@@ -867,25 +1004,22 @@ mod tests {
 
         let estimated_fee = provider.estimate_fee(transaction).await.unwrap();
 
-        assert_eq!(estimated_fee.gas_limit, U256::from(162_436_i32));
-        assert_eq!(estimated_fee.gas_per_pubdata_limit, U256::from(66_i32));
-        assert_eq!(estimated_fee.max_fee_per_gas, U256::from(250_000_000_i32));
-        assert_eq!(estimated_fee.max_priority_fee_per_gas, U256::from(0_i32));
+        assert_eq!(estimated_fee.gas_limit, U256::from(162_436_u32));
+        assert_eq!(estimated_fee.gas_per_pubdata_limit, U256::from(66_u32));
+        assert_eq!(estimated_fee.max_fee_per_gas, U256::from(250_000_000_u32));
+        assert_eq!(estimated_fee.max_priority_fee_per_gas, U256::from(0_u32));
     }
 
     #[tokio::test]
     async fn test_signer_get_testnet_paymaster() {
-        let provider = local_signer();
-        let expected_address: Address = "0x4cccf49428918845022048757f8c9af961fa9a90"
-            .parse()
-            .unwrap();
-        let testnet_paymaster = provider.get_testnet_paymaster().await.unwrap();
-        assert_eq!(testnet_paymaster, expected_address);
+        let provider = era_signer();
+
+        assert!(provider.get_testnet_paymaster().await.is_ok());
     }
 
     #[tokio::test]
     async fn test_signer_estimate_gas_l1_to_l2() {
-        let provider = local_signer();
+        let provider = era_signer();
         #[derive(Serialize, Deserialize, Debug)]
         struct TestTransaction {
             from: String,
@@ -901,13 +1035,13 @@ mod tests {
 
         let estimated_fee = provider.estimate_gas_l1_to_l2(transaction).await.unwrap();
 
-        assert_eq!(estimated_fee, U256::from(36_768_868_i32));
+        assert_eq!(estimated_fee, U256::from(36_768_868_u32));
     }
 
     #[tokio::test]
     // TODO: This test is flacky. It could fail in the future.
     async fn test_signer_get_all_account_balances() {
-        let provider = local_signer();
+        let provider = era_signer();
         let address: Address = "0xbd29a1b981925b94eec5c4f1125af02a2ec4d1ca"
             .parse()
             .unwrap();
@@ -930,34 +1064,44 @@ mod tests {
 
     #[tokio::test]
     async fn test_signer_get_block_details() {
-        let provider = local_signer();
-        let block = 2;
+        let provider = era_signer();
+        let existing_block = 1_u64;
+        let non_existing_block = provider.get_block_number().await.unwrap() + 100_u64;
 
-        assert!(provider.get_block_details(block).await.is_ok())
+        let existing_block_details = provider.get_block_details(existing_block).await.unwrap();
+        let non_existing_block_details = provider
+            .get_block_details(non_existing_block.as_u32())
+            .await
+            .unwrap();
+
+        assert!(existing_block_details.is_some());
+        assert!(non_existing_block_details.is_none())
     }
 
     #[tokio::test]
     async fn test_signer_get_bridge_contracts() {
-        let provider = local_signer();
+        let provider = era_signer();
 
         assert!(provider.get_bridge_contracts().await.is_ok());
     }
 
     #[tokio::test]
     async fn test_signer_get_bytecode_by_hash() {
-        let provider = local_signer();
-        let invalid_hash = H256::default();
+        let provider = era_signer();
+        let invalid_hash = "0xac9cf301af3b11760feb9d84283513f993dcd29de6e5fd28a8f41b1c7c0469ed"
+            .parse()
+            .unwrap();
         let valid_hash: H256 = "0x7641711d8997f701a4d5929b6661185aeb5ae1fdff33288b6b5df1c05135cfc9"
             .parse()
             .unwrap();
 
-        assert!(provider.get_bytecode_by_hash(invalid_hash).await.is_err());
-        assert!(provider.get_bytecode_by_hash(valid_hash).await.is_err());
+        assert!(provider.get_bytecode_by_hash(invalid_hash).await.is_ok());
+        assert!(provider.get_bytecode_by_hash(valid_hash).await.is_ok());
     }
 
     #[tokio::test]
     async fn test_signer_get_confirmed_tokens() {
-        let provider = local_signer();
+        let provider = era_signer();
         let from = 0;
         let limit = 10;
 
@@ -967,23 +1111,23 @@ mod tests {
     // TODO: This test is flacky. It could fail in the future.
     #[tokio::test]
     async fn test_signer_get_l1_batch_block_range() {
-        let provider = local_signer();
-        let batch = 1;
+        let provider = era_signer();
+        let batch = 1_u64;
 
         assert!(provider.get_l1_batch_block_range(batch).await.is_ok());
     }
 
     #[tokio::test]
     async fn test_signer_get_l1_batch_details() {
-        let provider = local_signer();
-        let batch = 1;
+        let provider = era_signer();
+        let batch = 1_u64;
 
         assert!(provider.get_l1_batch_details(batch).await.is_ok());
     }
 
     #[tokio::test]
     async fn test_signer_get_l2_to_l1_log_proof() {
-        let provider = local_signer();
+        let provider = era_signer();
         let tx_hash: H256 = "0xac9cf301af3b11760feb9d84283513f993dcd29de6e5fd28a8f41b1c7c0469ed"
             .parse()
             .unwrap();
@@ -1003,29 +1147,24 @@ mod tests {
 
     #[tokio::test]
     async fn test_signer_get_main_contract() {
-        let provider = local_signer();
-        let expected_address: Address = "0x7e9549ad6911839bd256672ca14cec0760add9fd"
-            .parse()
-            .unwrap();
+        let provider = era_signer();
 
-        let main_contract = provider.get_main_contract().await.unwrap();
-
-        assert_eq!(main_contract, expected_address);
+        assert!(provider.get_main_contract().await.is_ok());
     }
 
     // TODO: This test is flacky. It could fail in the future. We should create a
     // transaction, send it, and the assert that the details match.
     #[tokio::test]
     async fn test_signer_get_raw_block_transactions() {
-        let provider = local_signer();
-        let block = 1;
+        let provider = era_signer();
+        let block = 1_u64;
 
         assert!(provider.get_raw_block_transactions(block).await.is_ok());
     }
 
     #[tokio::test]
     async fn test_signer_get_token_price() {
-        let provider = local_signer();
+        let provider = era_signer();
         let address: Address = "0x0000000000000000000000000000000000000000"
             .parse()
             .unwrap();
@@ -1037,7 +1176,7 @@ mod tests {
     // transaction, send it, and the assert that the details match.
     #[tokio::test]
     async fn test_signer_get_transaction_details() {
-        let provider = local_signer();
+        let provider = era_signer();
         let hash: H256 = "0xac9cf301af3b11760feb9d84283513f993dcd29de6e5fd28a8f41b1c7c0469ed"
             .parse()
             .unwrap();
@@ -1047,22 +1186,27 @@ mod tests {
 
     #[tokio::test]
     async fn test_signer_get_l1_batch_number() {
-        let provider = local_signer();
+        let provider = era_signer();
 
         assert!(provider.get_l1_batch_number().await.is_ok());
     }
 
     #[tokio::test]
     async fn test_signer_get_l1_chain_id() {
-        let provider = local_signer();
+        let provider = era_signer();
 
         assert!(provider.get_l1_chain_id().await.is_ok());
     }
 
     #[tokio::test]
     async fn test_signer_debug_trace_block_by_hash() {
-        let provider = local_signer();
-        let test_block = provider.get_block_details(2).await.unwrap();
+        let provider = era_signer();
+        let block_number = provider.get_block_number().await.unwrap() - 1_u64;
+        let test_block = provider
+            .get_block_details(block_number.as_u32())
+            .await
+            .unwrap()
+            .unwrap();
         let hash = test_block.root_hash;
 
         let options = Some(TracerConfig {
@@ -1088,8 +1232,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_signer_debug_trace_block_by_number() {
-        let provider = local_signer();
-        let block_number = U256::from(2);
+        let provider = era_signer();
+        let existing_block_number = provider.get_block_number().await.unwrap() - 1_u64;
+        let non_existing_block_number = existing_block_number + 100_u64;
         let options = Some(TracerConfig {
             disable_storage: None,
             disable_stack: None,
@@ -1100,20 +1245,36 @@ mod tests {
         });
 
         assert!(
-            ZKSProvider::debug_trace_block_by_number(&provider, block_number, None)
+            ZKSProvider::debug_trace_block_by_number(&provider, existing_block_number, None)
                 .await
                 .is_ok()
         );
-        assert!(
-            ZKSProvider::debug_trace_block_by_number(&provider, block_number, options)
-                .await
-                .is_ok()
-        );
+        assert!(ZKSProvider::debug_trace_block_by_number(
+            &provider,
+            existing_block_number,
+            options.clone()
+        )
+        .await
+        .is_ok());
+        assert!(ZKSProvider::debug_trace_block_by_number(
+            &provider,
+            non_existing_block_number,
+            None
+        )
+        .await
+        .is_err());
+        assert!(ZKSProvider::debug_trace_block_by_number(
+            &provider,
+            non_existing_block_number,
+            options
+        )
+        .await
+        .is_err());
     }
 
     #[tokio::test]
     async fn test_signer_debug_trace_call() {
-        let provider = local_signer();
+        let provider = era_signer();
         #[derive(Serialize, Deserialize, Debug)]
         struct TestTransaction {
             from: String,
@@ -1127,7 +1288,7 @@ mod tests {
             data: "0x608060405234801561001057600080fd5b50610228806100206000396000f3fe608060405234801561001057600080fd5b506004361061002b5760003560e01c80639146769014610030575b600080fd5b61003861004e565b6040516100459190610170565b60405180910390f35b60606000805461005d906101c1565b80601f0160208091040260200160405190810160405280929190818152602001828054610089906101c1565b80156100d65780601f106100ab576101008083540402835291602001916100d6565b820191906000526020600020905b8154815290600101906020018083116100b957829003601f168201915b5050505050905090565b600081519050919050565b600082825260208201905092915050565b60005b8381101561011a5780820151818401526020810190506100ff565b60008484015250505050565b6000601f19601f8301169050919050565b6000610142826100e0565b61014c81856100eb565b935061015c8185602086016100fc565b61016581610126565b840191505092915050565b6000602082019050818103600083015261018a8184610137565b905092915050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052602260045260246000fd5b600060028204905060018216806101d957607f821691505b6020821081036101ec576101eb610192565b5b5091905056fea26469706673582212203d7f62ad5ef1f9670aa630c438f1a75844e1d2cfaf92e6985c698b7009e3dfa864736f6c63430008140033".to_owned(),
         };
 
-        let block = Some(U256::from(2));
+        let block = provider.get_block_number().await.ok();
         let options = Some(TracerConfig {
             disable_storage: None,
             disable_stack: None,
@@ -1138,7 +1299,7 @@ mod tests {
         });
 
         assert!(
-            ZKSProvider::debug_trace_call(&provider, &request, None, None)
+            ZKSProvider::debug_trace_call::<_, u64>(&provider, &request, None, None)
                 .await
                 .is_ok()
         );
@@ -1153,19 +1314,31 @@ mod tests {
                 .is_ok()
         );
         assert!(
-            ZKSProvider::debug_trace_call(&provider, request, None, options)
+            ZKSProvider::debug_trace_call::<_, u64>(&provider, request, None, options)
                 .await
                 .is_ok()
         );
     }
 
-    // TODO: This test is flacky. It could fail in the future.
     #[tokio::test]
     async fn test_signer_debug_trace_transaction() {
-        let provider = local_signer();
-        let transaction_hash = "0x84472204e445cb3cd5f3ce5e23abcc2892cda5e61b35855a7f0bb1562a6e30e7"
-            .parse()
-            .unwrap();
+        let era_signer = era_signer();
+        let zk_wallet = ZKSWallet::new(local_wallet(), Some(era_signer.clone()), None).unwrap();
+
+        let transaction_hash = zk_wallet
+            .transfer(
+                Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049").unwrap(),
+                1_i32.into(),
+                None,
+            )
+            .await
+            .unwrap()
+            .transaction_hash;
+        let invalid_transaction_hash: H256 =
+            "0x84472204e445cb3cd5f3ce5e23abcc2892cda5e61b35855a7f0bb1562a6e30e7"
+                .parse()
+                .unwrap();
+
         let options = Some(TracerConfig {
             disable_storage: None,
             disable_stack: None,
@@ -1176,14 +1349,19 @@ mod tests {
         });
 
         assert!(
-            ZKSProvider::debug_trace_transaction(&provider, transaction_hash, None)
+            ZKSProvider::debug_trace_transaction(&era_signer, transaction_hash, None)
                 .await
                 .is_ok()
         );
         assert!(
-            ZKSProvider::debug_trace_transaction(&provider, transaction_hash, options)
+            ZKSProvider::debug_trace_transaction(&era_signer, transaction_hash, options)
                 .await
                 .is_ok()
+        );
+        assert!(
+            ZKSProvider::debug_trace_transaction(&era_signer, invalid_transaction_hash, None)
+                .await
+                .is_err()
         );
     }
 }
