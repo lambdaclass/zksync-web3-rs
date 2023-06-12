@@ -20,13 +20,13 @@
 - [CLI](#cli)
   - [Installation](#installation)
   - [Usage](#usage)
-    - [`zksync-web3-cli deploy`](#zksync-web3-cli-deploy)
-    - [`zksync-web3-cli call`](#zksync-web3-cli-call)
-    - [`zksync-web3-cli get-contract`](#zksync-web3-cli-get-contract)
-    - [`zksync-web3-cli get-transaction`](#zksync-web3-cli-get-transaction)
-    - [`zksync-web3-cli balance`](#zksync-web3-cli-balance)
-    - [`zksync-web3-cli pay`](#zksync-web3-cli-pay)
-    - [`zksync-web3-cli compile`](#zksync-web3-cli-compile)
+    - [`zksync-web3-rs deploy`](#zksync-web3-rs-deploy)
+    - [`zksync-web3-rs call`](#zksync-web3-rs-call)
+    - [`zksync-web3-rs get-contract`](#zksync-web3-rs-get-contract)
+    - [`zksync-web3-rs get-transaction`](#zksync-web3-rs-get-transaction)
+    - [`zksync-web3-rs balance`](#zksync-web3-rs-balance)
+    - [`zksync-web3-rs pay`](#zksync-web3-rs-pay)
+    - [`zksync-web3-rs compile`](#zksync-web3-rs-compile)
       - [Status (for full compatibility)](#status-for-full-compatibility)
 
 
@@ -223,10 +223,10 @@ make cli
 
 ### Usage
 
-Running `zksync-web3-cli` outputs the following:
+Running `zksync-web3-rs` outputs the following:
 
 ```
-Usage: zksync-web3-cli [OPTIONS] <COMMAND>
+Usage: zksync-web3-rs [OPTIONS] <COMMAND>
 
 Commands:
   deploy
@@ -242,62 +242,62 @@ Options:
   -V, --version      Print version
 ```
 
-#### `zksync-web3-cli deploy`
+#### `zksync-web3-rs deploy`
 
 Deploys the contract located in `CONTRACT_PATH/src` signing the transaction with `PRIVATE_KEY`.
 
 ```
-zksync-web3-cli deploy --contract <CONTRACT_PATH> --private-key <PRIVATE_KEY>
+zksync-web3-rs deploy --contract <CONTRACT_PATH> --private-key <PRIVATE_KEY>
 ```
 
-#### `zksync-web3-cli call`
+#### `zksync-web3-rs call`
 
 Calls `FUNCTION_SIGNATURE` of `CONTRACT_ADDRESS` with args `FUNCTION_ARGS`. If you want o call a `public view` contract function then you don't need to provide your `PRIVATE_KEY`. You must provide the latter only if you want to call a contract function that performs a state change.
 
 ```
-zksync-web3-cli call --contract <CONTRACT_ADDRESS> --function <FUNCTION_SIGNATURE> --args <FUNCTION_ARGS> --private-key <PRIVATE_KEY>
+zksync-web3-rs call --contract <CONTRACT_ADDRESS> --function <FUNCTION_SIGNATURE> --args <FUNCTION_ARGS> --private-key <PRIVATE_KEY>
 ```
 
-#### `zksync-web3-cli get-contract`
+#### `zksync-web3-rs get-contract`
 
 Gets `CONTRACT_ADDRESS`'s bytecode.
 
 ```
-zksync-web3-cli get-contract --contract <CONTRACT_ADDRESS>
+zksync-web3-rs get-contract --contract <CONTRACT_ADDRESS>
 ```
 
-#### `zksync-web3-cli get-transaction`
+#### `zksync-web3-rs get-transaction`
 
 Get the transaction corresponding to `TRANSACTION_HASH`.
 
 ```
-zksync-web3-cli get-transaction --transaction <TRANSACTION_HASH>
+zksync-web3-rs get-transaction --transaction <TRANSACTION_HASH>
 ```
 
-#### `zksync-web3-cli balance`
+#### `zksync-web3-rs balance`
 
 Gets the balance of the `ACCOUNT_ADDRESS`.
 
 ```
-zksync-web3-cli balance --account <ACCOUNT_ADDRESS>
+zksync-web3-rs balance --account <ACCOUNT_ADDRESS>
 ```
 
-#### `zksync-web3-cli pay`
+#### `zksync-web3-rs pay`
 
 Pays `AMOUNT` from `SENDER_ADDRESS` to `RECEIVER_ADDRESS` signing the transaction with `SENDER_PRIVATE_KEY`.
 
 ```
-zksync-web3-cli pay --amount <AMOUNT_TO_TRANSFER> --from <SENDER_ADDRESS> --to <RECEIVER_ADDRESS> --private-key <SENDER_PRIVATE_KEY>
+zksync-web3-rs pay --amount <AMOUNT_TO_TRANSFER> --from <SENDER_ADDRESS> --to <RECEIVER_ADDRESS> --private-key <SENDER_PRIVATE_KEY>
 ```
 
-#### `zksync-web3-cli compile`
+#### `zksync-web3-rs compile`
 
 > This command is a wrapper for the zksolc compiler.
 
 Compiles the contract located in `PATH_TO_CONTRACT` using the zksolc compiler.
 
 ```
-zksync-web3-cli compile --solc <PATH_TO_SOLC> --standard-json -- <PATH_TO_CONTRACT>
+zksync-web3-rs compile --solc <PATH_TO_SOLC> --standard-json -- <PATH_TO_CONTRACT>
 ```
 
 ##### Status (for full compatibility)
