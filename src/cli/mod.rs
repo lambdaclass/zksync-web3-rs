@@ -8,7 +8,7 @@ use commands::{
 pub const VERSION_STRING: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Parser)]
-#[command(name="zksync-web3-cli", author, version=VERSION_STRING, about, long_about = None)]
+#[command(name="zksync-web3-rs", author, version=VERSION_STRING, about, long_about = None)]
 struct ZKSyncWeb3 {
     #[command(subcommand)]
     command: ZKSyncWeb3Command,
