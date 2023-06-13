@@ -20,7 +20,7 @@ use ethers::{
     solc::{info::ContractInfo, Project, ProjectPathsConfig},
     types::{
         transaction::eip2718::TypedTransaction, Address, Bytes, Eip1559TransactionRequest,
-        Signature, TransactionReceipt, H256, U256,
+        Signature, TransactionReceipt, H160, H256, U256,
     },
 };
 use std::{
@@ -287,6 +287,104 @@ where
                 ))?;
 
         Ok((contract_address, transaction_receipt))
+    }
+
+    pub async fn deploy_from_bytecode<T>(
+        &self,
+        contract_bytecode: &[u8],
+        contract_dependencies: Option<Vec<Vec<u8>>>,
+        _constructor_parameters: Option<T>,
+    ) -> Result<H160, ZKSWalletError<M, D>>
+    where
+        M: ZKSProvider,
+        T: Tokenizable,
+    {
+        let era_provider = match &self.era_provider {
+            Some(era_provider) => era_provider,
+            None => return Err(ZKSWalletError::CustomError("no era provider".to_owned())),
+        };
+
+        let custom_data = Eip712Meta::new().factory_deps({
+            let mut factory_deps = Vec::new();
+            if let Some(contract_dependencies) = contract_dependencies {
+                factory_deps.extend(contract_dependencies);
+            }
+            factory_deps.push(contract_bytecode.clone().to_vec());
+            factory_deps
+        });
+
+        let mut deploy_request = Eip712TransactionRequest::new()
+            .r#type(EIP712_TX_TYPE)
+            .from(self.address())
+            .to(Address::from_str(CONTRACT_DEPLOYER_ADDR).map_err(|e| {
+                ZKSWalletError::CustomError(format!("invalid contract deployer address: {e}"))
+            })?)
+            .chain_id(ERA_CHAIN_ID)
+            .nonce(
+                era_provider
+                    .get_transaction_count(self.address(), None)
+                    .await?,
+            )
+            .gas_price(era_provider.get_gas_price().await?)
+            .max_fee_per_gas(era_provider.get_gas_price().await?)
+            .data({
+                let contract_deployer = Abi::load(BufReader::new(
+                    File::open("./src/abi/ContractDeployer.json").map_err(|e| {
+                        ZKSWalletError::CustomError(format!(
+                            "failed to open ContractDeployer abi: {e}"
+                        ))
+                    })?,
+                ))
+                .map_err(|e| {
+                    ZKSWalletError::CustomError(format!("failed to load ContractDeployer abi: {e}"))
+                })?;
+                let create = contract_deployer.function("create").map_err(|e| {
+                    ZKSWalletError::CustomError(format!("failed to get create function: {e}"))
+                })?;
+                // TODO: User could provide this instead of defaulting.
+                let salt = [0_u8; 32];
+                let bytecode_hash = hash_bytecode(&contract_bytecode)?;
+                let call_data = Bytes::default();
+
+                encode_function_data(create, (salt, bytecode_hash, call_data))?
+            })
+            .custom_data(custom_data.clone());
+
+        let fee = era_provider.estimate_fee(deploy_request.clone()).await?;
+        deploy_request = deploy_request
+            .max_priority_fee_per_gas(fee.max_priority_fee_per_gas)
+            .max_fee_per_gas(fee.max_fee_per_gas)
+            .gas_limit(fee.gas_limit);
+
+        let signable_data: Eip712Transaction = deploy_request.clone().try_into()?;
+        let signature: Signature = self.wallet.sign_typed_data(&signable_data).await?;
+        deploy_request =
+            deploy_request.custom_data(custom_data.custom_signature(signature.to_vec()));
+
+        let pending_transaction = era_provider
+            .send_raw_transaction(
+                [&[EIP712_TX_TYPE], &*deploy_request.rlp_unsigned()]
+                    .concat()
+                    .into(),
+            )
+            .await?;
+
+        // TODO: Should we wait here for the transaction to be confirmed on-chain?
+
+        let transaction_receipt = pending_transaction
+            .await?
+            .ok_or(ZKSWalletError::CustomError(
+                "no transaction receipt".to_owned(),
+            ))?;
+
+        let contract_address =
+            transaction_receipt
+                .contract_address
+                .ok_or(ZKSWalletError::CustomError(
+                    "no contract address".to_owned(),
+                ))?;
+
+        Ok(contract_address)
     }
 
     async fn _deploy<T>(
