@@ -22,7 +22,12 @@ impl ZKProject {
             solc: Path::new(constants::SOLC_PATH).canonicalize().ok(),
             combined_json: Some(String::from("abi,bin")),
             standard_json: false,
+            yul: false,
+            system_mode: false,
+            bin: false,
+            asm: false,
         };
-        commands::compile::run(args).map_err(|e| ZKCompilerError::CompilationError(e.to_string()))
+        let command_output = commands::compile::run(args).map_err(|e| ZKCompilerError::CompilationError(e.to_string()))?;
+        serde_json::from_str(&command_output).map_err(|e| ZKCompilerError::CompilationError(e.to_string()))
     }
 }
