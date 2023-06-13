@@ -1,0 +1,7 @@
+# Copy this to `.envrc` to activate.
+
+# Sets the L1 endpoint to be using during test phase.
+export ZKSYNC_WEB3_RS_L1_PROVIDER_URL='http://65.21.140.36:8545'
+
+# Sets the L2 endpoint to be using during test phase.
+export ZKSYNC_WEB3_RS_L2_PROVIDER_URL='http://65.21.140.36:3050'
