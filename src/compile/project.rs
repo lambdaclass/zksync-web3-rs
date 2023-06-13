@@ -27,7 +27,9 @@ impl ZKProject {
             bin: false,
             asm: false,
         };
-        let command_output = commands::compile::run(args).map_err(|e| ZKCompilerError::CompilationError(e.to_string()))?;
-        serde_json::from_str(&command_output).map_err(|e| ZKCompilerError::CompilationError(e.to_string()))
+        let command_output = commands::compile::run(args)
+            .map_err(|e| ZKCompilerError::CompilationError(e.to_string()))?;
+        serde_json::from_str(&command_output)
+            .map_err(|e| ZKCompilerError::CompilationError(e.to_string()))
     }
 }

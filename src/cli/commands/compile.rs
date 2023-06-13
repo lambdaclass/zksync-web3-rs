@@ -1,6 +1,6 @@
 use crate::compile::{constants, output::ZKSCompilationOutput};
 use clap::Parser;
-use std::{path::PathBuf, borrow::Cow};
+use std::{borrow::Cow, path::PathBuf};
 
 #[derive(Parser)]
 pub struct CompileArgs {
@@ -13,7 +13,12 @@ pub struct CompileArgs {
     pub combined_json: Option<String>,
     #[clap(long, action)]
     pub standard_json: bool,
-    #[clap(long, action, conflicts_with = "standard-json", conflicts_with = "combined-json")]
+    #[clap(
+        long,
+        action,
+        conflicts_with = "standard-json",
+        conflicts_with = "combined-json"
+    )]
     pub yul: bool,
     #[clap(long, action)]
     pub system_mode: bool,
@@ -80,7 +85,10 @@ pub(crate) fn run(args: CompileArgs) -> eyre::Result<String> {
 
     let command_output = command.output()?;
 
-    let compilation_output = String::from_utf8_lossy(&command_output.stdout).into_owned().trim().to_string();
+    let compilation_output = String::from_utf8_lossy(&command_output.stdout)
+        .into_owned()
+        .trim()
+        .to_string();
 
     log::info!("{compilation_output:?}");
 
