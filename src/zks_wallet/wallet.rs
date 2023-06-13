@@ -594,11 +594,11 @@ where
 #[cfg(test)]
 mod zks_signer_tests {
     use crate::compile::project::ZKProject;
+    use crate::test_utils::*;
     use crate::zks_utils::ERA_CHAIN_ID;
     use crate::zks_wallet::ZKSWallet;
     use ethers::abi::{Token, Tokenize};
     use ethers::providers::Middleware;
-    use ethers::providers::{Http, Provider};
     use ethers::signers::{LocalWallet, Signer};
     use ethers::solc::info::ContractInfo;
     use ethers::solc::{Project, ProjectPathsConfig};
@@ -606,14 +606,6 @@ mod zks_signer_tests {
     use ethers::types::{Address, Bytes};
     use ethers::utils::parse_units;
     use std::str::FromStr;
-
-    fn era_provider() -> Provider<Http> {
-        Provider::try_from("http://65.21.140.36:3050".to_owned()).unwrap()
-    }
-
-    fn eth_provider() -> Provider<Http> {
-        Provider::try_from(format!("http://localhost:8545")).unwrap()
-    }
 
     #[tokio::test]
     async fn test_transfer() {
