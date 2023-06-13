@@ -9,6 +9,7 @@ pub const EIP712_TX_TYPE: u8 = 0x71;
 // In the future releases, we will provide a way to estimate the current gasPerPubdata.
 pub const DEFAULT_GAS_PER_PUBDATA_LIMIT: u64 = 50000;
 pub const MAX_PRIORITY_FEE_PER_GAS: u64 = 100000000;
+pub const MAX_FEE_PER_GAS: u64 = 1000000014;
 /// This the number of pubdata such that it should be always possible to publish
 /// from a single transaction. Note, that these pubdata bytes include only bytes that are
 /// to be published inside the body of transaction (i.e. excluding of factory deps).
