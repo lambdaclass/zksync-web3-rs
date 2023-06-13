@@ -1,52 +1,58 @@
-use crate::cli::{commands::L1_CHAIN_ID, ZKSyncWeb3Config};
-use crate::{
-    prelude::{k256::ecdsa::SigningKey, ContractFactory, SignerMiddleware},
-    providers::Provider,
-    signers::Signer,
-    signers::Wallet,
-    solc::{Artifact, Project, ProjectPathsConfig},
-};
+use crate::cli::ZKSyncWeb3Config;
+use crate::zks_utils::ERA_CHAIN_ID;
+use crate::ZKSWallet;
+use crate::{providers::Provider, signers::Signer};
 use clap::Args;
+use ethers::abi::Token;
+use ethers::signers::LocalWallet;
+use ethers::types::{Bytes, H160};
 use eyre::ContextCompat;
-use std::{path::PathBuf, sync::Arc};
 
 #[derive(Args)]
 pub(crate) struct Deploy {
-    #[clap(short, long, name = "CONTRACT PATH")]
-    pub contract: PathBuf,
+    #[clap(
+        long,
+        name = "CONTRACT PATH",
+        requires = "contract_name",
+        conflicts_with = "bytecode"
+    )]
+    pub contract: Option<String>,
+    #[clap(
+        long,
+        name = "CONTRACT NAME",
+        requires = "contract",
+        conflicts_with = "bytecode"
+    )]
+    pub contract_name: Option<String>,
+    #[clap(long, num_args(1..), name = "CONSTRUCTOR_ARGS")]
+    constructor_args: Vec<String>,
     #[clap(short, long, name = "PRIVATE KEY")]
-    pub private_key: String,
+    pub private_key: LocalWallet,
+    #[clap(long, name = "CONTRACT BYTECODE")]
+    pub bytecode: Option<Bytes>,
 }
 
 pub(crate) async fn run(args: Deploy, config: ZKSyncWeb3Config) -> eyre::Result<()> {
-    let paths = ProjectPathsConfig::builder().build_with_root(args.contract);
-    let project = Project::builder()
-        .paths(paths)
-        .set_auto_detect(true)
-        .no_artifacts()
-        .build()?;
-    let compilation_output = project.compile()?;
-    let contract = compilation_output
-        .find_first("Counter")
-        .context("contract not found")?
-        .clone();
-    let (abi, bytecode, _) = contract.into_parts();
-    let mut wallet = args.private_key.parse::<Wallet<SigningKey>>()?;
-    wallet = Wallet::with_chain_id(wallet, L1_CHAIN_ID);
-    let provider = Provider::try_from(format!(
+    let era_provider = Provider::try_from(format!(
         "http://{host}:{port}",
         host = config.host,
         port = config.port
-    ))?
-    .interval(std::time::Duration::from_millis(10));
-    let client = Arc::new(SignerMiddleware::new(provider, wallet));
-    let factory = ContractFactory::new(
-        abi.context("contract has no abi")?,
-        bytecode.context("contract has no bytecode")?,
-        client,
-    );
-    let deployer = factory.deploy(())?;
-    let (deployed_contract, _transaction_receipt) = deployer.clone().send_with_receipt().await?;
-    log::info!("{:#?}", deployed_contract.address());
+    ))?;
+    let wallet = args.private_key.with_chain_id(ERA_CHAIN_ID);
+    let zk_wallet = ZKSWallet::new(wallet, Some(era_provider.clone()), None)?;
+    let contract_address = if let Some(bytecode) = args.bytecode {
+        zk_wallet
+            .deploy_from_bytecode(&*bytecode, None, None::<Token>)
+            .await?
+    } else {
+        zk_wallet
+            .deploy(
+                args.contract.context("no contract path")?,
+                &args.contract_name.context("no contract name")?,
+                None::<Token>,
+            )
+            .await?
+    };
+    log::info!("{contract_address:#?}");
     Ok(())
 }
