@@ -646,6 +646,7 @@ mod zks_signer_tests {
     use ethers::solc::{Project, ProjectPathsConfig};
     use ethers::types::U256;
     use ethers::types::{Address, Bytes};
+    use ethers::utils::parse_units;
     use std::str::FromStr;
 
     fn era_provider() -> Provider<Http> {
@@ -963,7 +964,7 @@ mod zks_signer_tests {
         println!("Balance on L2 before withdrawal: {l2_balance_before}");
 
         // Withdraw
-        let amount_to_withdraw = U256::from(1);
+        let amount_to_withdraw: U256 = parse_units(1, "ether").unwrap().into();
         let tx_receipt = zk_wallet.withdraw(amount_to_withdraw).await.unwrap();
         assert_eq!(
             1,
@@ -1005,15 +1006,16 @@ mod zks_signer_tests {
 
         println!(
             "AAA {}",
-            amount_to_withdraw
-                - tx_finalize_receipt.effective_gas_price.unwrap()
+            tx_finalize_receipt.effective_gas_price.unwrap()
                     * tx_finalize_receipt.gas_used.unwrap()
         );
+        assert_ne!(
+            l1_balance_after_finalize, l1_balance_before,
+            "Check that L1 balance after finalize is not the same");
         assert_eq!(
             l1_balance_after_finalize,
             l1_balance_before
-                + (amount_to_withdraw
-                    - tx_finalize_receipt.effective_gas_price.unwrap()
+                + (amount_to_withdraw - tx_finalize_receipt.effective_gas_price.unwrap()
                         * tx_finalize_receipt.gas_used.unwrap()),
             "Check that L1 balance after finalize has increased by the amount"
         );
