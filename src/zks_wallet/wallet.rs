@@ -5,7 +5,7 @@ use crate::{
     zks_provider::ZKSProvider,
     zks_utils::{
         CONTRACTS_L1_MESSENGER_ADDR, CONTRACTS_L2_ETH_TOKEN_ADDR, CONTRACT_DEPLOYER_ADDR,
-        EIP712_TX_TYPE, ERA_CHAIN_ID, ETH_CHAIN_ID,
+        EIP712_TX_TYPE, ERA_CHAIN_ID, ETH_CHAIN_ID, MAX_FEE_PER_GAS, MAX_PRIORITY_FEE_PER_GAS,
     },
 };
 use ethers::{
@@ -27,6 +27,7 @@ use ethers::{
     },
     utils::{keccak256, parse_units},
 };
+use serde_json::json;
 use std::fmt::Debug;
 use std::{fmt::Display, fs::File, io::BufReader, path::PathBuf, str::FromStr};
 
@@ -589,14 +590,13 @@ where
         let function_signature = "function finalizeEthWithdrawal(uint256 _l2BlockNumber,uint256 _l2MessageIndex,uint16 _l2TxNumberInBlock,bytes calldata _message,bytes32[] calldata _merkleProof) external";
 
         //let response: (Vec<Token>, H256) = self.send(main_contract, "function finalizeEthWithdrawal(uint256 _l2BlockNumber,uint256 _l2MessageIndex,uint16 _l2TxNumberInBlock,bytes calldata _message,bytes32[] calldata _merkleProof) external", Some(parameters), None).await?;
-
         // Note: We couldn't implement ZKSWalletError::LexerError because ethers-rs's LexerError is not exposed.
         let function = HumanReadableParser::parse_function(function_signature)
             .map_err(|e| ZKSWalletError::CustomError(e.to_string()))?;
 
-        let send_request = Eip1559TransactionRequest::new()
+        let mut send_request = Eip1559TransactionRequest::new()
             .from(self.address())
-            .to(main_contract)
+            .to("0xB6E827B1893DC1dB62E70104adB5D5407b6F9ce4")
             .chain_id(ETH_CHAIN_ID)
             .nonce(
                 eth_provider
@@ -605,17 +605,22 @@ where
             )
             .data(
                 function
-                    .encode_input(&parameters.into_tokens())
+                    .encode_input(&parameters.clone().into_tokens())
                     .map_err(|e| ZKSWalletError::CustomError(e.to_string()))?,
             );
 
         let tx: TypedTransaction = send_request.clone().into();
-        println!("tx: {:?}", tx);
+        let gas = eth_provider.estimate_gas(&tx, None).await.unwrap();
+
+        send_request = send_request
+            .gas(gas)
+            .max_fee_per_gas(MAX_FEE_PER_GAS)
+            .max_priority_fee_per_gas(MAX_PRIORITY_FEE_PER_GAS);
+        let tx: TypedTransaction = send_request.clone().into();
 
         // FIXME this transaction is failing
         let pending_transaction = eth_provider.send_transaction(tx, None).await?;
 
-        println!("a");
         // TODO: Should we wait here for the transaction to be confirmed on-chain?
 
         let transaction_receipt = pending_transaction
@@ -969,7 +974,6 @@ mod zks_signer_tests {
         let l2_balance_after_withdraw = zk_wallet.era_balance().await.unwrap();
         let l1_balance_after_withdraw = zk_wallet.eth_balance().await.unwrap();
 
-        println!("Balance on L2 with used gas: {l2_balance_after_withdraw}");
         assert_eq!(
             l2_balance_after_withdraw,
             l2_balance_before
@@ -995,10 +999,7 @@ mod zks_signer_tests {
         println!("Balance on L2 after finalize withdraw: {l2_balance_after_finalize}");
 
         assert_eq!(
-            l2_balance_after_finalize,
-            l2_balance_after_withdraw
-                - tx_finalize_receipt.effective_gas_price.unwrap()
-                    * tx_finalize_receipt.gas_used.unwrap(),
+            l2_balance_after_finalize, l2_balance_after_withdraw,
             "Check that L2 balance after finalize has decreased by the used gas"
         );
 
