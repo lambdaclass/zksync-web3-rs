@@ -1,3 +1,5 @@
+use std::{env, path::PathBuf};
+
 /* Misc */
 
 pub const ETH_CHAIN_ID: u16 = 0x9;
@@ -46,3 +48,20 @@ pub const CONTRACTS_VALIDATOR_TIMELOCK_ADDR: &str = "0xFC073319977e314F251EAE6ae
 pub const CONTRACTS_L1_WETH_BRIDGE_IMPL_ADDR: &str = "0x5E6D086F5eC079ADFF4FB3774CDf3e8D6a34F7E9";
 pub const CONTRACTS_L1_WETH_BRIDGE_PROXY_ADDR: &str = "0x5E6D086F5eC079ADFF4FB3774CDf3e8D6a34F7E9";
 pub const CONTRACTS_L1_WETH_TOKEN_ADDR: &str = "0x5E6D086F5eC079ADFF4FB3774CDf3e8D6a34F7E9";
+
+/// Returns the location for a program in the $PATH.
+pub fn program_path(program_name: &str) -> Option<PathBuf> {
+    if let Ok(path_env) = env::var("PATH") {
+        let paths: Vec<PathBuf> = env::split_paths(&path_env).collect();
+
+        for path in paths {
+            let program_path = path.join(program_name);
+
+            if program_path.is_file() {
+                return Some(program_path);
+            }
+        }
+    }
+
+    None
+}
