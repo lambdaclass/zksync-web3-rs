@@ -567,7 +567,7 @@ where
 
         let filtered_log = logs[0].clone();
         let proof = era_provider
-            .get_l2_to_l1_log_proof(filtered_log.transaction_hash.unwrap(), None)
+            .get_l2_to_l1_log_proof(tx_hash, None)
             .await?
             .unwrap();
         let main_contract = era_provider.get_main_contract().await?;
@@ -594,7 +594,7 @@ where
         let function = HumanReadableParser::parse_function(function_signature)
             .map_err(|e| ZKSWalletError::CustomError(e.to_string()))?;
 
-        let mut send_request = Eip1559TransactionRequest::new()
+        let send_request = Eip1559TransactionRequest::new()
             .from(self.address())
             .to("0xB6E827B1893DC1dB62E70104adB5D5407b6F9ce4")
             .chain_id(ETH_CHAIN_ID)
@@ -609,13 +609,6 @@ where
                     .map_err(|e| ZKSWalletError::CustomError(e.to_string()))?,
             );
 
-        let tx: TypedTransaction = send_request.clone().into();
-        let gas = eth_provider.estimate_gas(&tx, None).await.unwrap();
-
-        send_request = send_request
-            .gas(gas)
-            .max_fee_per_gas(MAX_FEE_PER_GAS)
-            .max_priority_fee_per_gas(MAX_PRIORITY_FEE_PER_GAS);
         let tx: TypedTransaction = send_request.clone().into();
 
         // FIXME this transaction is failing
@@ -1007,15 +1000,17 @@ mod zks_signer_tests {
         println!(
             "AAA {}",
             tx_finalize_receipt.effective_gas_price.unwrap()
-                    * tx_finalize_receipt.gas_used.unwrap()
+                * tx_finalize_receipt.gas_used.unwrap()
         );
         assert_ne!(
             l1_balance_after_finalize, l1_balance_before,
-            "Check that L1 balance after finalize is not the same");
+            "Check that L1 balance after finalize is not the same"
+        );
         assert_eq!(
             l1_balance_after_finalize,
             l1_balance_before
-                + (amount_to_withdraw - tx_finalize_receipt.effective_gas_price.unwrap()
+                + (amount_to_withdraw
+                    - tx_finalize_receipt.effective_gas_price.unwrap()
                         * tx_finalize_receipt.gas_used.unwrap()),
             "Check that L1 balance after finalize has increased by the amount"
         );
