@@ -1003,9 +1003,18 @@ mod zks_signer_tests {
             "Check that L2 balance after finalize has decreased by the used gas"
         );
 
+        println!(
+            "AAA {}",
+            amount_to_withdraw
+                - tx_finalize_receipt.effective_gas_price.unwrap()
+                    * tx_finalize_receipt.gas_used.unwrap()
+        );
         assert_eq!(
             l1_balance_after_finalize,
-            l1_balance_after_withdraw + amount_to_withdraw,
+            l1_balance_before
+                + (amount_to_withdraw
+                    - tx_finalize_receipt.effective_gas_price.unwrap()
+                        * tx_finalize_receipt.gas_used.unwrap()),
             "Check that L1 balance after finalize has increased by the amount"
         );
     }
