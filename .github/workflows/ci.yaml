@@ -22,6 +22,10 @@ jobs:
         with:
           toolchain: stable
 
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
       - name: Run cargo check
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -33,6 +37,10 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v3
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
 
       - name: Install stable toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -50,6 +58,10 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v3
 
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
       - name: Install stable toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -66,14 +78,22 @@ jobs:
       CARGO_TERM_COLOR: always
     steps:
       - uses: actions/checkout@v3
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
           components: clippy
+
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
+
       - name: Run tests and generate code coverage
         run: make coverage
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
         with:
