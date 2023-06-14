@@ -18,16 +18,15 @@ use ethers::{
         },
         ContractError, MiddlewareBuilder, SignerMiddleware,
     },
-    providers::{Middleware, Provider},
+    providers::{Middleware},
     signers::{Signer, Wallet},
     solc::{info::ContractInfo, Project, ProjectPathsConfig},
     types::{
         transaction::eip2718::TypedTransaction, Address, Bytes, Eip1559TransactionRequest, Log,
         Signature, TransactionReceipt, H256, U256,
     },
-    utils::{keccak256, parse_units},
 };
-use serde_json::json;
+use serde_json::{Value};
 use std::fmt::Debug;
 use std::{fmt::Display, fs::File, io::BufReader, path::PathBuf, str::FromStr};
 
@@ -517,6 +516,7 @@ where
             None => return Err(ZKSWalletError::CustomError("no era provider".to_owned())),
         };
 
+        println!("{:?}", self.wallet.address());
         let contract_address = Address::from_str(CONTRACTS_L2_ETH_TOKEN_ADDR).unwrap();
         let response: (Vec<Token>, H256) = self
             .send(
@@ -564,10 +564,17 @@ where
                 log.address == Address::from_str(CONTRACTS_L1_MESSENGER_ADDR).unwrap()
             })
             .collect();
-
+        
+        let mut l2_to_l1_log_index = 0;
+        for (i, log) in serde_json::from_value::<Value>(withdrawal_receipt.other["l2ToL1Logs"].clone()).iter().enumerate() {
+            if log["sender"] == CONTRACTS_L1_MESSENGER_ADDR {
+                l2_to_l1_log_index = i as u64;
+                break;
+            }
+        };
         let filtered_log = logs[0].clone();
         let proof = era_provider
-            .get_l2_to_l1_log_proof(tx_hash, None)
+            .get_l2_to_l1_log_proof(tx_hash, Some(l2_to_l1_log_index))
             .await?
             .unwrap();
         let main_contract = era_provider.get_main_contract().await?;
@@ -594,7 +601,7 @@ where
         let function = HumanReadableParser::parse_function(function_signature)
             .map_err(|e| ZKSWalletError::CustomError(e.to_string()))?;
 
-        let send_request = Eip1559TransactionRequest::new()
+        let mut send_request = Eip1559TransactionRequest::new()
             .from(self.address())
             .to("0xB6E827B1893DC1dB62E70104adB5D5407b6F9ce4")
             .chain_id(ETH_CHAIN_ID)
@@ -610,8 +617,10 @@ where
             );
 
         let tx: TypedTransaction = send_request.clone().into();
-
-        // FIXME this transaction is failing
+        let gas = eth_provider.estimate_gas(&tx.clone(), None).await?;
+        send_request = send_request.gas(gas).to(main_contract);
+        let tx: TypedTransaction = send_request.clone().into();
+        println!("TX: {:?}", tx);
         let pending_transaction = eth_provider.send_transaction(tx, None).await?;
 
         // TODO: Should we wait here for the transaction to be confirmed on-chain?
@@ -643,11 +652,11 @@ mod zks_signer_tests {
     use std::str::FromStr;
 
     fn era_provider() -> Provider<Http> {
-        Provider::try_from("http://localhost:3050".to_owned()).unwrap()
+        Provider::try_from("http://65.21.140.36:3050".to_owned()).unwrap()
     }
 
     fn eth_provider() -> Provider<Http> {
-        Provider::try_from("http://localhost:8545".to_owned()).unwrap()
+        Provider::try_from("http://65.21.140.36:8545".to_owned()).unwrap()
     }
 
     #[tokio::test]
@@ -985,6 +994,12 @@ mod zks_signer_tests {
             .await
             .unwrap();
 
+            assert_eq!(
+                1,
+                tx_finalize_receipt.status.unwrap().as_u64(),
+                "Check that transaction in L2 is successful"
+            );
+
         // See balances after withdraw
         let l1_balance_after_finalize = zk_wallet.eth_balance().await.unwrap();
         let l2_balance_after_finalize = zk_wallet.era_balance().await.unwrap();
@@ -996,12 +1011,7 @@ mod zks_signer_tests {
             l2_balance_after_finalize, l2_balance_after_withdraw,
             "Check that L2 balance after finalize has decreased by the used gas"
         );
-
-        println!(
-            "AAA {}",
-            tx_finalize_receipt.effective_gas_price.unwrap()
-                * tx_finalize_receipt.gas_used.unwrap()
-        );
+        
         assert_ne!(
             l1_balance_after_finalize, l1_balance_before,
             "Check that L1 balance after finalize is not the same"
