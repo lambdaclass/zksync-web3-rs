@@ -22,6 +22,10 @@ jobs:
         with:
           toolchain: stable
 
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
       - name: Run cargo check
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -33,6 +37,10 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v3
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
 
       - name: Install stable toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -49,6 +57,10 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v3
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
 
       - name: Install stable toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -76,14 +88,22 @@ jobs:
           mkdir -p '/home/runner/.local/bin'
           wget 'https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.11' -O '/home/runner/.local/bin/zksolc'
           chmod +x '/home/runner/.local/bin/zksolc'
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
           components: clippy
+
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
+
       - name: Run tests and generate code coverage
         run: make coverage
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
         with:

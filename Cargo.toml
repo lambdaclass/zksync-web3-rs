@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 ethers = { version = "2.0.4", features = ["rustls", "ethers-solc"] }
+ethers-contract = "2.0.7"
 clap = { version = "4.2.7", features = ["derive"] }
 
 # Async
@@ -19,7 +20,7 @@ serde_json = { version = "1" }
 hex = "0.4"
 
 # Error handling
-eyre = "0.6" # CLI error handling
+eyre = "0.6"         # CLI error handling
 thiserror = "1.0.40" # Library error handling
 
 # Logging

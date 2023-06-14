@@ -1,6 +1,6 @@
 use crate::{compile::output::ZKSCompilationOutput, zks_utils::program_path};
 use clap::Parser;
-use std::path::PathBuf;
+use std::{borrow::Cow, path::PathBuf};
 
 #[derive(Parser)]
 pub struct CompileArgs {
@@ -13,9 +13,22 @@ pub struct CompileArgs {
     pub combined_json: Option<String>,
     #[clap(long, action)]
     pub standard_json: bool,
+    #[clap(
+        long,
+        action,
+        conflicts_with = "standard-json",
+        conflicts_with = "combined-json"
+    )]
+    pub yul: bool,
+    #[clap(long, action)]
+    pub system_mode: bool,
+    #[clap(long, action)]
+    pub bin: bool,
+    #[clap(long, action)]
+    pub asm: bool,
 }
 
-pub(crate) fn run(args: CompileArgs) -> eyre::Result<ZKSCompilationOutput> {
+pub(crate) fn run(args: CompileArgs) -> eyre::Result<String> {
     let zksolc_path = program_path("zksolc").ok_or(eyre::eyre!("zksolc not found"))?;
     let mut command = &mut std::process::Command::new(zksolc_path);
     if let Some(solc) = args.solc {
@@ -53,11 +66,30 @@ pub(crate) fn run(args: CompileArgs) -> eyre::Result<ZKSCompilationOutput> {
         command = command.arg("--standard-json");
     }
 
+    if args.yul {
+        command = command.arg("--yul");
+    }
+
+    if args.system_mode {
+        command = command.arg("--system-mode");
+    }
+
+    if args.bin {
+        command = command.arg("--bin");
+    }
+
+    if args.asm {
+        command = command.arg("--asm");
+    }
+
     command = command.arg("--").args(args.contract_paths);
 
     let command_output = command.output()?;
 
-    let compilation_output: ZKSCompilationOutput = serde_json::from_slice(&command_output.stdout)?;
+    let compilation_output = String::from_utf8_lossy(&command_output.stdout)
+        .into_owned()
+        .trim()
+        .to_string();
 
     log::info!("{compilation_output:?}");
 
