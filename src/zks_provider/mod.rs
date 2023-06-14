@@ -703,7 +703,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "fix"]
     async fn test_provider_get_confirmed_tokens() {
         let provider = era_provider();
         let from = 0;
