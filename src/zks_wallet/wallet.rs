@@ -570,7 +570,8 @@ where
 
         // Get all the parameters needed to call the finalizeWithdrawal function on the main contract contract.
         let (l2_to_l1_log_index, _) =
-            serde_json::from_value::<Value>(withdrawal_receipt.other["l2ToL1Logs"].clone())
+            serde_json::from_value::<Vec<Value>>(withdrawal_receipt.other["l2ToL1Logs"].clone())
+                .unwrap()
                 .iter()
                 .enumerate()
                 .find(|(_, log)| log["sender"] == CONTRACTS_L1_MESSENGER_ADDR)
@@ -661,11 +662,11 @@ mod zks_signer_tests {
     use std::str::FromStr;
 
     fn era_provider() -> Provider<Http> {
-        Provider::try_from("http://65.21.140.36:3050".to_owned()).unwrap()
+        Provider::try_from("http://localhost:3050".to_owned()).unwrap()
     }
 
     fn eth_provider() -> Provider<Http> {
-        Provider::try_from("http://65.21.140.36:8545".to_owned()).unwrap()
+        Provider::try_from("http://localhost:8545".to_owned()).unwrap()
     }
 
     #[tokio::test]
