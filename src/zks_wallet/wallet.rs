@@ -660,6 +660,8 @@ mod zks_signer_tests {
     use ethers::types::{Address, Bytes};
     use ethers::utils::parse_units;
     use std::str::FromStr;
+    use std::thread;
+    use std::time::Duration;
 
     fn era_provider() -> Provider<Http> {
         Provider::try_from("http://localhost:3050".to_owned()).unwrap()
@@ -984,6 +986,11 @@ mod zks_signer_tests {
             "Check that transaction in L2 is successful"
         );
 
+        println!("L2 Transaction hash: {:?}", tx_receipt.transaction_hash);
+
+        // TODO cleanup. Make sure the proof is posted on L2.
+        thread::sleep(Duration::from_millis(20000));
+
         let l2_balance_after_withdraw = zk_wallet.era_balance().await.unwrap();
         let l1_balance_after_withdraw = zk_wallet.eth_balance().await.unwrap();
 
@@ -1003,6 +1010,11 @@ mod zks_signer_tests {
             .finalize_withdraw(tx_receipt.transaction_hash)
             .await
             .unwrap();
+
+        println!(
+            "L1 Transaction hash: {:?}",
+            tx_finalize_receipt.transaction_hash
+        );
 
         assert_eq!(
             1,
