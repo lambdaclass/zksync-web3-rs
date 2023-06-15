@@ -4,12 +4,13 @@ use crate::{
     eip712::{hash_bytecode, Eip712Meta, Eip712Transaction, Eip712TransactionRequest},
     zks_provider::ZKSProvider,
     zks_utils::{
-        CONTRACTS_L1_MESSENGER_ADDR, CONTRACTS_L2_ETH_TOKEN_ADDR, CONTRACT_DEPLOYER_ADDR,
-        EIP712_TX_TYPE, ERA_CHAIN_ID, ETH_CHAIN_ID, MAX_FEE_PER_GAS, MAX_PRIORITY_FEE_PER_GAS,
+        CONTRACTS_DIAMOND_PROXY_ADDR, CONTRACTS_L1_MESSENGER_ADDR, CONTRACTS_L2_ETH_TOKEN_ADDR,
+        CONTRACT_DEPLOYER_ADDR, EIP712_TX_TYPE, ERA_CHAIN_ID, ETH_CHAIN_ID, MAX_FEE_PER_GAS,
+        MAX_PRIORITY_FEE_PER_GAS,
     },
 };
 use ethers::{
-    abi::{Abi, HumanReadableParser, Token, Tokenizable, Tokenize},
+    abi::{decode, Abi, HumanReadableParser, ParamType, Token, Tokenizable, Tokenize},
     prelude::{
         encode_function_data,
         k256::{
@@ -18,7 +19,7 @@ use ethers::{
         },
         ContractError, MiddlewareBuilder, SignerMiddleware,
     },
-    providers::{Middleware},
+    providers::Middleware,
     signers::{Signer, Wallet},
     solc::{info::ContractInfo, Project, ProjectPathsConfig},
     types::{
@@ -26,7 +27,7 @@ use ethers::{
         Signature, TransactionReceipt, H256, U256,
     },
 };
-use serde_json::{Value};
+use serde_json::Value;
 use std::fmt::Debug;
 use std::{fmt::Display, fs::File, io::BufReader, path::PathBuf, str::FromStr};
 
@@ -516,12 +517,12 @@ where
             None => return Err(ZKSWalletError::CustomError("no era provider".to_owned())),
         };
 
-        println!("{:?}", self.wallet.address());
         let contract_address = Address::from_str(CONTRACTS_L2_ETH_TOKEN_ADDR).unwrap();
+        let function_signature = "function withdraw(address _l1Receiver) external payable override";
         let response: (Vec<Token>, H256) = self
             .send(
                 contract_address,
-                "function withdraw(address _l1Receiver) external payable override",
+                function_signature,
                 Some(self.wallet.address()),
                 Some(Overrides {
                     value: Some(amount),
@@ -552,10 +553,12 @@ where
             Some(eth_provider) => eth_provider,
             None => return Err(ZKSWalletError::CustomError("no eth provider".to_owned())),
         };
+
         let withdrawal_receipt = era_provider
             .get_transaction_receipt(tx_hash)
             .await?
             .unwrap();
+
         let logs: Vec<Log> = withdrawal_receipt
             .logs
             .into_iter()
@@ -564,21 +567,20 @@ where
                 log.address == Address::from_str(CONTRACTS_L1_MESSENGER_ADDR).unwrap()
             })
             .collect();
-        
-        let mut l2_to_l1_log_index = 0;
-        for (i, log) in serde_json::from_value::<Value>(withdrawal_receipt.other["l2ToL1Logs"].clone()).iter().enumerate() {
-            if log["sender"] == CONTRACTS_L1_MESSENGER_ADDR {
-                l2_to_l1_log_index = i as u64;
-                break;
-            }
-        };
+
+        // Get all the parameters needed to call the finalizeWithdrawal function on the main contract contract.
+        let (l2_to_l1_log_index, _) =
+            serde_json::from_value::<Value>(withdrawal_receipt.other["l2ToL1Logs"].clone())
+                .iter()
+                .enumerate()
+                .find(|(_, log)| log["sender"] == CONTRACTS_L1_MESSENGER_ADDR)
+                .unwrap();
         let filtered_log = logs[0].clone();
         let proof = era_provider
-            .get_l2_to_l1_log_proof(tx_hash, Some(l2_to_l1_log_index))
+            .get_l2_to_l1_log_proof(tx_hash, Some(l2_to_l1_log_index as u64))
             .await?
             .unwrap();
         let main_contract = era_provider.get_main_contract().await?;
-
         let merkle_proof: Vec<H256> = proof.merkle_proof;
         let l1_batch_number = era_provider.get_l1_batch_number().await?;
         let l2_message_index = U256::from(proof.id);
@@ -586,7 +588,13 @@ where
             serde_json::from_value::<U256>(withdrawal_receipt.other["l1BatchTxIndex"].clone())
                 .unwrap()
                 .as_u32() as u16;
-        let message = filtered_log.data;
+        let message: Bytes = decode(&[ParamType::Bytes], &*filtered_log.data).map_err(|e| {
+            ZKSWalletError::CustomError(format!("failed to decode log data: {}", e))
+        })?[0]
+            .clone()
+            .into_bytes()
+            .unwrap()
+            .into();
         let parameters = (
             l1_batch_number,
             l2_message_index,
@@ -594,16 +602,16 @@ where
             message,
             merkle_proof,
         );
-        let function_signature = "function finalizeEthWithdrawal(uint256 _l2BlockNumber,uint256 _l2MessageIndex,uint16 _l2TxNumberInBlock,bytes calldata _message,bytes32[] calldata _merkleProof) external";
 
-        //let response: (Vec<Token>, H256) = self.send(main_contract, "function finalizeEthWithdrawal(uint256 _l2BlockNumber,uint256 _l2MessageIndex,uint16 _l2TxNumberInBlock,bytes calldata _message,bytes32[] calldata _merkleProof) external", Some(parameters), None).await?;
+        let function_signature = "function finalizeEthWithdrawal(uint256 _l2BlockNumber,uint256 _l2MessageIndex,uint16 _l2TxNumberInBlock,bytes calldata _message,bytes32[] calldata _merkleProof) external";
         // Note: We couldn't implement ZKSWalletError::LexerError because ethers-rs's LexerError is not exposed.
         let function = HumanReadableParser::parse_function(function_signature)
             .map_err(|e| ZKSWalletError::CustomError(e.to_string()))?;
 
-        let mut send_request = Eip1559TransactionRequest::new()
+        // Sending transaction calling the main contract.
+        let send_request = Eip1559TransactionRequest::new()
             .from(self.address())
-            .to("0xB6E827B1893DC1dB62E70104adB5D5407b6F9ce4")
+            .to(main_contract)
             .chain_id(ETH_CHAIN_ID)
             .nonce(
                 eth_provider
@@ -614,13 +622,14 @@ where
                 function
                     .encode_input(&parameters.clone().into_tokens())
                     .map_err(|e| ZKSWalletError::CustomError(e.to_string()))?,
-            );
+            )
+            .value(0)
+            //We should use default calculation for gas related fields.
+            .gas(91435)
+            .max_fee_per_gas(MAX_FEE_PER_GAS)
+            .max_priority_fee_per_gas(MAX_PRIORITY_FEE_PER_GAS);
 
         let tx: TypedTransaction = send_request.clone().into();
-        let gas = eth_provider.estimate_gas(&tx.clone(), None).await?;
-        send_request = send_request.gas(gas).to(main_contract);
-        let tx: TypedTransaction = send_request.clone().into();
-        println!("TX: {:?}", tx);
         let pending_transaction = eth_provider.send_transaction(tx, None).await?;
 
         // TODO: Should we wait here for the transaction to be confirmed on-chain?
@@ -994,11 +1003,11 @@ mod zks_signer_tests {
             .await
             .unwrap();
 
-            assert_eq!(
-                1,
-                tx_finalize_receipt.status.unwrap().as_u64(),
-                "Check that transaction in L2 is successful"
-            );
+        assert_eq!(
+            1,
+            tx_finalize_receipt.status.unwrap().as_u64(),
+            "Check that transaction in L1 is successful"
+        );
 
         // See balances after withdraw
         let l1_balance_after_finalize = zk_wallet.eth_balance().await.unwrap();
@@ -1011,7 +1020,7 @@ mod zks_signer_tests {
             l2_balance_after_finalize, l2_balance_after_withdraw,
             "Check that L2 balance after finalize has decreased by the used gas"
         );
-        
+
         assert_ne!(
             l1_balance_after_finalize, l1_balance_before,
             "Check that L1 balance after finalize is not the same"
