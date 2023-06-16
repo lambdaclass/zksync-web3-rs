@@ -20,13 +20,13 @@
 - [CLI](#cli)
   - [Installation](#installation)
   - [Usage](#usage)
-    - [`zksync-web3-cli deploy`](#zksync-web3-cli-deploy)
-    - [`zksync-web3-cli call`](#zksync-web3-cli-call)
-    - [`zksync-web3-cli get-contract`](#zksync-web3-cli-get-contract)
-    - [`zksync-web3-cli get-transaction`](#zksync-web3-cli-get-transaction)
-    - [`zksync-web3-cli balance`](#zksync-web3-cli-balance)
-    - [`zksync-web3-cli pay`](#zksync-web3-cli-pay)
-    - [`zksync-web3-cli compile`](#zksync-web3-cli-compile)
+    - [`zksync-web3-rs deploy`](#zksync-web3-rs-deploy)
+    - [`zksync-web3-rs call`](#zksync-web3-rs-call)
+    - [`zksync-web3-rs get-contract`](#zksync-web3-rs-get-contract)
+    - [`zksync-web3-rs get-transaction`](#zksync-web3-rs-get-transaction)
+    - [`zksync-web3-rs balance`](#zksync-web3-rs-balance)
+    - [`zksync-web3-rs pay`](#zksync-web3-rs-pay)
+    - [`zksync-web3-rs compile`](#zksync-web3-rs-compile)
       - [Status (for full compatibility)](#status-for-full-compatibility)
 
 
@@ -99,7 +99,7 @@ let wallet = zksync::Wallet::with_chain_id(private_key, zksync_era_chain_id);
 To connect to the zkSync network, you need to provide the URL of the zkSync node. The localnet runs both an *Ethereum* node (L1) on port `8545` and an *Era* node (L2) on port `3050`. You can connect to the zkSync Era network using the following code:
 
 ```rust
-let provider = zksync::Provider::try_from("http://localhost:3050").unwrap();
+let provider = zksync::Provider::try_from("http://65.21.140.36:3050").unwrap();
 ```
 
 #### Creating a Payment Transaction
@@ -223,10 +223,10 @@ make cli
 
 ### Usage
 
-Running `zksync-web3-cli` outputs the following:
+Running `zksync-web3-rs` outputs the following:
 
 ```
-Usage: zksync-web3-cli [OPTIONS] <COMMAND>
+Usage: zksync-web3-rs [OPTIONS] <COMMAND>
 
 Commands:
   deploy
@@ -236,68 +236,68 @@ Commands:
   help             Print this message or the help of the given subcommand(s)
 
 Options:
-      --host <HOST>  [default: 65.108.204.116]
+      --host <HOST>  [default: 65.21.140.36]
   -p, --port <PORT>  [default: 8545]
   -h, --help         Print help
   -V, --version      Print version
 ```
 
-#### `zksync-web3-cli deploy`
+#### `zksync-web3-rs deploy`
 
 Deploys the contract located in `CONTRACT_PATH/src` signing the transaction with `PRIVATE_KEY`.
 
 ```
-zksync-web3-cli deploy --contract <CONTRACT_PATH> --private-key <PRIVATE_KEY>
+zksync-web3-rs deploy --contract <CONTRACT_PATH> --private-key <PRIVATE_KEY>
 ```
 
-#### `zksync-web3-cli call`
+#### `zksync-web3-rs call`
 
 Calls `FUNCTION_SIGNATURE` of `CONTRACT_ADDRESS` with args `FUNCTION_ARGS`. If you want o call a `public view` contract function then you don't need to provide your `PRIVATE_KEY`. You must provide the latter only if you want to call a contract function that performs a state change.
 
 ```
-zksync-web3-cli call --contract <CONTRACT_ADDRESS> --function <FUNCTION_SIGNATURE> --args <FUNCTION_ARGS> --private-key <PRIVATE_KEY>
+zksync-web3-rs call --contract <CONTRACT_ADDRESS> --function <FUNCTION_SIGNATURE> --args <FUNCTION_ARGS> --private-key <PRIVATE_KEY>
 ```
 
-#### `zksync-web3-cli get-contract`
+#### `zksync-web3-rs get-contract`
 
 Gets `CONTRACT_ADDRESS`'s bytecode.
 
 ```
-zksync-web3-cli get-contract --contract <CONTRACT_ADDRESS>
+zksync-web3-rs get-contract --contract <CONTRACT_ADDRESS>
 ```
 
-#### `zksync-web3-cli get-transaction`
+#### `zksync-web3-rs get-transaction`
 
 Get the transaction corresponding to `TRANSACTION_HASH`.
 
 ```
-zksync-web3-cli get-transaction --transaction <TRANSACTION_HASH>
+zksync-web3-rs get-transaction --transaction <TRANSACTION_HASH>
 ```
 
-#### `zksync-web3-cli balance`
+#### `zksync-web3-rs balance`
 
 Gets the balance of the `ACCOUNT_ADDRESS`.
 
 ```
-zksync-web3-cli balance --account <ACCOUNT_ADDRESS>
+zksync-web3-rs balance --account <ACCOUNT_ADDRESS>
 ```
 
-#### `zksync-web3-cli pay`
+#### `zksync-web3-rs pay`
 
 Pays `AMOUNT` from `SENDER_ADDRESS` to `RECEIVER_ADDRESS` signing the transaction with `SENDER_PRIVATE_KEY`.
 
 ```
-zksync-web3-cli pay --amount <AMOUNT_TO_TRANSFER> --from <SENDER_ADDRESS> --to <RECEIVER_ADDRESS> --private-key <SENDER_PRIVATE_KEY>
+zksync-web3-rs pay --amount <AMOUNT_TO_TRANSFER> --from <SENDER_ADDRESS> --to <RECEIVER_ADDRESS> --private-key <SENDER_PRIVATE_KEY>
 ```
 
-#### `zksync-web3-cli compile`
+#### `zksync-web3-rs compile`
 
 > This command is a wrapper for the zksolc compiler.
 
 Compiles the contract located in `PATH_TO_CONTRACT` using the zksolc compiler.
 
 ```
-zksync-web3-cli compile --solc <PATH_TO_SOLC> --standard-json -- <PATH_TO_CONTRACT>
+zksync-web3-rs compile --solc <PATH_TO_SOLC> --standard-json -- <PATH_TO_CONTRACT>
 ```
 
 ##### Status (for full compatibility)

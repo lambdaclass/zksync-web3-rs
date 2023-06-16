@@ -8,7 +8,7 @@ use commands::{
 pub const VERSION_STRING: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Parser)]
-#[command(name="zksync-web3-cli", author, version=VERSION_STRING, about, long_about = None)]
+#[command(name="zksync-web3-rs", author, version=VERSION_STRING, about, long_about = None)]
 struct ZKSyncWeb3 {
     #[command(subcommand)]
     command: ZKSyncWeb3Command,
@@ -18,7 +18,7 @@ struct ZKSyncWeb3 {
 
 #[derive(Args)]
 pub struct ZKSyncWeb3Config {
-    #[clap(long, default_value = "65.108.204.116")]
+    #[clap(long, default_value = "65.21.140.36")]
     pub host: String,
     #[clap(short, long, default_value = "8545")]
     pub port: u16,

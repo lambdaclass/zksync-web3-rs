@@ -18,8 +18,10 @@ pub struct BlockDetails {
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
     pub commit_tx_hash: H256,
     pub committed_at: String,
-    pub execute_tx_hash: H256,
-    pub executed_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub execute_tx_hash: Option<H256>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub executed_at: Option<String>,
     pub l1_batch_number: u128,
     pub l1_gas_price: u128,
     pub l1_tx_count: u128,
@@ -27,8 +29,10 @@ pub struct BlockDetails {
     pub l2_tx_count: u128,
     pub number: u128,
     pub operator_address: Address,
-    pub prove_tx_hash: H256,
-    pub proven_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prove_tx_hash: Option<H256>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub proven_at: Option<String>,
     pub root_hash: H256,
     pub status: String,
     pub timestamp: u128,

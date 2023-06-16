@@ -4,7 +4,7 @@ use crate::{
     eip712::{hash_bytecode, Eip712Meta, Eip712Transaction, Eip712TransactionRequest},
     zks_provider::ZKSProvider,
     zks_utils::{
-        CONTRACTS_DIAMOND_PROXY_ADDR, CONTRACTS_L1_MESSENGER_ADDR, CONTRACTS_L2_ETH_TOKEN_ADDR,
+        CONTRACTS_L1_MESSENGER_ADDR, CONTRACTS_L2_ETH_TOKEN_ADDR,
         CONTRACT_DEPLOYER_ADDR, EIP712_TX_TYPE, ERA_CHAIN_ID, ETH_CHAIN_ID, MAX_FEE_PER_GAS,
         MAX_PRIORITY_FEE_PER_GAS,
     },
@@ -28,8 +28,13 @@ use ethers::{
     },
 };
 use serde_json::Value;
-use std::fmt::Debug;
-use std::{fmt::Display, fs::File, io::BufReader, path::PathBuf, str::FromStr};
+use std::{
+    fmt::{Debug, Display},
+    fs::File,
+    io::BufReader,
+    path::PathBuf,
+    str::FromStr,
+};
 
 pub struct ZKSWallet<M, D>
 where
@@ -346,7 +351,7 @@ where
                 let salt = [0_u8; 32];
                 let bytecode_hash = hash_bytecode(&contract_bytecode)?;
                 let call_data: Bytes = match (contract_abi.constructor(), constructor_parameters) {
-                    (None, Some(_)) => return Err(ContractError::ConstructorError)?,
+                    (None, Some(_)) => return Err(ContractError::ConstructorError.into()),
                     (None, None) | (Some(_), None) => Bytes::default(),
                     (Some(constructor), Some(constructor_parameters)) => constructor
                         .encode_input(
@@ -420,8 +425,8 @@ where
 
         let transaction: TypedTransaction = request.into();
 
-        let encoded_output = era_provider.call(&transaction, None).await.unwrap();
-        let decoded_output = function.decode_output(&encoded_output[..]).map_err(|e| {
+        let encoded_output = era_provider.call(&transaction, None).await?;
+        let decoded_output = function.decode_output(&encoded_output).map_err(|e| {
             ZKSWalletError::CustomError(format!("failed to decode output: {e}\n{encoded_output}"))
         })?;
 
@@ -648,11 +653,11 @@ where
 #[cfg(test)]
 mod zks_signer_tests {
     use crate::compile::project::ZKProject;
+    use crate::test_utils::*;
     use crate::zks_utils::ERA_CHAIN_ID;
     use crate::zks_wallet::ZKSWallet;
     use ethers::abi::{Token, Tokenize};
-    use ethers::providers::Middleware;
-    use ethers::providers::{Http, Provider};
+    use ethers::providers::{Middleware, Provider, Http};
     use ethers::signers::{LocalWallet, Signer};
     use ethers::solc::info::ContractInfo;
     use ethers::solc::{Project, ProjectPathsConfig};
@@ -796,6 +801,7 @@ mod zks_signer_tests {
     }
 
     #[tokio::test]
+    #[ignore = "skipped until the compiler OS version is fixed"]
     async fn test_deploy_contract_with_constructor_args() {
         let deployer_private_key =
             "7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110";
@@ -829,7 +835,7 @@ mod zks_signer_tests {
             .deploy(
                 "src/compile/test_contracts/storage/src/ValueStorage.sol",
                 contract_name,
-                Some(U256::from(10)),
+                Some(U256::from(10_i32)),
             )
             .await
             .unwrap();
@@ -840,6 +846,7 @@ mod zks_signer_tests {
     }
 
     #[tokio::test]
+    #[ignore = "skipped until the compiler OS version is fixed"]
     async fn test_call_view_function_with_no_parameters() {
         // Deploying a test contract
         let deployer_private_key =
@@ -872,6 +879,7 @@ mod zks_signer_tests {
     }
 
     #[tokio::test]
+    #[ignore = "skipped until the compiler OS version is fixed"]
     async fn test_call_view_function_with_arguments() {
         // Deploying a test contract
         let deployer_private_key =
@@ -909,10 +917,11 @@ mod zks_signer_tests {
             ])
             .into_tokens()
         );
-        assert_eq!(known_return_type_output, U256::from(2).into_tokens());
+        assert_eq!(known_return_type_output, U256::from(2_u64).into_tokens());
     }
 
     #[tokio::test]
+    #[ignore = "skipped until the compiler OS version is fixed"]
     async fn test_send_function_with_arguments() {
         // Deploying a test contract
         let deployer_private_key =
@@ -932,7 +941,7 @@ mod zks_signer_tests {
             .await
             .unwrap();
 
-        let value_to_set = U256::from(10);
+        let value_to_set = U256::from(10_u64);
         zk_wallet
             .send(
                 contract_address,
@@ -958,7 +967,7 @@ mod zks_signer_tests {
             .await
             .unwrap();
 
-        assert_eq!(incremented_value, (value_to_set + 1).into_tokens());
+        assert_eq!(incremented_value, (value_to_set + 1_u64).into_tokens());
     }
 
     #[tokio::test]
