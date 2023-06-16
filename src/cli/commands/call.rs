@@ -1,11 +1,7 @@
-use crate::ZKSWallet;
 use crate::cli::ZKSyncWeb3Config;
 use crate::zks_utils::ERA_CHAIN_ID;
-use crate::{
-    providers::Provider,
-    signers::Signer,
-    types::Address,
-};
+use crate::ZKSWallet;
+use crate::{providers::Provider, signers::Signer, types::Address};
 use clap::Args;
 use ethers::signers::LocalWallet;
 
