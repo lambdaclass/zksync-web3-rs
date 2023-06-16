@@ -4,9 +4,8 @@ use crate::{
     eip712::{hash_bytecode, Eip712Meta, Eip712Transaction, Eip712TransactionRequest},
     zks_provider::ZKSProvider,
     zks_utils::{
-        CONTRACTS_L1_MESSENGER_ADDR, CONTRACTS_L2_ETH_TOKEN_ADDR,
-        CONTRACT_DEPLOYER_ADDR, EIP712_TX_TYPE, ERA_CHAIN_ID, ETH_CHAIN_ID, MAX_FEE_PER_GAS,
-        MAX_PRIORITY_FEE_PER_GAS,
+        CONTRACTS_L1_MESSENGER_ADDR, CONTRACTS_L2_ETH_TOKEN_ADDR, CONTRACT_DEPLOYER_ADDR,
+        EIP712_TX_TYPE, ERA_CHAIN_ID, ETH_CHAIN_ID,
     },
 };
 use ethers::{
@@ -28,13 +27,7 @@ use ethers::{
     },
 };
 use serde_json::Value;
-use std::{
-    fmt::{Debug, Display},
-    fs::File,
-    io::BufReader,
-    path::PathBuf,
-    str::FromStr,
-};
+use std::{fmt::Display, fs::File, io::BufReader, path::PathBuf, str::FromStr};
 
 pub struct ZKSWallet<M, D>
 where
@@ -437,82 +430,6 @@ where
         })
     }
 
-    pub async fn send<T>(
-        &self,
-        contract_address: Address,
-        function_signature: &str,
-        function_parameters: Option<T>,
-        overrides: Option<Overrides>,
-    ) -> Result<(Vec<Token>, H256), ZKSWalletError<M, D>>
-    where
-        M: ZKSProvider,
-        T: Tokenizable + Debug + Clone,
-    {
-        let era_provider = match &self.era_provider {
-            Some(era_provider) => era_provider,
-            None => return Err(ZKSWalletError::CustomError("no era provider".to_owned())),
-        };
-
-        // Note: We couldn't implement ZKSWalletError::LexerError because ethers-rs's LexerError is not exposed.
-        let function = HumanReadableParser::parse_function(function_signature)
-            .map_err(|e| ZKSWalletError::CustomError(e.to_string()))?;
-
-        let mut send_request = if let Some(overrides) = overrides {
-            Eip712TransactionRequest::from_overrides(overrides)
-        } else {
-            Eip712TransactionRequest::new()
-        };
-
-        send_request = send_request
-            .r#type(EIP712_TX_TYPE)
-            .from(self.address())
-            .to(contract_address)
-            .chain_id(ERA_CHAIN_ID)
-            .nonce(
-                era_provider
-                    .get_transaction_count(self.address(), None)
-                    .await?,
-            )
-            .gas_price(era_provider.get_gas_price().await?)
-            .max_fee_per_gas(era_provider.get_gas_price().await?)
-            .data(match function_parameters {
-                Some(parameters) => function
-                    .encode_input(&parameters.into_tokens())
-                    .map_err(|e| ZKSWalletError::CustomError(e.to_string()))?,
-                None => function.short_signature().into(),
-            });
-
-        let fee = era_provider.estimate_fee(send_request.clone()).await?;
-        send_request = send_request
-            .max_priority_fee_per_gas(fee.max_priority_fee_per_gas)
-            .max_fee_per_gas(fee.max_fee_per_gas)
-            .gas_limit(fee.gas_limit);
-
-        let signable_data: Eip712Transaction = send_request.clone().try_into()?;
-        let signature: Signature = self.wallet.sign_typed_data(&signable_data).await?;
-        send_request =
-            send_request.custom_data(Eip712Meta::new().custom_signature(signature.to_vec()));
-
-        let pending_transaction = era_provider
-            .send_raw_transaction(
-                [&[EIP712_TX_TYPE], &*send_request.rlp_unsigned()]
-                    .concat()
-                    .into(),
-            )
-            .await?;
-
-        // TODO: Should we wait here for the transaction to be confirmed on-chain?
-
-        let transaction_receipt = pending_transaction
-            .await?
-            .ok_or(ZKSWalletError::CustomError(
-                "no transaction receipt".to_owned(),
-            ))?;
-
-        // TODO: decode function output.
-        Ok((Vec::new(), transaction_receipt.transaction_hash))
-    }
-
     pub async fn withdraw(&self, amount: U256) -> Result<TransactionReceipt, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
@@ -524,8 +441,9 @@ where
 
         let contract_address = Address::from_str(CONTRACTS_L2_ETH_TOKEN_ADDR).unwrap();
         let function_signature = "function withdraw(address _l1Receiver) external payable override";
-        let response: (Vec<Token>, H256) = self
-            .send(
+        let response: (Vec<Token>, H256) = era_provider
+            .send_eip712(
+                &self.wallet,
                 contract_address,
                 function_signature,
                 Some(self.wallet.address()),
@@ -549,14 +467,13 @@ where
     where
         M: ZKSProvider,
     {
-        let era_provider = match &self.era_provider {
-            Some(era_provider) => era_provider,
-            None => return Err(ZKSWalletError::CustomError("no era provider".to_owned())),
-        };
-
-        let eth_provider = match &self.eth_provider {
-            Some(eth_provider) => eth_provider,
-            None => return Err(ZKSWalletError::CustomError("no eth provider".to_owned())),
+        let (era_provider, eth_provider) = match (&self.era_provider, &self.eth_provider) {
+            (Some(era_provider), Some(eth_provider)) => (era_provider, eth_provider),
+            _ => {
+                return Err(ZKSWalletError::CustomError(
+                    "Both era and eth providers are necessary".to_owned(),
+                ))
+            }
         };
 
         let withdrawal_receipt = era_provider
@@ -610,43 +527,21 @@ where
         );
 
         let function_signature = "function finalizeEthWithdrawal(uint256 _l2BlockNumber,uint256 _l2MessageIndex,uint16 _l2TxNumberInBlock,bytes calldata _message,bytes32[] calldata _merkleProof) external";
-        // Note: We couldn't implement ZKSWalletError::LexerError because ethers-rs's LexerError is not exposed.
-        let function = HumanReadableParser::parse_function(function_signature)
-            .map_err(|e| ZKSWalletError::CustomError(e.to_string()))?;
-
-        // Sending transaction calling the main contract.
-        let send_request = Eip1559TransactionRequest::new()
-            .from(self.address())
-            .to(main_contract)
-            .chain_id(ETH_CHAIN_ID)
-            .nonce(
-                eth_provider
-                    .get_transaction_count(self.address(), None)
-                    .await?,
+        let response = eth_provider
+            .send(
+                &self.wallet,
+                main_contract,
+                function_signature,
+                Some(parameters),
+                None,
             )
-            .data(
-                function
-                    .encode_input(&parameters.clone().into_tokens())
-                    .map_err(|e| ZKSWalletError::CustomError(e.to_string()))?,
-            )
-            .value(0)
-            //We should use default calculation for gas related fields.
-            .gas(91435)
-            .max_fee_per_gas(MAX_FEE_PER_GAS)
-            .max_priority_fee_per_gas(MAX_PRIORITY_FEE_PER_GAS);
+            .await?;
 
-        let tx: TypedTransaction = send_request.clone().into();
-        let pending_transaction = eth_provider.send_transaction(tx, None).await?;
-
-        // TODO: Should we wait here for the transaction to be confirmed on-chain?
-
-        let transaction_receipt = pending_transaction
-            .await?
-            .ok_or(ZKSWalletError::CustomError(
-                "no transaction receipt".to_owned(),
-            ))?;
-
-        Ok(transaction_receipt)
+        Ok(era_provider
+            .get_transaction_receipt(response.1)
+            .await
+            .unwrap()
+            .unwrap())
     }
 }
 
@@ -654,10 +549,11 @@ where
 mod zks_signer_tests {
     use crate::compile::project::ZKProject;
     use crate::test_utils::*;
+    use crate::zks_provider::ZKSProvider;
     use crate::zks_utils::ERA_CHAIN_ID;
     use crate::zks_wallet::ZKSWallet;
     use ethers::abi::{Token, Tokenize};
-    use ethers::providers::{Middleware, Provider, Http};
+    use ethers::providers::Middleware;
     use ethers::signers::{LocalWallet, Signer};
     use ethers::solc::info::ContractInfo;
     use ethers::solc::{Project, ProjectPathsConfig};
@@ -667,14 +563,6 @@ mod zks_signer_tests {
     use std::str::FromStr;
     use std::thread;
     use std::time::Duration;
-
-    fn era_provider() -> Provider<Http> {
-        Provider::try_from("http://localhost:3050".to_owned()).unwrap()
-    }
-
-    fn eth_provider() -> Provider<Http> {
-        Provider::try_from("http://localhost:8545".to_owned()).unwrap()
-    }
 
     #[tokio::test]
     async fn test_transfer() {
@@ -942,8 +830,9 @@ mod zks_signer_tests {
             .unwrap();
 
         let value_to_set = U256::from(10_u64);
-        zk_wallet
-            .send(
+        era_provider
+            .send_eip712(
+                &zk_wallet.wallet,
                 contract_address,
                 "setValue(uint256)",
                 Some(value_to_set),
@@ -958,8 +847,14 @@ mod zks_signer_tests {
 
         assert_eq!(set_value, value_to_set.into_tokens());
 
-        zk_wallet
-            .send::<Token>(contract_address, "incrementValue()", None, None)
+        era_provider
+            .send_eip712::<Token, _>(
+                &zk_wallet.wallet,
+                contract_address,
+                "incrementValue()",
+                None,
+                None,
+            )
             .await
             .unwrap();
         let incremented_value = zk_wallet

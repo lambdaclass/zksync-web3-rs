@@ -1,9 +1,19 @@
 use async_trait::async_trait;
 use ethers::{
-    prelude::SignerMiddleware,
+    abi::{HumanReadableParser, Token, Tokenizable, Tokenize},
+    prelude::{
+        k256::{
+            ecdsa::{RecoveryId, Signature as RecoverableSignature},
+            schnorr::signature::hazmat::PrehashSigner,
+        },
+        SignerMiddleware,
+    },
     providers::{JsonRpcClient, Middleware, Provider, ProviderError},
-    signers::Signer,
-    types::{Address, H256, U256, U64},
+    signers::{Signer, Wallet},
+    types::{
+        transaction::eip2718::TypedTransaction, Address, Eip1559TransactionRequest, Signature,
+        H256, U256, U64,
+    },
 };
 use serde::Serialize;
 use serde_json::json;
@@ -11,6 +21,14 @@ use std::{collections::HashMap, fmt::Debug};
 
 pub mod types;
 use types::Fee;
+
+use crate::{
+    eip712::{Eip712Meta, Eip712Transaction, Eip712TransactionRequest},
+    zks_utils::{
+        EIP712_TX_TYPE, ERA_CHAIN_ID, ETH_CHAIN_ID, MAX_FEE_PER_GAS, MAX_PRIORITY_FEE_PER_GAS,
+    },
+    zks_wallet::Overrides,
+};
 
 use self::types::{
     BlockDetails, BlockRange, BridgeContracts, DebugTrace, L1BatchDetails, Proof, TokenInfo,
@@ -165,6 +183,30 @@ pub trait ZKSProvider {
         hash: H256,
         options: Option<TracerConfig>,
     ) -> Result<DebugTrace, ProviderError>;
+
+    async fn send_eip712<T, D>(
+        &self,
+        wallet: &Wallet<D>,
+        contract_address: Address,
+        function_signature: &str,
+        function_parameters: Option<T>,
+        overrides: Option<Overrides>,
+    ) -> Result<(Vec<Token>, H256), ProviderError>
+    where
+        T: Tokenizable + Debug + Clone + Send,
+        D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Send + Sync;
+
+    async fn send<T, D>(
+        &self,
+        wallet: &Wallet<D>,
+        contract_address: Address,
+        function_signature: &str,
+        function_parameters: Option<T>,
+        overrides: Option<Overrides>,
+    ) -> Result<(Vec<Token>, H256), ProviderError>
+    where
+        T: Tokenizable + Debug + Clone + Send,
+        D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Send + Sync;
 }
 
 #[async_trait]
@@ -334,6 +376,52 @@ impl<M: Middleware + ZKSProvider, S: Signer> ZKSProvider for SignerMiddleware<M,
         options: Option<TracerConfig>,
     ) -> Result<DebugTrace, ProviderError> {
         ZKSProvider::debug_trace_transaction(self.inner(), hash, options).await
+    }
+
+    async fn send_eip712<T, D>(
+        &self,
+        wallet: &Wallet<D>,
+        contract_address: Address,
+        function_signature: &str,
+        function_parameters: Option<T>,
+        overrides: Option<Overrides>,
+    ) -> Result<(Vec<Token>, H256), ProviderError>
+    where
+        T: Tokenizable + Debug + Clone + Send,
+        D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Send + Sync,
+    {
+        self.inner()
+            .send_eip712(
+                wallet,
+                contract_address,
+                function_signature,
+                function_parameters,
+                overrides,
+            )
+            .await
+    }
+
+    async fn send<T, D>(
+        &self,
+        wallet: &Wallet<D>,
+        contract_address: Address,
+        function_signature: &str,
+        function_parameters: Option<T>,
+        overrides: Option<Overrides>,
+    ) -> Result<(Vec<Token>, H256), ProviderError>
+    where
+        T: Tokenizable + Debug + Clone + Send,
+        D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Send + Sync,
+    {
+        self.inner()
+            .send(
+                wallet,
+                contract_address,
+                function_signature,
+                function_parameters,
+                overrides,
+            )
+            .await
     }
 }
 
@@ -542,6 +630,121 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
         self.request("debug_traceTransaction", json!([hash, options]))
             .await
     }
+
+    async fn send_eip712<T, D>(
+        &self,
+        wallet: &Wallet<D>,
+        contract_address: Address,
+        function_signature: &str,
+        function_parameters: Option<T>,
+        overrides: Option<Overrides>,
+    ) -> Result<(Vec<Token>, H256), ProviderError>
+    where
+        T: Tokenizable + Debug + Clone + Send,
+        D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Send + Sync,
+    {
+        // Note: We couldn't implement ProviderError::LexerError because ethers-rs's LexerError is not exposed.
+        let function = HumanReadableParser::parse_function(function_signature)
+            .map_err(|e| ProviderError::CustomError(e.to_string()))?;
+
+        let mut send_request = if let Some(overrides) = overrides {
+            Eip712TransactionRequest::from_overrides(overrides)
+        } else {
+            Eip712TransactionRequest::new()
+        };
+
+        send_request = send_request
+            .r#type(EIP712_TX_TYPE)
+            .from(wallet.address())
+            .to(contract_address)
+            .chain_id(ERA_CHAIN_ID)
+            .nonce(self.get_transaction_count(wallet.address(), None).await?)
+            .gas_price(self.get_gas_price().await?)
+            .max_fee_per_gas(self.get_gas_price().await?)
+            .data(match function_parameters {
+                Some(parameters) => function
+                    .encode_input(&parameters.into_tokens())
+                    .map_err(|e| ProviderError::CustomError(e.to_string()))?,
+                None => function.short_signature().into(),
+            });
+
+        let fee = self.estimate_fee(send_request.clone()).await?;
+        send_request = send_request
+            .max_priority_fee_per_gas(fee.max_priority_fee_per_gas)
+            .max_fee_per_gas(fee.max_fee_per_gas)
+            .gas_limit(fee.gas_limit);
+
+        let signable_data: Eip712Transaction = send_request.clone().try_into().unwrap();
+        let signature: Signature = wallet.sign_typed_data(&signable_data).await.unwrap();
+        send_request =
+            send_request.custom_data(Eip712Meta::new().custom_signature(signature.to_vec()));
+
+        let pending_transaction = self
+            .send_raw_transaction(
+                [&[EIP712_TX_TYPE], &*send_request.rlp_unsigned()]
+                    .concat()
+                    .into(),
+            )
+            .await?;
+
+        // TODO: Should we wait here for the transaction to be confirmed on-chain?
+
+        let transaction_receipt = pending_transaction
+            .await?
+            .ok_or(ProviderError::CustomError(
+                "no transaction receipt".to_owned(),
+            ))?;
+
+        // TODO: decode function output.
+        Ok((Vec::new(), transaction_receipt.transaction_hash))
+    }
+
+    async fn send<T, D>(
+        &self,
+        wallet: &Wallet<D>,
+        contract_address: Address,
+        function_signature: &str,
+        function_parameters: Option<T>,
+        _overrides: Option<Overrides>,
+    ) -> Result<(Vec<Token>, H256), ProviderError>
+    where
+        T: Tokenizable + Debug + Clone + Send,
+        D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Send + Sync,
+    {
+        let function = HumanReadableParser::parse_function(function_signature)
+            .map_err(|e| ProviderError::CustomError(e.to_string()))?;
+
+        // Sending transaction calling the main contract.
+        let send_request = Eip1559TransactionRequest::new()
+            .from(wallet.address())
+            .to(contract_address)
+            .chain_id(ETH_CHAIN_ID)
+            .nonce(self.get_transaction_count(wallet.address(), None).await?)
+            .data(
+                function
+                    .encode_input(&function_parameters.unwrap().clone().into_tokens())
+                    .map_err(|e| ProviderError::CustomError(e.to_string()))?,
+            )
+            .value(0)
+            //We should use default calculation for gas related fields.
+            .gas(91435)
+            .max_fee_per_gas(MAX_FEE_PER_GAS)
+            .max_priority_fee_per_gas(MAX_PRIORITY_FEE_PER_GAS);
+
+        println!("{:?}", wallet.address());
+        let tx: TypedTransaction = send_request.clone().into();
+        let pending_transaction = self.send_transaction(tx, None).await?;
+        println!("AA");
+        // TODO: Should we wait here for the transaction to be confirmed on-chain?
+
+        let transaction_receipt = pending_transaction
+            .await?
+            .ok_or(ProviderError::CustomError(
+                "no transaction receipt".to_owned(),
+            ))?;
+
+        Ok((Vec::new(), transaction_receipt.transaction_hash))
+    }
 }
 
 #[cfg(test)]
@@ -549,6 +752,7 @@ mod tests {
     use std::{collections::HashMap, str::FromStr};
 
     use crate::{
+        test_utils::*,
         zks_provider::{types::TracerConfig, ZKSProvider},
         zks_utils::ERA_CHAIN_ID,
         zks_wallet::ZKSWallet,
@@ -560,18 +764,6 @@ mod tests {
         types::{Address, H256, U256},
     };
     use serde::{Deserialize, Serialize};
-
-    const L2_CHAIN_ID: u64 = 270;
-
-    fn era_provider() -> Provider<ethers::providers::Http> {
-        Provider::try_from(format!(
-            "http://{host}:{port}",
-            host = "65.21.140.36",
-            port = 3_050_i32
-        ))
-        .unwrap()
-        .interval(std::time::Duration::from_millis(10_u64))
-    }
 
     fn local_wallet() -> LocalWallet {
         "0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110"
@@ -585,7 +777,7 @@ mod tests {
             "0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110"
                 .parse::<Wallet<SigningKey>>()
                 .unwrap(),
-            L2_CHAIN_ID,
+            ERA_CHAIN_ID,
         );
         era_provider().with_signer(signer)
     }
