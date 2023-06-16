@@ -29,8 +29,7 @@ pub struct CompileArgs {
 }
 
 pub(crate) fn run(args: CompileArgs) -> eyre::Result<String> {
-    let zksolc_path = program_path("zksolc").ok_or(eyre::eyre!("zksolc not found"))?;
-    let mut command = &mut std::process::Command::new(zksolc_path);
+    let mut command = &mut std::process::Command::new(constants::ZK_SOLC_PATH);
     if let Some(solc) = args.solc {
         command = command.arg("--solc").arg(solc);
     } else if let Ok(solc) = std::env::var("SOLC_PATH") {
