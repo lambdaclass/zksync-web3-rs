@@ -561,7 +561,6 @@ mod zks_signer_tests {
     use ethers::types::{Address, Bytes};
     use ethers::utils::parse_units;
     use std::str::FromStr;
-    use std::thread;
     use std::time::Duration;
 
     #[tokio::test]
@@ -892,8 +891,7 @@ mod zks_signer_tests {
 
         println!("L2 Transaction hash: {:?}", tx_receipt.transaction_hash);
 
-        // TODO cleanup. Make sure the proof is posted on L2.
-        thread::sleep(Duration::from_millis(20000));
+        tokio::time::sleep(Duration::from_secs(2)).await;
 
         let l2_balance_after_withdraw = zk_wallet.era_balance().await.unwrap();
         let l1_balance_after_withdraw = zk_wallet.eth_balance().await.unwrap();
