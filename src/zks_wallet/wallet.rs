@@ -537,7 +537,7 @@ where
             )
             .await?;
 
-        Ok(era_provider
+        Ok(eth_provider
             .get_transaction_receipt(response.1)
             .await
             .unwrap()
