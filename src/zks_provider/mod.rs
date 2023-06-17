@@ -407,21 +407,34 @@ impl<M: Middleware + ZKSProvider, S: Signer> ZKSProvider for SignerMiddleware<M,
         contract_address: Address,
         function_signature: &str,
         function_parameters: Option<T>,
-        overrides: Option<Overrides>,
+        _overrides: Option<Overrides>,
     ) -> Result<(Vec<Token>, H256), ProviderError>
     where
         T: Tokenizable + Debug + Clone + Send,
         D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Send + Sync,
     {
-        self.inner()
-            .send(
-                wallet,
-                contract_address,
-                function_signature,
-                function_parameters,
-                overrides,
-            )
-            .await
+        let tx = build_send_tx(
+            self,
+            wallet.address(),
+            contract_address,
+            function_signature,
+            function_parameters,
+            _overrides,
+        )
+        .await?;
+        let pending_transaction = self.send_transaction(tx, None).await.map_err(|e| {
+            ProviderError::CustomError(format!("Error sending transaction: {:?}", e))
+        })?;
+
+        // TODO: Should we wait here for the transaction to be confirmed on-chain?
+
+        let transaction_receipt = pending_transaction
+            .await?
+            .ok_or(ProviderError::CustomError(
+                "no transaction receipt".to_owned(),
+            ))?;
+
+        Ok((Vec::new(), transaction_receipt.transaction_hash))
     }
 }
 
@@ -711,30 +724,17 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
         T: Tokenizable + Debug + Clone + Send,
         D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Send + Sync,
     {
-        let function = HumanReadableParser::parse_function(function_signature)
-            .map_err(|e| ProviderError::CustomError(e.to_string()))?;
-
-        // Sending transaction calling the main contract.
-        let send_request = Eip1559TransactionRequest::new()
-            .from(wallet.address())
-            .to(contract_address)
-            .chain_id(ETH_CHAIN_ID)
-            .nonce(self.get_transaction_count(wallet.address(), None).await?)
-            .data(
-                function
-                    .encode_input(&function_parameters.unwrap().clone().into_tokens())
-                    .map_err(|e| ProviderError::CustomError(e.to_string()))?,
-            )
-            .value(0)
-            //We should use default calculation for gas related fields.
-            .gas(91435)
-            .max_fee_per_gas(MAX_FEE_PER_GAS)
-            .max_priority_fee_per_gas(MAX_PRIORITY_FEE_PER_GAS);
-
-        println!("{:?}", wallet.address());
-        let tx: TypedTransaction = send_request.clone().into();
+        let tx = build_send_tx(
+            self,
+            wallet.address(),
+            contract_address,
+            function_signature,
+            function_parameters,
+            _overrides,
+        )
+        .await?;
         let pending_transaction = self.send_transaction(tx, None).await?;
-        println!("AA");
+
         // TODO: Should we wait here for the transaction to be confirmed on-chain?
 
         let transaction_receipt = pending_transaction
@@ -745,6 +745,45 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
 
         Ok((Vec::new(), transaction_receipt.transaction_hash))
     }
+}
+
+async fn build_send_tx<T>(
+    provider: &impl Middleware,
+    sender: Address,
+    contract_address: Address,
+    function_signature: &str,
+    function_parameters: Option<T>,
+    _overrides: Option<Overrides>,
+) -> Result<TypedTransaction, ProviderError>
+where
+    T: Tokenizable + Debug + Clone + Send,
+{
+    let function = HumanReadableParser::parse_function(function_signature)
+        .map_err(|e| ProviderError::CustomError(e.to_string()))?;
+
+    // Sending transaction calling the main contract.
+    let send_request = Eip1559TransactionRequest::new()
+        .from(sender)
+        .to(contract_address)
+        .chain_id(ETH_CHAIN_ID)
+        .nonce(
+            provider
+                .get_transaction_count(sender, None)
+                .await
+                .map_err(|e| ProviderError::CustomError(e.to_string()))?,
+        )
+        .data(
+            function
+                .encode_input(&function_parameters.unwrap().clone().into_tokens())
+                .map_err(|e| ProviderError::CustomError(e.to_string()))?,
+        )
+        .value(0)
+        //We should use default calculation for gas related fields.
+        .gas(91435)
+        .max_fee_per_gas(MAX_FEE_PER_GAS)
+        .max_priority_fee_per_gas(MAX_PRIORITY_FEE_PER_GAS);
+
+    Ok(send_request.into())
 }
 
 #[cfg(test)]
