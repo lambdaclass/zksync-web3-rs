@@ -11,8 +11,8 @@ use ethers::{
     providers::{JsonRpcClient, Middleware, Provider, ProviderError},
     signers::{Signer, Wallet},
     types::{
-        transaction::eip2718::TypedTransaction, Address, Eip1559TransactionRequest, Signature,
-        H256, U256, U64,
+        transaction::{eip2718::TypedTransaction, eip712::Eip712Error},
+        Address, Eip1559TransactionRequest, Signature, H256, U256, U64,
     },
 };
 use serde::Serialize;
@@ -25,7 +25,8 @@ use types::Fee;
 use crate::{
     eip712::{Eip712Meta, Eip712Transaction, Eip712TransactionRequest},
     zks_utils::{
-        EIP712_TX_TYPE, ERA_CHAIN_ID, ETH_CHAIN_ID, MAX_FEE_PER_GAS, MAX_PRIORITY_FEE_PER_GAS,
+        DEFAULT_GAS, EIP712_TX_TYPE, ERA_CHAIN_ID, ETH_CHAIN_ID, MAX_FEE_PER_GAS,
+        MAX_PRIORITY_FEE_PER_GAS,
     },
     zks_wallet::Overrides,
 };
@@ -422,9 +423,10 @@ impl<M: Middleware + ZKSProvider, S: Signer> ZKSProvider for SignerMiddleware<M,
             _overrides,
         )
         .await?;
-        let pending_transaction = self.send_transaction(tx, None).await.map_err(|e| {
-            ProviderError::CustomError(format!("Error sending transaction: {:?}", e))
-        })?;
+        let pending_transaction = self
+            .send_transaction(tx, None)
+            .await
+            .map_err(|e| ProviderError::CustomError(format!("Error sending transaction: {e:?}")))?;
 
         // TODO: Should we wait here for the transaction to be confirmed on-chain?
 
@@ -687,8 +689,14 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
             .max_fee_per_gas(fee.max_fee_per_gas)
             .gas_limit(fee.gas_limit);
 
-        let signable_data: Eip712Transaction = send_request.clone().try_into().unwrap();
-        let signature: Signature = wallet.sign_typed_data(&signable_data).await.unwrap();
+        let signable_data: Eip712Transaction = send_request
+            .clone()
+            .try_into()
+            .map_err(|e: Eip712Error| ProviderError::CustomError(e.to_string()))?;
+        let signature: Signature = wallet
+            .sign_typed_data(&signable_data)
+            .await
+            .map_err(|e| ProviderError::CustomError(format!("error signing transaction: {e}")))?;
         send_request =
             send_request.custom_data(Eip712Meta::new().custom_signature(signature.to_vec()));
 
@@ -772,14 +780,15 @@ where
                 .await
                 .map_err(|e| ProviderError::CustomError(e.to_string()))?,
         )
-        .data(
-            function
-                .encode_input(&function_parameters.unwrap().clone().into_tokens())
+        .data(match function_parameters {
+            Some(parameters) => function
+                .encode_input(&parameters.into_tokens())
                 .map_err(|e| ProviderError::CustomError(e.to_string()))?,
-        )
-        .value(0)
-        //We should use default calculation for gas related fields.
-        .gas(91435)
+            None => function.short_signature().into(),
+        })
+        .value(0_u8)
+        //FIXME we should use default calculation for gas related fields.
+        .gas(DEFAULT_GAS)
         .max_fee_per_gas(MAX_FEE_PER_GAS)
         .max_priority_fee_per_gas(MAX_PRIORITY_FEE_PER_GAS);
 
@@ -797,6 +806,7 @@ mod tests {
         zks_wallet::ZKSWallet,
     };
     use ethers::{
+        abi::{Token, Tokenize},
         prelude::{k256::ecdsa::SigningKey, MiddlewareBuilder, SignerMiddleware},
         providers::{Middleware, Provider},
         signers::{LocalWallet, Signer, Wallet},

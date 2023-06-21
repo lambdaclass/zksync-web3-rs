@@ -439,7 +439,9 @@ where
             None => return Err(ZKSWalletError::CustomError("no era provider".to_owned())),
         };
 
-        let contract_address = Address::from_str(CONTRACTS_L2_ETH_TOKEN_ADDR).unwrap();
+        let contract_address = Address::from_str(CONTRACTS_L2_ETH_TOKEN_ADDR).map_err(|error| {
+            ZKSWalletError::CustomError(format!("failed to parse contract address: {error}"))
+        })?;
         let function_signature = "function withdraw(address _l1Receiver) external payable override";
         let response: (Vec<Token>, H256) = era_provider
             .send_eip712(
@@ -453,11 +455,12 @@ where
             )
             .await?;
 
-        Ok(era_provider
+        era_provider
             .get_transaction_receipt(response.1)
-            .await
-            .unwrap()
-            .unwrap())
+            .await?
+            .ok_or(ZKSWalletError::CustomError(
+                "No transaction receipt for withdraw".to_owned(),
+            ))
     }
 
     pub async fn finalize_withdraw(
@@ -476,48 +479,90 @@ where
             }
         };
 
-        let withdrawal_receipt = era_provider
-            .get_transaction_receipt(tx_hash)
-            .await?
-            .unwrap();
+        let withdrawal_receipt = era_provider.get_transaction_receipt(tx_hash).await?.ok_or(
+            ZKSWalletError::CustomError("Error getting transaction receipt of withdraw".to_owned()),
+        )?;
+
+        let messenger_contract_address =
+            Address::from_str(CONTRACTS_L1_MESSENGER_ADDR).map_err(|error| {
+                ZKSWalletError::CustomError(format!("failed to parse contract address: {error}"))
+            })?;
 
         let logs: Vec<Log> = withdrawal_receipt
             .logs
             .into_iter()
             .filter(|log| {
                 //log.topics[0] == topic &&
-                log.address == Address::from_str(CONTRACTS_L1_MESSENGER_ADDR).unwrap()
+                log.address == messenger_contract_address
             })
             .collect();
 
         // Get all the parameters needed to call the finalizeWithdrawal function on the main contract contract.
-        let (l2_to_l1_log_index, _) =
-            serde_json::from_value::<Vec<Value>>(withdrawal_receipt.other["l2ToL1Logs"].clone())
-                .unwrap()
-                .iter()
-                .enumerate()
-                .find(|(_, log)| log["sender"] == CONTRACTS_L1_MESSENGER_ADDR)
-                .unwrap();
-        let filtered_log = logs[0].clone();
+        // FIXME we should consider avoid indexing slices
+        #[allow(clippy::indexing_slicing)]
+        let (_, l2_to_l1_log_index) = serde_json::from_value::<Vec<Value>>(
+            withdrawal_receipt
+                .other
+                .get("l2ToL1Logs")
+                .ok_or(ZKSWalletError::CustomError(
+                    "Field not present in receipt".to_owned(),
+                ))?
+                .clone(),
+        )
+        .map_err(|err| {
+            ZKSWalletError::CustomError(format!("Error getting logs in receipt: {err:?}"))
+        })?
+        .iter()
+        .zip(0_u64..)
+        .find(|(log, _)| log["sender"] == CONTRACTS_L1_MESSENGER_ADDR)
+        .ok_or(ZKSWalletError::CustomError(
+            "Error getting log index parameter".to_owned(),
+        ))?;
+
+        let filtered_log = logs
+            .get(0)
+            .ok_or(ZKSWalletError::CustomError(
+                "Error getting log in receipt".to_owned(),
+            ))?
+            .clone();
         let proof = era_provider
-            .get_l2_to_l1_log_proof(tx_hash, Some(l2_to_l1_log_index as u64))
+            .get_l2_to_l1_log_proof(tx_hash, Some(l2_to_l1_log_index))
             .await?
-            .unwrap();
+            .ok_or(ZKSWalletError::CustomError(
+                "Error getting proof parameter".to_owned(),
+            ))?;
         let main_contract = era_provider.get_main_contract().await?;
         let merkle_proof: Vec<H256> = proof.merkle_proof;
         let l1_batch_number = era_provider.get_l1_batch_number().await?;
         let l2_message_index = U256::from(proof.id);
-        let l2_tx_number_in_block: u16 =
-            serde_json::from_value::<U256>(withdrawal_receipt.other["l1BatchTxIndex"].clone())
-                .unwrap()
-                .as_u32() as u16;
-        let message: Bytes = decode(&[ParamType::Bytes], &*filtered_log.data).map_err(|e| {
-            ZKSWalletError::CustomError(format!("failed to decode log data: {}", e))
-        })?[0]
+
+        // FIXME we should avoid the as convertions
+        #[allow(clippy::as_conversions)]
+        let l2_tx_number_in_block: u16 = serde_json::from_value::<U256>(
+            withdrawal_receipt
+                .other
+                .get("l1BatchTxIndex")
+                .ok_or(ZKSWalletError::CustomError(
+                    "Field not present in receipt".to_owned(),
+                ))?
+                .clone(),
+        )
+        .map_err(|err| ZKSWalletError::CustomError(format!("Failed to deserialize field {err}")))?
+        .as_u32() as u16;
+
+        let message: Bytes = decode(&[ParamType::Bytes], &filtered_log.data)
+            .map_err(|e| ZKSWalletError::CustomError(format!("failed to decode log data: {e}")))?
+            .get(0)
+            .ok_or(ZKSWalletError::CustomError(
+                "Message not found in decoded data".to_owned(),
+            ))?
             .clone()
             .into_bytes()
-            .unwrap()
+            .ok_or(ZKSWalletError::CustomError(
+                "Could not convert message to bytes".to_owned(),
+            ))?
             .into();
+
         let parameters = (
             l1_batch_number,
             l2_message_index,
@@ -537,11 +582,12 @@ where
             )
             .await?;
 
-        Ok(eth_provider
+        eth_provider
             .get_transaction_receipt(response.1)
-            .await
-            .unwrap()
-            .unwrap())
+            .await?
+            .ok_or(ZKSWalletError::CustomError(
+                "No transaction receipt for finalize withdraw".to_owned(),
+            ))
     }
 }
 
@@ -549,7 +595,6 @@ where
 mod zks_signer_tests {
     use crate::compile::project::ZKProject;
     use crate::test_utils::*;
-    use crate::zks_provider::ZKSProvider;
     use crate::zks_utils::ERA_CHAIN_ID;
     use crate::zks_wallet::ZKSWallet;
     use ethers::abi::{Token, Tokenize};
@@ -881,7 +926,7 @@ mod zks_signer_tests {
         println!("Balance on L2 before withdrawal: {l2_balance_before}");
 
         // Withdraw
-        let amount_to_withdraw: U256 = parse_units(1, "ether").unwrap().into();
+        let amount_to_withdraw: U256 = parse_units(1_u8, "ether").unwrap().into();
         let tx_receipt = zk_wallet.withdraw(amount_to_withdraw).await.unwrap();
         assert_eq!(
             1,
@@ -891,7 +936,7 @@ mod zks_signer_tests {
 
         println!("L2 Transaction hash: {:?}", tx_receipt.transaction_hash);
 
-        tokio::time::sleep(Duration::from_secs(2)).await;
+        tokio::time::sleep(Duration::from_secs(5)).await;
 
         let l2_balance_after_withdraw = zk_wallet.era_balance().await.unwrap();
         let l1_balance_after_withdraw = zk_wallet.eth_balance().await.unwrap();
