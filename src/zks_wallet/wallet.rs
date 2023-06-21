@@ -853,63 +853,6 @@ mod zks_signer_tests {
     }
 
     #[tokio::test]
-    #[ignore = "skipped until the compiler OS version is fixed"]
-    async fn test_send_function_with_arguments() {
-        // Deploying a test contract
-        let deployer_private_key =
-            "7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110";
-        let era_provider = era_provider();
-        let wallet = LocalWallet::from_str(deployer_private_key)
-            .unwrap()
-            .with_chain_id(ERA_CHAIN_ID);
-        let zk_wallet = ZKSWallet::new(wallet, Some(era_provider.clone()), None).unwrap();
-
-        let contract_address = zk_wallet
-            .deploy(
-                "src/compile/test_contracts/storage/src/ValueStorage.sol",
-                "ValueStorage",
-                Some(U256::zero()),
-            )
-            .await
-            .unwrap();
-
-        let value_to_set = U256::from(10_u64);
-        era_provider
-            .send_eip712(
-                &zk_wallet.wallet,
-                contract_address,
-                "setValue(uint256)",
-                Some(value_to_set),
-                None,
-            )
-            .await
-            .unwrap();
-        let set_value = zk_wallet
-            .call::<Token>(contract_address, "getValue()(uint256)", None)
-            .await
-            .unwrap();
-
-        assert_eq!(set_value, value_to_set.into_tokens());
-
-        era_provider
-            .send_eip712::<Token, _>(
-                &zk_wallet.wallet,
-                contract_address,
-                "incrementValue()",
-                None,
-                None,
-            )
-            .await
-            .unwrap();
-        let incremented_value = zk_wallet
-            .call::<Token>(contract_address, "getValue()(uint256)", None)
-            .await
-            .unwrap();
-
-        assert_eq!(incremented_value, (value_to_set + 1_u64).into_tokens());
-    }
-
-    #[tokio::test]
     async fn test_withdraw() {
         let deployer_private_key =
             "7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110";
