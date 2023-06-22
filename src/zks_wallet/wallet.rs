@@ -548,7 +548,9 @@ where
                 .clone(),
         )
         .map_err(|err| ZKSWalletError::CustomError(format!("Failed to deserialize field {err}")))?
-        .as_u32() as u16;
+        .as_u32()
+        .try_into()
+        .map_err(|e| ZKSWalletError::CustomError(format!("failed to convert u32 to u16: {e}")))?;
 
         let message: Bytes = decode(&[ParamType::Bytes], &filtered_log.data)
             .map_err(|e| ZKSWalletError::CustomError(format!("failed to decode log data: {e}")))?
