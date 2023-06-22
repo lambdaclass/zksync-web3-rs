@@ -1,11 +1,13 @@
 use super::{Overrides, ZKSWalletError};
 use crate::{
     compile::project::ZKProject,
-    eip712::{hash_bytecode, Eip712Meta, Eip712Transaction, Eip712TransactionRequest},
+    contracts::main_contract::{MainContract, MainContractInstance},
+    eip712::Eip712Transaction,
+    eip712::{hash_bytecode, Eip712Meta, Eip712TransactionRequest},
     zks_provider::ZKSProvider,
     zks_utils::{
         CONTRACTS_L1_MESSENGER_ADDR, CONTRACTS_L2_ETH_TOKEN_ADDR, CONTRACT_DEPLOYER_ADDR,
-        EIP712_TX_TYPE, ERA_CHAIN_ID, ETH_CHAIN_ID,
+        EIP712_TX_TYPE, ERA_CHAIN_ID, ETH_CHAIN_ID, DEPOSIT_GAS_PER_PUBDATA_LIMIT, RECOMMENDED_DEPOSIT_L1_GAS_LIMIT, RECOMMENDED_DEPOSIT_L2_GAS_LIMIT,
     },
 };
 use ethers::{
@@ -27,15 +29,22 @@ use ethers::{
     },
 };
 use serde_json::Value;
-use std::{fmt::Display, fs::File, io::BufReader, path::PathBuf, str::FromStr};
+use std::{
+    fmt::{Debug, Display},
+    fs::File,
+    io::BufReader,
+    path::PathBuf,
+    str::FromStr,
+    sync::Arc,
+};
 
 pub struct ZKSWallet<M, D>
 where
     M: Middleware,
     D: PrehashSigner<(RecoverableSignature, RecoveryId)>,
 {
-    pub eth_provider: Option<SignerMiddleware<M, Wallet<D>>>,
-    pub era_provider: Option<SignerMiddleware<M, Wallet<D>>>,
+    pub eth_provider: Option<Arc<SignerMiddleware<M, Wallet<D>>>>,
+    pub era_provider: Option<Arc<SignerMiddleware<M, Wallet<D>>>>,
     pub l2_wallet: Wallet<D>,
     pub l1_wallet: Wallet<D>,
 }
@@ -59,28 +68,28 @@ where
         Ok(Self {
             l2_wallet: l2_wallet.clone(),
             l1_wallet: l1_wallet.clone(),
-            era_provider: era_provider.map(|p| p.with_signer(l2_wallet)),
-            eth_provider: eth_provider.map(|p| p.with_signer(l1_wallet)),
+            era_provider: era_provider.map(|p| p.with_signer(l2_wallet).into()),
+            eth_provider: eth_provider.map(|p| p.with_signer(l1_wallet).into()),
         })
     }
 
     pub fn connect_eth_provider(mut self, eth_provider: M) -> Self {
-        self.eth_provider = Some(eth_provider.with_signer(self.l1_wallet.clone()));
+        self.eth_provider = Some(eth_provider.with_signer(self.l1_wallet.clone()).into());
         self
     }
 
     pub fn connect_era_provider(mut self, era_provider: M) -> Self {
-        self.era_provider = Some(era_provider.with_signer(self.l2_wallet.clone()));
+        self.era_provider = Some(era_provider.with_signer(self.l2_wallet.clone()).into());
         self
     }
 
     pub fn connect_eth_signer(mut self, eth_signer: SignerMiddleware<M, Wallet<D>>) -> Self {
-        self.eth_provider = Some(eth_signer);
+        self.eth_provider = Some(eth_signer.into());
         self
     }
 
     pub fn connect_era_signer(mut self, era_signer: SignerMiddleware<M, Wallet<D>>) -> Self {
-        self.era_provider = Some(era_signer);
+        self.era_provider = Some(era_signer.into());
         self
     }
 
@@ -98,6 +107,24 @@ where
 
     pub fn l1_address(&self) -> Address {
         self.l1_wallet.address()
+    }
+    
+    pub fn get_eth_provider(
+        &self,
+    ) -> Result<Arc<SignerMiddleware<M, Wallet<D>>>, ZKSWalletError<M, D>> {
+        match &self.eth_provider {
+            Some(eth_provider) => Ok(eth_provider.clone()),
+            None => Err(ZKSWalletError::NoL1ProviderError()),
+        }
+    }
+
+    pub fn get_era_provider(
+        &self,
+    ) -> Result<Arc<SignerMiddleware<M, Wallet<D>>>, ZKSWalletError<M, D>> {
+        match &self.era_provider {
+            Some(era_provider) => Ok(era_provider.clone()),
+            None => Err(ZKSWalletError::NoL2ProviderError()),
+        }
     }
 
     pub async fn eth_balance(&self) -> Result<U256, ZKSWalletError<M, D>>
@@ -298,6 +325,68 @@ where
         Ok((contract_address, transaction_receipt))
     }
 
+    pub async fn deposit(&self, amount: U256) -> Result<TransactionReceipt, ZKSWalletError<M, D>>
+    where
+        M: ZKSProvider,
+    {
+        let to = self.l2_address();
+        let call_data = Bytes::default();
+        let l2_gas_limit: U256 = RECOMMENDED_DEPOSIT_L2_GAS_LIMIT.into();
+        let l2_value = amount;
+        let gas_per_pubdata_byte: U256 = DEPOSIT_GAS_PER_PUBDATA_LIMIT.into();
+        let gas_price = self.get_eth_provider()?.get_gas_price().await?;
+        let gas_limit: U256 = RECOMMENDED_DEPOSIT_L1_GAS_LIMIT.into();
+        let operator_tip: U256 = 0.into();
+        let base_cost = self
+            .get_base_cost(gas_limit, gas_per_pubdata_byte, gas_price)
+            .await?;
+        let l1_value = base_cost + operator_tip + amount;
+        // let factory_deps = [];
+        let refund_recipient = self.l1_address();
+        // FIXME check base cost
+
+        // FIXME request l2 transaction
+
+        let main_contract_address = self.get_era_provider()?.get_main_contract().await?;
+        let main_contract =
+            MainContractInstance::new(main_contract_address, self.get_eth_provider()?);
+
+        let receipt = main_contract
+            .request_l2_transaction(
+                to,
+                l2_value,
+                call_data,
+                l2_gas_limit,
+                gas_per_pubdata_byte,
+                Default::default(),
+                refund_recipient,
+                gas_price,
+                gas_limit,
+                l1_value,
+            )
+            .await?;
+
+        Ok(receipt)
+    }
+
+    async fn get_base_cost(
+        &self,
+        gas_limit: U256,
+        gas_per_pubdata_byte: U256,
+        gas_price: U256,
+    ) -> Result<U256, ZKSWalletError<M, D>>
+    where
+        M: ZKSProvider,
+    {
+        let main_contract_address = self.get_era_provider()?.get_main_contract().await?;
+        let main_contract = MainContract::new(main_contract_address, self.get_eth_provider()?);
+        let base_cost: U256 = main_contract
+            .l_2_transaction_base_cost(gas_price, gas_limit, gas_per_pubdata_byte)
+            .call()
+            .await?;
+
+        Ok(base_cost)
+    }
     async fn _deploy<T>(
         &self,
         contract_abi: Abi,
@@ -355,7 +444,7 @@ where
                 let salt = [0_u8; 32];
                 let bytecode_hash = hash_bytecode(&contract_bytecode)?;
                 let call_data: Bytes = match (contract_abi.constructor(), constructor_parameters) {
-                    (None, Some(_)) => return Err(ContractError::ConstructorError.into()),
+                    (None, Some(_)) => return Err(ContractError::<M>::ConstructorError.into()),
                     (None, None) | (Some(_), None) => Bytes::default(),
                     (Some(constructor), Some(constructor_parameters)) => constructor
                         .encode_input(
@@ -689,6 +778,46 @@ mod zks_signer_tests {
     }
 
     #[tokio::test]
+    async fn test_deposit() {
+        let private_key = "0x28a574ab2de8a00364d5dd4b07c4f2f574ef7fcc2a86a197f65abaec836d1959";
+        let amount: U256 = parse_units("0.01", "ether").unwrap().into();
+        println!("Amount: {}", amount);
+
+        let l1_provider = eth_provider();
+        let l2_provider = era_provider();
+        let wallet = LocalWallet::from_str(private_key)
+            .unwrap();
+        let zk_wallet =
+            ZKSWallet::new(wallet, None, Some(l2_provider.clone()), Some(l1_provider.clone())).unwrap();
+
+        let l1_balance_before = zk_wallet.eth_balance().await.unwrap();
+        let l2_balance_before = zk_wallet.era_balance().await.unwrap();
+        println!("L1 balance before: {}", l1_balance_before);
+        println!("L2 balance before: {}", l2_balance_before);
+
+        let receipt = zk_wallet.deposit(amount).await.unwrap();
+        assert_eq!(receipt.status.unwrap(), 1.into());
+
+        let l2_receipt = l2_provider
+            .get_transaction_receipt(receipt.transaction_hash)
+            .await
+            .unwrap();
+
+        let l1_balance_after = zk_wallet.eth_balance().await.unwrap();
+        let l2_balance_after = zk_wallet.era_balance().await.unwrap();
+        println!("L1 balance after: {}", l1_balance_after);
+        println!("L2 balance after: {}", l2_balance_after);
+
+        assert!(
+            l1_balance_after <= l1_balance_before - amount,
+            "Balance on L1 should be decreased"
+        );
+        assert!(
+            l2_balance_after >= l2_balance_before + amount,
+            "Balance on L2 should be increased"
+        );
+    }
+
     async fn test_transfer_eip712() {
         let sender_private_key =
             "0x28a574ab2de8a00364d5dd4b07c4f2f574ef7fcc2a86a197f65abaec836d1959";
@@ -748,7 +877,6 @@ mod zks_signer_tests {
     }
 
     #[tokio::test]
-    #[ignore = "skipped until the compiler OS version is fixed"]
     async fn test_deploy_contract_with_constructor_args() {
         let deployer_private_key =
             "7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110";
@@ -791,7 +919,6 @@ mod zks_signer_tests {
     }
 
     #[tokio::test]
-    #[ignore = "skipped until the compiler OS version is fixed"]
     async fn test_call_view_function_with_no_parameters() {
         // Deploying a test contract
         let deployer_private_key =
@@ -820,7 +947,6 @@ mod zks_signer_tests {
     }
 
     #[tokio::test]
-    #[ignore = "skipped until the compiler OS version is fixed"]
     async fn test_call_view_function_with_arguments() {
         // Deploying a test contract
         let deployer_private_key =

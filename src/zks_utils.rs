@@ -1,3 +1,5 @@
+use std::{env, path::PathBuf};
+
 /* Misc */
 
 pub const ETH_CHAIN_ID: u16 = 0x9;
@@ -20,6 +22,10 @@ pub const MAX_L2_TX_GAS_LIMIT: u64 = 80000000;
 // transactions so that they are able to send at least GUARANTEED_PUBDATA_PER_L1_BATCH bytes per
 // transaction.
 pub const MAX_GAS_PER_PUBDATA_BYTE: u64 = MAX_L2_TX_GAS_LIMIT / GUARANTEED_PUBDATA_PER_L1_BATCH;
+
+pub const RECOMMENDED_DEPOSIT_L1_GAS_LIMIT: u64 = 10000000;
+pub const RECOMMENDED_DEPOSIT_L2_GAS_LIMIT: u64 = 10000000;
+pub const DEPOSIT_GAS_PER_PUBDATA_LIMIT: u64 = 800;
 
 /* Contracts */
 
@@ -51,3 +57,20 @@ pub const CONTRACTS_L1_WETH_TOKEN_ADDR: &str = "0x5E6D086F5eC079ADFF4FB3774CDf3e
 
 pub const CONTRACTS_L2_ETH_TOKEN_ADDR: &str = "0x000000000000000000000000000000000000800a";
 pub const CONTRACTS_L1_MESSENGER_ADDR: &str = "0x0000000000000000000000000000000000008008";
+
+/// Returns the location for a program in the $PATH.
+pub fn program_path(program_name: &str) -> Option<PathBuf> {
+    if let Ok(path_env) = env::var("PATH") {
+        let paths: Vec<PathBuf> = env::split_paths(&path_env).collect();
+
+        for path in paths {
+            let program_path = path.join(program_name);
+
+            if program_path.is_file() {
+                return Some(program_path);
+            }
+        }
+    }
+
+    None
+}
