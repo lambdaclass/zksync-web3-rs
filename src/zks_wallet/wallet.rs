@@ -514,7 +514,12 @@ where
         })?
         .iter()
         .zip(0_u64..)
-        .find(|(log, _)| log["sender"] == CONTRACTS_L1_MESSENGER_ADDR)
+        .find(|(log, _)|
+            if let Some(sender) = log.get("sender") {
+                sender == CONTRACTS_L1_MESSENGER_ADDR
+            } else {
+                false
+            })
         .ok_or(ZKSWalletError::CustomError(
             "Error getting log index parameter".to_owned(),
         ))?;
@@ -536,8 +541,6 @@ where
         let l1_batch_number = era_provider.get_l1_batch_number().await?;
         let l2_message_index = U256::from(proof.id);
 
-        // FIXME we should avoid the as convertions
-        #[allow(clippy::as_conversions)]
         let l2_tx_number_in_block: u16 = serde_json::from_value::<U256>(
             withdrawal_receipt
                 .other
@@ -881,7 +884,7 @@ mod zks_signer_tests {
 
         println!("L2 Transaction hash: {:?}", tx_receipt.transaction_hash);
 
-        tokio::time::sleep(Duration::from_secs(5)).await;
+        tokio::time::sleep(Duration::from_secs(10)).await;
 
         let l2_balance_after_withdraw = zk_wallet.era_balance().await.unwrap();
         let l1_balance_after_withdraw = zk_wallet.eth_balance().await.unwrap();
