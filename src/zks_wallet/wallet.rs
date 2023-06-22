@@ -498,8 +498,6 @@ where
             .collect();
 
         // Get all the parameters needed to call the finalizeWithdrawal function on the main contract contract.
-        // FIXME we should consider avoid indexing slices
-        #[allow(clippy::indexing_slicing)]
         let (_, l2_to_l1_log_index) = serde_json::from_value::<Vec<Value>>(
             withdrawal_receipt
                 .other
