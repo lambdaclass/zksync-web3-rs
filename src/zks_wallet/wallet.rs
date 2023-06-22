@@ -36,7 +36,8 @@ where
 {
     pub eth_provider: Option<SignerMiddleware<M, Wallet<D>>>,
     pub era_provider: Option<SignerMiddleware<M, Wallet<D>>>,
-    pub wallet: Wallet<D>,
+    pub l2_wallet: Wallet<D>,
+    pub l1_wallet: Wallet<D>,
 }
 
 impl<M, D> ZKSWallet<M, D>
@@ -45,25 +46,31 @@ where
     D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Sync + Send + Clone,
 {
     pub fn new(
-        wallet: Wallet<D>,
+        l2_wallet: Wallet<D>,
+        l1_wallet: Option<Wallet<D>>,
         era_provider: Option<M>,
         eth_provider: Option<M>,
     ) -> Result<Self, ZKSWalletError<M, D>> {
+        let l1_wallet = match l1_wallet {
+            Some(wallet) => wallet.with_chain_id(ETH_CHAIN_ID),
+            None => l2_wallet.clone().with_chain_id(ETH_CHAIN_ID),
+        };
+        let l2_wallet = l2_wallet.with_chain_id(ERA_CHAIN_ID);
         Ok(Self {
-            wallet: wallet.clone().with_chain_id(ERA_CHAIN_ID),
-            era_provider: era_provider
-                .map(|p| p.with_signer(wallet.clone().with_chain_id(ERA_CHAIN_ID))),
-            eth_provider: eth_provider.map(|p| p.with_signer(wallet.with_chain_id(ETH_CHAIN_ID))),
+            l2_wallet: l2_wallet.clone(),
+            l1_wallet: l1_wallet.clone(),
+            era_provider: era_provider.map(|p| p.with_signer(l2_wallet)),
+            eth_provider: eth_provider.map(|p| p.with_signer(l1_wallet)),
         })
     }
 
     pub fn connect_eth_provider(mut self, eth_provider: M) -> Self {
-        self.eth_provider = Some(eth_provider.with_signer(self.wallet.clone()));
+        self.eth_provider = Some(eth_provider.with_signer(self.l1_wallet.clone()));
         self
     }
 
     pub fn connect_era_provider(mut self, era_provider: M) -> Self {
-        self.era_provider = Some(era_provider.with_signer(self.wallet.clone()));
+        self.era_provider = Some(era_provider.with_signer(self.l2_wallet.clone()));
         self
     }
 
@@ -85,8 +92,12 @@ where
     //     self.era_provider = Provider::try_from(format!("http://{host}:{port}")).ok().map(|p| p.with_signer(self.wallet));
     // }
 
-    pub fn address(&self) -> Address {
-        self.wallet.address()
+    pub fn l2_address(&self) -> Address {
+        self.l2_wallet.address()
+    }
+
+    pub fn l1_address(&self) -> Address {
+        self.l1_wallet.address()
     }
 
     pub async fn eth_balance(&self) -> Result<U256, ZKSWalletError<M, D>>
@@ -95,8 +106,8 @@ where
     {
         match &self.eth_provider {
             // TODO: Should we have a balance_on_block method?
-            Some(eth_provider) => Ok(eth_provider.get_balance(self.address(), None).await?),
-            None => Err(ZKSWalletError::CustomError("no era provider".to_owned())),
+            Some(eth_provider) => Ok(eth_provider.get_balance(self.l1_address(), None).await?),
+            None => Err(ZKSWalletError::CustomError("no eth provider".to_owned())),
         }
     }
 
@@ -106,7 +117,7 @@ where
     {
         match &self.era_provider {
             // TODO: Should we have a balance_on_block method?
-            Some(era_provider) => Ok(era_provider.get_balance(self.address(), None).await?),
+            Some(era_provider) => Ok(era_provider.get_balance(self.l2_address(), None).await?),
             None => Err(ZKSWalletError::CustomError("no era provider".to_owned())),
         }
     }
@@ -127,7 +138,7 @@ where
         };
 
         let mut transfer_request = Eip1559TransactionRequest::new()
-            .from(self.address())
+            .from(self.l2_address())
             .to(to)
             .value(amount_to_transfer)
             .chain_id(ERA_CHAIN_ID);
@@ -166,12 +177,12 @@ where
         };
 
         let mut transfer_request = Eip712TransactionRequest::new()
-            .from(self.address())
+            .from(self.l2_address())
             .to(to)
             .value(amount_to_transfer)
             .nonce(
                 era_provider
-                    .get_transaction_count(self.address(), None)
+                    .get_transaction_count(self.l2_address(), None)
                     .await?,
             )
             .gas_price(era_provider.get_gas_price().await?);
@@ -183,7 +194,7 @@ where
             .gas_limit(fee.gas_limit);
 
         let signable_data: Eip712Transaction = transfer_request.clone().try_into()?;
-        let signature: Signature = self.wallet.sign_typed_data(&signable_data).await?;
+        let signature: Signature = self.l2_wallet.sign_typed_data(&signable_data).await?;
         transfer_request =
             transfer_request.custom_data(Eip712Meta::new().custom_signature(signature.to_vec()));
 
@@ -314,14 +325,14 @@ where
 
         let mut deploy_request = Eip712TransactionRequest::new()
             .r#type(EIP712_TX_TYPE)
-            .from(self.address())
+            .from(self.l2_address())
             .to(Address::from_str(CONTRACT_DEPLOYER_ADDR).map_err(|e| {
                 ZKSWalletError::CustomError(format!("invalid contract deployer address: {e}"))
             })?)
             .chain_id(ERA_CHAIN_ID)
             .nonce(
                 era_provider
-                    .get_transaction_count(self.address(), None)
+                    .get_transaction_count(self.l2_address(), None)
                     .await?,
             )
             .gas_price(era_provider.get_gas_price().await?)
@@ -366,7 +377,7 @@ where
             .gas_limit(fee.gas_limit);
 
         let signable_data: Eip712Transaction = deploy_request.clone().try_into()?;
-        let signature: Signature = self.wallet.sign_typed_data(&signable_data).await?;
+        let signature: Signature = self.l2_wallet.sign_typed_data(&signable_data).await?;
         deploy_request =
             deploy_request.custom_data(custom_data.custom_signature(signature.to_vec()));
 
@@ -430,7 +441,11 @@ where
         })
     }
 
-    pub async fn withdraw(&self, amount: U256) -> Result<TransactionReceipt, ZKSWalletError<M, D>>
+    pub async fn withdraw(
+        &self,
+        amount: U256,
+        l1_address: Address,
+    ) -> Result<TransactionReceipt, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
     {
@@ -445,10 +460,10 @@ where
         let function_signature = "function withdraw(address _l1Receiver) external payable override";
         let response: (Vec<Token>, H256) = era_provider
             .send_eip712(
-                &self.wallet,
+                &self.l2_wallet,
                 contract_address,
                 function_signature,
-                Some(self.wallet.address()),
+                Some(l1_address),
                 Some(Overrides {
                     value: Some(amount),
                 }),
@@ -512,12 +527,13 @@ where
         })?
         .iter()
         .zip(0_u64..)
-        .find(|(log, _)|
+        .find(|(log, _)| {
             if let Some(sender) = log.get("sender") {
                 sender == CONTRACTS_L1_MESSENGER_ADDR
             } else {
                 false
-            })
+            }
+        })
         .ok_or(ZKSWalletError::CustomError(
             "Error getting log index parameter".to_owned(),
         ))?;
@@ -577,7 +593,7 @@ where
         let function_signature = "function finalizeEthWithdrawal(uint256 _l2BlockNumber,uint256 _l2MessageIndex,uint16 _l2TxNumberInBlock,bytes calldata _message,bytes32[] calldata _merkleProof) external";
         let response = eth_provider
             .send(
-                &self.wallet,
+                &self.l1_wallet,
                 main_contract,
                 function_signature,
                 Some(parameters),
@@ -598,13 +614,13 @@ where
 mod zks_signer_tests {
     use crate::compile::project::ZKProject;
     use crate::test_utils::*;
-    use crate::zks_utils::ERA_CHAIN_ID;
     use crate::zks_wallet::ZKSWallet;
     use ethers::abi::{Token, Tokenize};
     use ethers::providers::Middleware;
-    use ethers::signers::{LocalWallet, Signer};
+    use ethers::signers::LocalWallet;
     use ethers::solc::info::ContractInfo;
     use ethers::solc::{Project, ProjectPathsConfig};
+    use ethers::types::H256;
     use ethers::types::U256;
     use ethers::types::{Address, Bytes};
     use ethers::utils::parse_units;
@@ -621,13 +637,11 @@ mod zks_signer_tests {
         let amount_to_transfer: U256 = 1_i32.into();
 
         let era_provider = era_provider();
-        let wallet = LocalWallet::from_str(sender_private_key)
-            .unwrap()
-            .with_chain_id(ERA_CHAIN_ID);
-        let zk_wallet = ZKSWallet::new(wallet, Some(era_provider.clone()), None).unwrap();
+        let wallet = LocalWallet::from_str(sender_private_key).unwrap();
+        let zk_wallet = ZKSWallet::new(wallet, None, Some(era_provider.clone()), None).unwrap();
 
         let sender_balance_before = era_provider
-            .get_balance(zk_wallet.address(), None)
+            .get_balance(zk_wallet.l2_address(), None)
             .await
             .unwrap();
         let receiver_balance_before = era_provider
@@ -645,13 +659,13 @@ mod zks_signer_tests {
             .await
             .unwrap();
 
-        assert_eq!(receipt.from, zk_wallet.address());
+        assert_eq!(receipt.from, zk_wallet.l2_address());
         assert_eq!(receipt.to.unwrap(), receiver_address);
 
         tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
 
         let sender_balance_after = era_provider
-            .get_balance(zk_wallet.address(), None)
+            .get_balance(zk_wallet.l2_address(), None)
             .await
             .unwrap();
         let receiver_balance_after = era_provider
@@ -684,13 +698,11 @@ mod zks_signer_tests {
         let amount_to_transfer: U256 = 1_i32.into();
 
         let era_provider = era_provider();
-        let wallet = LocalWallet::from_str(sender_private_key)
-            .unwrap()
-            .with_chain_id(ERA_CHAIN_ID);
-        let zk_wallet = ZKSWallet::new(wallet, Some(era_provider.clone()), None).unwrap();
+        let wallet = LocalWallet::from_str(sender_private_key).unwrap();
+        let zk_wallet = ZKSWallet::new(wallet, None, Some(era_provider.clone()), None).unwrap();
 
         let sender_balance_before = era_provider
-            .get_balance(zk_wallet.address(), None)
+            .get_balance(zk_wallet.l2_address(), None)
             .await
             .unwrap();
         let receiver_balance_before = era_provider
@@ -706,13 +718,13 @@ mod zks_signer_tests {
             .await
             .unwrap();
 
-        assert_eq!(receipt.from, zk_wallet.address());
+        assert_eq!(receipt.from, zk_wallet.l2_address());
         assert_eq!(receipt.to.unwrap(), receiver_address);
 
         tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
 
         let sender_balance_after = era_provider
-            .get_balance(zk_wallet.address(), None)
+            .get_balance(zk_wallet.l2_address(), None)
             .await
             .unwrap();
         let receiver_balance_after = era_provider
@@ -741,10 +753,8 @@ mod zks_signer_tests {
         let deployer_private_key =
             "7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110";
         let era_provider = era_provider();
-        let wallet = LocalWallet::from_str(deployer_private_key)
-            .unwrap()
-            .with_chain_id(ERA_CHAIN_ID);
-        let zk_wallet = ZKSWallet::new(wallet, Some(era_provider.clone()), None).unwrap();
+        let wallet = LocalWallet::from_str(deployer_private_key).unwrap();
+        let zk_wallet = ZKSWallet::new(wallet, None, Some(era_provider.clone()), None).unwrap();
         let project_root = "./src/compile/test_contracts/storage";
         let contract_name = "ValueStorage";
 
@@ -787,10 +797,8 @@ mod zks_signer_tests {
         let deployer_private_key =
             "7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110";
         let era_provider = era_provider();
-        let wallet = LocalWallet::from_str(deployer_private_key)
-            .unwrap()
-            .with_chain_id(ERA_CHAIN_ID);
-        let zk_wallet = ZKSWallet::new(wallet, Some(era_provider.clone()), None).unwrap();
+        let wallet = LocalWallet::from_str(deployer_private_key).unwrap();
+        let zk_wallet = ZKSWallet::new(wallet, None, Some(era_provider.clone()), None).unwrap();
 
         let contract_address = zk_wallet
             .deploy::<Token>("src/compile/test_contracts/test/src/Test.sol", "Test", None)
@@ -800,10 +808,8 @@ mod zks_signer_tests {
         // Making the call to the contract function
         let deployer_private_key =
             "0x28a574ab2de8a00364d5dd4b07c4f2f574ef7fcc2a86a197f65abaec836d1959";
-        let wallet = LocalWallet::from_str(deployer_private_key)
-            .unwrap()
-            .with_chain_id(ERA_CHAIN_ID);
-        let zk_wallet = ZKSWallet::new(wallet, Some(era_provider.clone()), None).unwrap();
+        let wallet = LocalWallet::from_str(deployer_private_key).unwrap();
+        let zk_wallet = ZKSWallet::new(wallet, None, Some(era_provider.clone()), None).unwrap();
 
         let output = zk_wallet
             .call::<Token>(contract_address, "str_out()(string)", None)
@@ -820,10 +826,8 @@ mod zks_signer_tests {
         let deployer_private_key =
             "7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110";
         let era_provider = era_provider();
-        let wallet = LocalWallet::from_str(deployer_private_key)
-            .unwrap()
-            .with_chain_id(ERA_CHAIN_ID);
-        let zk_wallet = ZKSWallet::new(wallet, Some(era_provider.clone()), None).unwrap();
+        let wallet = LocalWallet::from_str(deployer_private_key).unwrap();
+        let zk_wallet = ZKSWallet::new(wallet, None, Some(era_provider.clone()), None).unwrap();
 
         let contract_address = zk_wallet
             .deploy::<Token>("src/compile/test_contracts/test/src/Test.sol", "Test", None)
@@ -856,13 +860,12 @@ mod zks_signer_tests {
     }
 
     #[tokio::test]
-    async fn test_withdraw() {
+    async fn test_withdraw_to_same_address() {
         let deployer_private_key =
-            "7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110";
-        let wallet = LocalWallet::from_str(deployer_private_key)
-            .unwrap()
-            .with_chain_id(ERA_CHAIN_ID);
-        let zk_wallet = ZKSWallet::new(wallet, Some(era_provider()), Some(eth_provider())).unwrap();
+            "0x28a574ab2de8a00364d5dd4b07c4f2f574ef7fcc2a86a197f65abaec836d1959";
+        let wallet = LocalWallet::from_str(deployer_private_key).unwrap();
+        let zk_wallet =
+            ZKSWallet::new(wallet, None, Some(era_provider()), Some(eth_provider())).unwrap();
 
         // See balances before withdraw
         let l1_balance_before = zk_wallet.eth_balance().await.unwrap();
@@ -873,7 +876,10 @@ mod zks_signer_tests {
 
         // Withdraw
         let amount_to_withdraw: U256 = parse_units(1_u8, "ether").unwrap().into();
-        let tx_receipt = zk_wallet.withdraw(amount_to_withdraw).await.unwrap();
+        let tx_receipt = zk_wallet
+            .withdraw(amount_to_withdraw, zk_wallet.l2_address())
+            .await
+            .unwrap();
         assert_eq!(
             1,
             tx_receipt.status.unwrap().as_u64(),
@@ -938,6 +944,124 @@ mod zks_signer_tests {
                     - tx_finalize_receipt.effective_gas_price.unwrap()
                         * tx_finalize_receipt.gas_used.unwrap()),
             "Check that L1 balance after finalize has increased by the amount"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_withdraw_to_other_address() {
+        let sender_private_key =
+            "0x28a574ab2de8a00364d5dd4b07c4f2f574ef7fcc2a86a197f65abaec836d1959";
+        let receiver_private_key =
+            "0xe667e57a9b8aaa6709e51ff7d093f1c5b73b63f9987e4ab4aa9a5c699e024ee8";
+        let l2_wallet = LocalWallet::from_str(sender_private_key).unwrap();
+
+        let l1_wallet = LocalWallet::from_str(receiver_private_key).unwrap();
+        let zk_wallet = ZKSWallet::new(
+            l2_wallet,
+            Some(l1_wallet),
+            Some(era_provider()),
+            Some(eth_provider()),
+        )
+        .unwrap();
+
+        // See balances before withdraw
+        let l1_balance_before = zk_wallet.eth_balance().await.unwrap();
+        let l2_balance_before = zk_wallet.era_balance().await.unwrap();
+
+        println!("Balance on L1 before withdrawal: {l1_balance_before}");
+        println!("Balance on L2 before withdrawal: {l2_balance_before}");
+
+        // Withdraw
+        let amount_to_withdraw: U256 = parse_units(1_u8, "ether").unwrap().into();
+        let tx_receipt = zk_wallet
+            .withdraw(amount_to_withdraw, zk_wallet.l1_address())
+            .await
+            .unwrap();
+        assert_eq!(
+            1,
+            tx_receipt.status.unwrap().as_u64(),
+            "Check that transaction in L2 is successful"
+        );
+
+        println!("L2 Transaction hash: {:?}", tx_receipt.transaction_hash);
+
+        tokio::time::sleep(Duration::from_secs(10)).await;
+
+        let l2_balance_after_withdraw = zk_wallet.era_balance().await.unwrap();
+        let l1_balance_after_withdraw = zk_wallet.eth_balance().await.unwrap();
+
+        assert_eq!(
+            l2_balance_after_withdraw,
+            l2_balance_before
+                - (amount_to_withdraw + tx_receipt.effective_gas_price.unwrap() * tx_receipt.gas_used.unwrap()),
+            "Check that L2 balance inmediately after withdrawal has decreased by the used gas and amount"
+        );
+
+        assert_eq!(
+            l1_balance_before, l1_balance_after_withdraw,
+            "Check that L1 balance has not changed"
+        );
+
+        let tx_finalize_receipt = zk_wallet
+            .finalize_withdraw(tx_receipt.transaction_hash)
+            .await
+            .unwrap();
+
+        println!(
+            "L1 Transaction hash: {:?}",
+            tx_finalize_receipt.transaction_hash
+        );
+
+        assert_eq!(
+            1,
+            tx_finalize_receipt.status.unwrap().as_u64(),
+            "Check that transaction in L1 is successful"
+        );
+
+        // See balances after withdraw
+        let l1_balance_after_finalize = zk_wallet.eth_balance().await.unwrap();
+        let l2_balance_after_finalize = zk_wallet.era_balance().await.unwrap();
+
+        println!("Balance on L1 after finalize withdraw: {l1_balance_after_finalize}");
+        println!("Balance on L2 after finalize withdraw: {l2_balance_after_finalize}");
+
+        assert_eq!(
+            l2_balance_after_finalize, l2_balance_after_withdraw,
+            "Check that L2 balance after finalize has decreased by the used gas"
+        );
+
+        assert_ne!(
+            l1_balance_after_finalize, l1_balance_before,
+            "Check that L1 balance after finalize is not the same"
+        );
+        assert_eq!(
+            l1_balance_after_finalize,
+            l1_balance_before
+                + (amount_to_withdraw
+                    - tx_finalize_receipt.effective_gas_price.unwrap()
+                        * tx_finalize_receipt.gas_used.unwrap()),
+            "Check that L1 balance after finalize has increased by the amount"
+        );
+    }
+
+    #[tokio::test]
+    async fn finalize() {
+        let deployer_private_key =
+            "0x28a574ab2de8a00364d5dd4b07c4f2f574ef7fcc2a86a197f65abaec836d1959";
+        let wallet = LocalWallet::from_str(deployer_private_key).unwrap();
+
+        let zk_wallet =
+            ZKSWallet::new(wallet, None, Some(era_provider()), Some(eth_provider())).unwrap();
+
+        let hash: H256 =
+            H256::from_str("0x128ca32206babbdf4574cb9a6b2545ff4aaaa4ad1e440efba26f6962cbaac2ea")
+                .unwrap();
+        let tx_finalize_receipt = zk_wallet.finalize_withdraw(hash).await.unwrap();
+
+        assert_eq!(
+            1,
+            tx_finalize_receipt.status.unwrap().as_u64(),
+            "Check that transaction in L1 is successful"
         );
     }
 }

@@ -1174,7 +1174,7 @@ mod tests {
     #[tokio::test]
     async fn test_provider_debug_trace_transaction() {
         let era_provider = era_provider();
-        let zk_wallet = ZKSWallet::new(local_wallet(), Some(era_signer()), None).unwrap();
+        let zk_wallet = ZKSWallet::new(local_wallet(), None, Some(era_signer()), None).unwrap();
 
         let transaction_hash = zk_wallet
             .transfer(
@@ -1564,7 +1564,8 @@ mod tests {
     #[tokio::test]
     async fn test_signer_debug_trace_transaction() {
         let era_signer = era_signer();
-        let zk_wallet = ZKSWallet::new(local_wallet(), Some(era_signer.clone()), None).unwrap();
+        let zk_wallet =
+            ZKSWallet::new(local_wallet(), None, Some(era_signer.clone()), None).unwrap();
 
         let transaction_hash = zk_wallet
             .transfer(
@@ -1616,7 +1617,7 @@ mod tests {
         let wallet = LocalWallet::from_str(deployer_private_key)
             .unwrap()
             .with_chain_id(ERA_CHAIN_ID);
-        let zk_wallet = ZKSWallet::new(wallet, Some(era_provider.clone()), None).unwrap();
+        let zk_wallet = ZKSWallet::new(wallet, None, Some(era_provider.clone()), None).unwrap();
 
         let contract_address = zk_wallet
             .deploy(
@@ -1630,7 +1631,7 @@ mod tests {
         let value_to_set = U256::from(10_u64);
         era_provider
             .send_eip712(
-                &zk_wallet.wallet,
+                &zk_wallet.l2_wallet,
                 contract_address,
                 "setValue(uint256)",
                 Some(value_to_set),
@@ -1647,7 +1648,7 @@ mod tests {
 
         era_provider
             .send_eip712::<Token, _>(
-                &zk_wallet.wallet,
+                &zk_wallet.l2_wallet,
                 contract_address,
                 "incrementValue()",
                 None,
