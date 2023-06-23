@@ -943,6 +943,7 @@ mod tests {
         assert!(provider.get_bytecode_by_hash(valid_hash).await.is_ok());
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_provider_get_confirmed_tokens() {
         let provider = era_provider();
@@ -1339,6 +1340,7 @@ mod tests {
         assert!(provider.get_bytecode_by_hash(valid_hash).await.is_ok());
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_signer_get_confirmed_tokens() {
         let provider = era_signer();

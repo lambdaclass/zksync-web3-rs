@@ -1,6 +1,6 @@
-use crate::{compile::output::ZKSCompilationOutput, zks_utils::program_path};
+use crate::zks_utils::program_path;
 use clap::Parser;
-use std::{borrow::Cow, path::PathBuf};
+use std::path::PathBuf;
 
 #[derive(Parser)]
 pub struct CompileArgs {
@@ -89,7 +89,7 @@ pub(crate) fn run(args: CompileArgs) -> eyre::Result<String> {
     let compilation_output = String::from_utf8_lossy(&command_output.stdout)
         .into_owned()
         .trim()
-        .to_string();
+        .to_owned();
 
     log::info!("{compilation_output:?}");
 

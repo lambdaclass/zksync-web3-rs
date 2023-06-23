@@ -30,14 +30,7 @@ use ethers::{
     },
 };
 use serde_json::Value;
-use std::{
-    fmt::{Debug, Display},
-    fs::File,
-    io::BufReader,
-    path::PathBuf,
-    str::FromStr,
-    sync::Arc,
-};
+use std::{fmt::Display, fs::File, io::BufReader, path::PathBuf, str::FromStr, sync::Arc};
 
 pub struct ZKSWallet<M, D>
 where
@@ -114,7 +107,7 @@ where
         &self,
     ) -> Result<Arc<SignerMiddleware<M, Wallet<D>>>, ZKSWalletError<M, D>> {
         match &self.eth_provider {
-            Some(eth_provider) => Ok(eth_provider.clone()),
+            Some(eth_provider) => Ok(Arc::clone(eth_provider)),
             None => Err(ZKSWalletError::NoL1ProviderError()),
         }
     }
@@ -123,7 +116,7 @@ where
         &self,
     ) -> Result<Arc<SignerMiddleware<M, Wallet<D>>>, ZKSWalletError<M, D>> {
         match &self.era_provider {
-            Some(era_provider) => Ok(era_provider.clone()),
+            Some(era_provider) => Ok(Arc::clone(era_provider)),
             None => Err(ZKSWalletError::NoL2ProviderError()),
         }
     }
@@ -337,7 +330,7 @@ where
         let gas_per_pubdata_byte: U256 = DEPOSIT_GAS_PER_PUBDATA_LIMIT.into();
         let gas_price = self.get_eth_provider()?.get_gas_price().await?;
         let gas_limit: U256 = RECOMMENDED_DEPOSIT_L1_GAS_LIMIT.into();
-        let operator_tip: U256 = 0.into();
+        let operator_tip: U256 = 0_u8.into();
         let base_cost = self
             .get_base_cost(gas_limit, gas_per_pubdata_byte, gas_price)
             .await?;
@@ -710,7 +703,6 @@ mod zks_signer_tests {
     use ethers::signers::LocalWallet;
     use ethers::solc::info::ContractInfo;
     use ethers::solc::{Project, ProjectPathsConfig};
-    use ethers::types::H256;
     use ethers::types::U256;
     use ethers::types::{Address, Bytes};
     use ethers::utils::parse_units;
@@ -782,7 +774,7 @@ mod zks_signer_tests {
     async fn test_deposit() {
         let private_key = "0x28a574ab2de8a00364d5dd4b07c4f2f574ef7fcc2a86a197f65abaec836d1959";
         let amount: U256 = parse_units("0.01", "ether").unwrap().into();
-        println!("Amount: {}", amount);
+        println!("Amount: {amount}");
 
         let l1_provider = eth_provider();
         let l2_provider = era_provider();
@@ -797,21 +789,21 @@ mod zks_signer_tests {
 
         let l1_balance_before = zk_wallet.eth_balance().await.unwrap();
         let l2_balance_before = zk_wallet.era_balance().await.unwrap();
-        println!("L1 balance before: {}", l1_balance_before);
-        println!("L2 balance before: {}", l2_balance_before);
+        println!("L1 balance before: {l1_balance_before}");
+        println!("L2 balance before: {l2_balance_before}");
 
         let receipt = zk_wallet.deposit(amount).await.unwrap();
-        assert_eq!(receipt.status.unwrap(), 1.into());
+        assert_eq!(receipt.status.unwrap(), 1_u8.into());
 
-        let l2_receipt = l2_provider
+        let _l2_receipt = l2_provider
             .get_transaction_receipt(receipt.transaction_hash)
             .await
             .unwrap();
 
         let l1_balance_after = zk_wallet.eth_balance().await.unwrap();
         let l2_balance_after = zk_wallet.era_balance().await.unwrap();
-        println!("L1 balance after: {}", l1_balance_after);
-        println!("L2 balance after: {}", l2_balance_after);
+        println!("L1 balance after: {l1_balance_after}");
+        println!("L2 balance after: {l2_balance_after}");
 
         assert!(
             l1_balance_after <= l1_balance_before - amount,
@@ -823,6 +815,7 @@ mod zks_signer_tests {
         );
     }
 
+    #[tokio::test]
     async fn test_transfer_eip712() {
         let sender_private_key =
             "0x28a574ab2de8a00364d5dd4b07c4f2f574ef7fcc2a86a197f65abaec836d1959";

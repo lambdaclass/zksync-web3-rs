@@ -52,11 +52,8 @@ where
     D: PrehashSigner<(Signature, RecoveryId)> + Sync + Send,
 {
     pub fn new(address: Address, provider: Arc<SignerMiddleware<M, Wallet<D>>>) -> Self {
-        let contract = MainContract::new(address, provider.clone());
-        Self {
-            provider: provider,
-            contract,
-        }
+        let contract = MainContract::new(address, Arc::clone(&provider));
+        Self { provider, contract }
     }
 
     pub async fn get_base_cost(
