@@ -332,12 +332,14 @@ where
     {
         let to = request.to.unwrap_or(self.l2_address());
         let call_data = Bytes::default();
-        let l2_gas_limit: U256 = RECOMMENDED_DEPOSIT_L2_GAS_LIMIT.into();
+        let l2_gas_limit: U256 = request.l2_gas_limit;
         let l2_value = request.amount;
-        let gas_per_pubdata_byte: U256 = DEPOSIT_GAS_PER_PUBDATA_LIMIT.into();
-        let gas_price = self.get_eth_provider()?.get_gas_price().await?;
-        let gas_limit: U256 = RECOMMENDED_DEPOSIT_L1_GAS_LIMIT.into();
-        let operator_tip: U256 = 0_u8.into();
+        let gas_per_pubdata_byte: U256 = request.gas_per_pubdata_byte;
+        let gas_price = request
+            .gas_price
+            .unwrap_or(self.get_eth_provider()?.get_gas_price().await?);
+        let gas_limit: U256 = request.gas_limit;
+        let operator_tip: U256 = request.operator_tip;
         let base_cost = self
             .get_base_cost(gas_limit, gas_per_pubdata_byte, gas_price)
             .await?;
