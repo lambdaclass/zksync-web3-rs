@@ -5,7 +5,7 @@ use crate::{providers::Provider, signers::Signer};
 use clap::Args;
 use ethers::abi::Token;
 use ethers::signers::LocalWallet;
-use ethers::types::{Bytes, H160};
+use ethers::types::Bytes;
 use eyre::ContextCompat;
 
 #[derive(Args)]

@@ -1,6 +1,6 @@
-use crate::{compile::output::ZKSCompilationOutput, zks_utils::program_path};
+use crate::compile;
 use clap::Parser;
-use std::{borrow::Cow, path::PathBuf};
+use std::path::PathBuf;
 
 #[derive(Parser)]
 pub struct CompileArgs {
@@ -29,7 +29,7 @@ pub struct CompileArgs {
 }
 
 pub(crate) fn run(args: CompileArgs) -> eyre::Result<String> {
-    let mut command = &mut std::process::Command::new(constants::ZK_SOLC_PATH);
+    let mut command = &mut std::process::Command::new(compile::constants::ZK_SOLC_PATH);
     if let Some(solc) = args.solc {
         command = command.arg("--solc").arg(solc);
     } else if let Ok(solc) = std::env::var("SOLC_PATH") {
