@@ -1,3 +1,7 @@
+mod deposit_request;
+
+use self::deposit_request::DepositRequest;
+
 use super::{Overrides, ZKSWalletError};
 use crate::{
     compile::project::ZKProject,
@@ -319,14 +323,17 @@ where
         Ok((contract_address, transaction_receipt))
     }
 
-    pub async fn deposit(&self, amount: U256) -> Result<TransactionReceipt, ZKSWalletError<M, D>>
+    pub async fn deposit(
+        &self,
+        request: &DepositRequest,
+    ) -> Result<TransactionReceipt, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
     {
-        let to = self.l2_address();
+        let to = request.to.unwrap_or(self.l2_address());
         let call_data = Bytes::default();
         let l2_gas_limit: U256 = RECOMMENDED_DEPOSIT_L2_GAS_LIMIT.into();
-        let l2_value = amount;
+        let l2_value = request.amount;
         let gas_per_pubdata_byte: U256 = DEPOSIT_GAS_PER_PUBDATA_LIMIT.into();
         let gas_price = self.get_eth_provider()?.get_gas_price().await?;
         let gas_limit: U256 = RECOMMENDED_DEPOSIT_L1_GAS_LIMIT.into();
@@ -334,7 +341,7 @@ where
         let base_cost = self
             .get_base_cost(gas_limit, gas_per_pubdata_byte, gas_price)
             .await?;
-        let l1_value = base_cost + operator_tip + amount;
+        let l1_value = base_cost + operator_tip + request.amount;
         // let factory_deps = [];
         let refund_recipient = self.l1_address();
         // FIXME check base cost
@@ -697,6 +704,7 @@ where
 mod zks_signer_tests {
     use crate::compile::project::ZKProject;
     use crate::test_utils::*;
+    use crate::zks_wallet::wallet::deposit_request::DepositRequest;
     use crate::zks_wallet::ZKSWallet;
     use ethers::abi::{Token, Tokenize};
     use ethers::providers::Middleware;
@@ -773,8 +781,8 @@ mod zks_signer_tests {
     #[tokio::test]
     async fn test_deposit() {
         let private_key = "0x28a574ab2de8a00364d5dd4b07c4f2f574ef7fcc2a86a197f65abaec836d1959";
-        let amount: U256 = parse_units("0.01", "ether").unwrap().into();
-        println!("Amount: {amount}");
+        let request = DepositRequest::new(parse_units("0.01", "ether").unwrap().into());
+        println!("Amount: {}", request.amount);
 
         let l1_provider = eth_provider();
         let l2_provider = era_provider();
@@ -792,7 +800,7 @@ mod zks_signer_tests {
         println!("L1 balance before: {l1_balance_before}");
         println!("L2 balance before: {l2_balance_before}");
 
-        let receipt = zk_wallet.deposit(amount).await.unwrap();
+        let receipt = zk_wallet.deposit(&request).await.unwrap();
         assert_eq!(receipt.status.unwrap(), 1_u8.into());
 
         let _l2_receipt = l2_provider
@@ -806,11 +814,61 @@ mod zks_signer_tests {
         println!("L2 balance after: {l2_balance_after}");
 
         assert!(
-            l1_balance_after <= l1_balance_before - amount,
+            l1_balance_after <= l1_balance_before - request.amount(),
             "Balance on L1 should be decreased"
         );
         assert!(
-            l2_balance_after >= l2_balance_before + amount,
+            l2_balance_after >= l2_balance_before + request.amount(),
+            "Balance on L2 should be increased"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_deposit_to_another_address() {
+        let private_key = "0x28a574ab2de8a00364d5dd4b07c4f2f574ef7fcc2a86a197f65abaec836d1959";
+        let to: Address = "0xa61464658AfeAf65CccaaFD3a512b69A83B77618"
+            .parse()
+            .unwrap();
+        let amount = parse_units("0.01", "ether").unwrap().into();
+        println!("Amount: {}", amount);
+
+        let request = DepositRequest::new(amount).to(to);
+
+        let l1_provider = eth_provider();
+        let l2_provider = era_provider();
+        let wallet = LocalWallet::from_str(private_key).unwrap();
+        let zk_wallet = ZKSWallet::new(
+            wallet,
+            None,
+            Some(l2_provider.clone()),
+            Some(l1_provider.clone()),
+        )
+        .unwrap();
+
+        let l1_balance_before = zk_wallet.eth_balance().await.unwrap();
+        let l2_balance_before = era_provider().get_balance(to, None).await.unwrap();
+        println!("L1 balance before: {l1_balance_before}");
+        println!("L2 balance before: {l2_balance_before}");
+
+        let receipt = zk_wallet.deposit(&request).await.unwrap();
+        assert_eq!(receipt.status.unwrap(), 1_u8.into());
+
+        let _l2_receipt = l2_provider
+            .get_transaction_receipt(receipt.transaction_hash)
+            .await
+            .unwrap();
+
+        let l1_balance_after = zk_wallet.eth_balance().await.unwrap();
+        let l2_balance_after = era_provider().get_balance(to, None).await.unwrap();
+        println!("L1 balance after: {l1_balance_after}");
+        println!("L2 balance after: {l2_balance_after}");
+
+        assert!(
+            l1_balance_after <= l1_balance_before - request.amount(),
+            "Balance on L1 should be decreased"
+        );
+        assert!(
+            l2_balance_after >= l2_balance_before + request.amount(),
             "Balance on L2 should be increased"
         );
     }
