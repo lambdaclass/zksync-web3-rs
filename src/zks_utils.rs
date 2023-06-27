@@ -10,7 +10,9 @@ pub const EIP712_TX_TYPE: u8 = 0x71;
 // use the honest value of gas per pubdata and it can use any value up to the one signed by the user.
 // In the future releases, we will provide a way to estimate the current gasPerPubdata.
 pub const DEFAULT_GAS_PER_PUBDATA_LIMIT: u64 = 50000;
-pub const MAX_PRIORITY_FEE_PER_GAS: u64 = 100000000;
+pub const MAX_PRIORITY_FEE_PER_GAS: u64 = 1063439364;
+pub const MAX_FEE_PER_GAS: u64 = 1063439378;
+pub const DEFAULT_GAS: u64 = 91435;
 /// This the number of pubdata such that it should be always possible to publish
 /// from a single transaction. Note, that these pubdata bytes include only bytes that are
 /// to be published inside the body of transaction (i.e. excluding of factory deps).
@@ -52,6 +54,9 @@ pub const CONTRACTS_VALIDATOR_TIMELOCK_ADDR: &str = "0xFC073319977e314F251EAE6ae
 pub const CONTRACTS_L1_WETH_BRIDGE_IMPL_ADDR: &str = "0x5E6D086F5eC079ADFF4FB3774CDf3e8D6a34F7E9";
 pub const CONTRACTS_L1_WETH_BRIDGE_PROXY_ADDR: &str = "0x5E6D086F5eC079ADFF4FB3774CDf3e8D6a34F7E9";
 pub const CONTRACTS_L1_WETH_TOKEN_ADDR: &str = "0x5E6D086F5eC079ADFF4FB3774CDf3e8D6a34F7E9";
+
+pub const CONTRACTS_L2_ETH_TOKEN_ADDR: &str = "0x000000000000000000000000000000000000800a";
+pub const CONTRACTS_L1_MESSENGER_ADDR: &str = "0x0000000000000000000000000000000000008008";
 
 /// Returns the location for a program in the $PATH.
 pub fn program_path(program_name: &str) -> Option<PathBuf> {

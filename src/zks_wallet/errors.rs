@@ -56,6 +56,6 @@ where
     D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Sync + Send,
 {
     fn from(value: ContractError<SignerMiddleware<M, Wallet<D>>>) -> Self {
-        Self::CustomError(format!("{:?}", value))
+        Self::CustomError(format!("{value:?}"))
     }
 }
