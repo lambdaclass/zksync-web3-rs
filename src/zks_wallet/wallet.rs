@@ -6,12 +6,13 @@ use crate::{
     eip712::{hash_bytecode, Eip712Meta, Eip712TransactionRequest},
     zks_provider::ZKSProvider,
     zks_utils::{
-        CONTRACT_DEPLOYER_ADDR, DEPOSIT_GAS_PER_PUBDATA_LIMIT, EIP712_TX_TYPE, ERA_CHAIN_ID,
-        ETH_CHAIN_ID, RECOMMENDED_DEPOSIT_L1_GAS_LIMIT, RECOMMENDED_DEPOSIT_L2_GAS_LIMIT,
+        self, is_precompile, CONTRACT_DEPLOYER_ADDR, DEPOSIT_GAS_PER_PUBDATA_LIMIT, EIP712_TX_TYPE,
+        ERA_CHAIN_ID, ETH_CHAIN_ID, RECOMMENDED_DEPOSIT_L1_GAS_LIMIT,
+        RECOMMENDED_DEPOSIT_L2_GAS_LIMIT,
     },
 };
 use ethers::{
-    abi::{Abi, HumanReadableParser, Token, Tokenizable, Tokenize},
+    abi::{encode, Abi, HumanReadableParser, Token, Tokenizable, Tokenize},
     prelude::{
         encode_function_data,
         k256::{
@@ -576,15 +577,14 @@ where
             ))
     }
 
-    pub async fn call<T>(
+    pub async fn call(
         &self,
-        address: Address,
+        contract_address: Address,
         function_signature: &str,
-        function_parameters: Option<T>,
+        function_parameters: Option<Vec<String>>,
     ) -> Result<Vec<Token>, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
-        T: Tokenizable,
     {
         let era_provider = match &self.era_provider {
             Some(era_provider) => era_provider,
@@ -592,18 +592,38 @@ where
         };
 
         // Note: We couldn't implement ZKSWalletError::LexerError because ethers-rs's LexerError is not exposed.
+        let function = if contract_address == zks_utils::ECADD_PRECOMPILE_ADDRESS {
+            zks_utils::ec_add_function()
+        } else {
+            HumanReadableParser::parse_function(function_signature)
+                .map_err(|e| ZKSWalletError::CustomError(e.to_string()))?
+        };
+        let function_args = if let Some(function_args) = function_parameters {
+            function
+                .decode_input(&*zks_utils::encode_args(&function, &function_args)?)
+                .map_err(|e| ZKSWalletError::CustomError(e.to_string()))?
+        } else {
+            vec![]
+        };
+
         let function = HumanReadableParser::parse_function(function_signature)
             .map_err(|e| ZKSWalletError::CustomError(e.to_string()))?;
 
-        let request =
-            Eip1559TransactionRequest::new()
-                .to(address)
-                .data(match function_parameters {
-                    Some(parameters) => function
-                        .encode_input(&parameters.into_tokens())
+        let request: Eip1559TransactionRequest =
+            Eip1559TransactionRequest::new().to(contract_address).data(
+                match (!function_args.is_empty(), is_precompile(contract_address)) {
+                    // The contract to call is a precompile with arguments.
+                    (true, true) => encode(&function_args),
+                    // The contract to call is a regular contract with arguments.
+                    (true, false) => function
+                        .encode_input(&function_args)
                         .map_err(|e| ZKSWalletError::CustomError(e.to_string()))?,
-                    None => function.short_signature().into(),
-                });
+                    // The contract to call is a precompile without arguments.
+                    (false, true) => Default::default(),
+                    // The contract to call is a regular contract without arguments.
+                    (false, false) => function.short_signature().into(),
+                },
+            );
 
         let transaction: TypedTransaction = request.into();
 
@@ -940,7 +960,7 @@ mod zks_signer_tests {
         let zk_wallet = ZKSWallet::new(wallet, Some(era_provider.clone()), None).unwrap();
 
         let output = zk_wallet
-            .call::<Token>(contract_address, "str_out()(string)", None)
+            .call(contract_address, "str_out()(string)", None)
             .await
             .unwrap();
 
@@ -964,7 +984,11 @@ mod zks_signer_tests {
             .unwrap();
 
         let no_return_type_output = zk_wallet
-            .call(contract_address, "plus_one(uint256)", Some(U256::one()))
+            .call(
+                contract_address,
+                "plus_one(uint256)",
+                Some(vec!["1".to_owned()]),
+            )
             .await
             .unwrap();
 
@@ -972,7 +996,7 @@ mod zks_signer_tests {
             .call(
                 contract_address,
                 "plus_one(uint256)(uint256)",
-                Some(U256::one()),
+                Some(vec!["1".to_owned()]),
             )
             .await
             .unwrap();
@@ -1014,7 +1038,7 @@ mod zks_signer_tests {
             .await
             .unwrap();
         let set_value = zk_wallet
-            .call::<Token>(contract_address, "getValue()(uint256)", None)
+            .call(contract_address, "getValue()(uint256)", None)
             .await
             .unwrap();
 
@@ -1025,7 +1049,7 @@ mod zks_signer_tests {
             .await
             .unwrap();
         let incremented_value = zk_wallet
-            .call::<Token>(contract_address, "getValue()(uint256)", None)
+            .call(contract_address, "getValue()(uint256)", None)
             .await
             .unwrap();
 

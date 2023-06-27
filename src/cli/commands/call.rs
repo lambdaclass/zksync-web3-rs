@@ -12,7 +12,7 @@ pub(crate) struct Call {
     pub contract: Address,
     #[clap(short, long, name = "FUNCTION_SIGNATURE")]
     pub function: String,
-    #[clap(short, long, name = "FUNCTION_ARGS")]
+    #[clap(short, long, num_args(1..), name = "FUNCTION_ARGS")]
     pub args: Option<Vec<String>>,
     #[clap(short, long, name = "PRIVATE_KEY")]
     pub private_key: LocalWallet,
