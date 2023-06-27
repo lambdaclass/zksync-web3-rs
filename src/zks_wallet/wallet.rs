@@ -174,8 +174,6 @@ where
         // TODO: add block as an override.
         let pending_transaction = era_provider.send_transaction(transaction, None).await?;
 
-        // TODO: Should we wait here for the transaction to be confirmed on-chain?
-
         pending_transaction
             .await?
             .ok_or(ZKSWalletError::CustomError(
@@ -227,8 +225,6 @@ where
                     .into(),
             )
             .await?;
-
-        // TODO: Should we wait here for the transaction to be confirmed on-chain?
 
         let transaction_receipt = pending_transaction
             .await?
@@ -473,7 +469,6 @@ where
             )
             .await?;
 
-        // TODO: Should we wait here for the transaction to be confirmed on-chain?
         pending_transaction
             .await?
             .ok_or(ZKSWalletError::CustomError(

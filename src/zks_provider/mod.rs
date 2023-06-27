@@ -437,8 +437,6 @@ impl<M: Middleware + ZKSProvider, S: Signer> ZKSProvider for SignerMiddleware<M,
             .await
             .map_err(|e| ProviderError::CustomError(format!("Error sending transaction: {e:?}")))?;
 
-        // TODO: Should we wait here for the transaction to be confirmed on-chain?
-
         let transaction_receipt = pending_transaction
             .await?
             .ok_or(ProviderError::CustomError(
@@ -728,8 +726,6 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
             )
             .await?;
 
-        // TODO: Should we wait here for the transaction to be confirmed on-chain?
-
         let transaction_receipt = pending_transaction
             .await?
             .ok_or(ProviderError::CustomError(
@@ -763,8 +759,6 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
         .await?;
         let pending_transaction = self.send_transaction(tx, None).await?;
 
-        // TODO: Should we wait here for the transaction to be confirmed on-chain?
-
         let transaction_receipt = pending_transaction
             .await?
             .ok_or(ProviderError::CustomError(
@@ -796,7 +790,7 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
                 }
             }
 
-            // Wait for transaction to be included into the finalized block:
+            // Wait for transaction to be included into the finalized block.
             let latest_block =
                 self.get_block(BlockNumber::Finalized)
                     .await?
