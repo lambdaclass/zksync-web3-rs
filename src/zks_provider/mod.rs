@@ -453,7 +453,11 @@ impl<M: Middleware + ZKSProvider, S: Signer> ZKSProvider for SignerMiddleware<M,
         timeout_in_seconds: Option<Duration>,
     ) -> Result<TransactionReceipt, ProviderError> {
         self.inner()
-            .wait_for_finalize(transaction_receipt, polling_time_in_seconds, timeout_in_seconds)
+            .wait_for_finalize(
+                transaction_receipt,
+                polling_time_in_seconds,
+                timeout_in_seconds,
+            )
             .await
     }
 }
