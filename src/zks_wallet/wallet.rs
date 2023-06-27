@@ -708,8 +708,8 @@ mod zks_signer_tests {
     use ethers::signers::LocalWallet;
     use ethers::solc::info::ContractInfo;
     use ethers::solc::{Project, ProjectPathsConfig};
+    use ethers::types::U256;
     use ethers::types::{Address, Bytes};
-    use ethers::types::{H256, U256};
     use ethers::utils::parse_units;
     use std::str::FromStr;
 
