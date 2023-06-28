@@ -285,7 +285,7 @@ pub fn ec_add_function() -> Function {
                 internal_type: Some("uint256".to_owned()),
             },
         ],
-        state_mutability: ethers::abi::StateMutability::Pure,
+        state_mutability: ethers::abi::StateMutability::Payable,
         constant: None,
     }
 }
