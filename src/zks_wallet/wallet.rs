@@ -606,8 +606,7 @@ where
             vec![]
         };
 
-        let function = HumanReadableParser::parse_function(function_signature)
-            .map_err(|e| ZKSWalletError::CustomError(e.to_string()))?;
+        log::info!("{function_args:?}");
 
         let request: Eip1559TransactionRequest =
             Eip1559TransactionRequest::new().to(contract_address).data(
