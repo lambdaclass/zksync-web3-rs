@@ -1,5 +1,8 @@
 use super::{rlp_append_option, Eip712Meta};
-use crate::zks_utils::{EIP712_TX_TYPE, ERA_CHAIN_ID, MAX_PRIORITY_FEE_PER_GAS};
+use crate::{
+    zks_utils::{EIP712_TX_TYPE, ERA_CHAIN_ID, MAX_PRIORITY_FEE_PER_GAS},
+    zks_wallet::Overrides,
+};
 use ethers::{
     types::{transaction::eip2930::AccessList, Address, Bytes, Signature, U256, U64},
     utils::rlp::{Encodable, RlpStream},
@@ -39,6 +42,14 @@ pub struct Eip712TransactionRequest {
 impl Eip712TransactionRequest {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn from_overrides(overrides: Overrides) -> Self {
+        let mut tx = Self::default();
+        if let Some(value) = overrides.value {
+            tx.value = value;
+        }
+        tx
     }
 
     pub fn to<T>(mut self, to: T) -> Self

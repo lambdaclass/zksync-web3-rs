@@ -88,7 +88,7 @@ pub(crate) fn run(args: CompileArgs) -> eyre::Result<String> {
     let compilation_output = String::from_utf8_lossy(&command_output.stdout)
         .into_owned()
         .trim()
-        .to_string();
+        .to_owned();
 
     log::info!("{compilation_output:?}");
 
