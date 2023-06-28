@@ -1,4 +1,4 @@
-mod deposit_request;
+pub mod deposit_request;
 
 use self::deposit_request::DepositRequest;
 
@@ -11,8 +11,7 @@ use crate::{
     zks_provider::ZKSProvider,
     zks_utils::{
         CONTRACTS_L1_MESSENGER_ADDR, CONTRACTS_L2_ETH_TOKEN_ADDR, CONTRACT_DEPLOYER_ADDR,
-        DEPOSIT_GAS_PER_PUBDATA_LIMIT, EIP712_TX_TYPE, ERA_CHAIN_ID, ETH_CHAIN_ID,
-        RECOMMENDED_DEPOSIT_L1_GAS_LIMIT, RECOMMENDED_DEPOSIT_L2_GAS_LIMIT,
+        EIP712_TX_TYPE, ERA_CHAIN_ID, ETH_CHAIN_ID,
     },
 };
 use ethers::{

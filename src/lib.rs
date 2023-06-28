@@ -49,7 +49,7 @@ pub mod zks_provider;
 pub mod zks_utils;
 
 pub mod zks_wallet;
-pub use zks_wallet::{ZKSWallet, ZKSWalletError};
+pub use zks_wallet::{DepositRequest, ZKSWallet, ZKSWalletError};
 
 // For macro expansions only, not public API.
 #[allow(unused_extern_crates)]
