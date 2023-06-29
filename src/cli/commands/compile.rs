@@ -1,4 +1,4 @@
-use crate::compile;
+use crate::zks_utils::program_path;
 use clap::Parser;
 use std::path::PathBuf;
 
@@ -29,7 +29,8 @@ pub struct CompileArgs {
 }
 
 pub(crate) fn run(args: CompileArgs) -> eyre::Result<String> {
-    let mut command = &mut std::process::Command::new(compile::constants::ZK_SOLC_PATH);
+    let zksolc_path = program_path("zksolc").ok_or(eyre::eyre!("zksolc not found"))?;
+    let mut command = &mut std::process::Command::new(zksolc_path);
     if let Some(solc) = args.solc {
         command = command.arg("--solc").arg(solc);
     } else if let Ok(solc) = std::env::var("SOLC_PATH") {
