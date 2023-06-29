@@ -6,13 +6,16 @@ use crate::{
     eip712::{hash_bytecode, Eip712Meta, Eip712TransactionRequest},
     zks_provider::ZKSProvider,
     zks_utils::{
-        self, is_precompile, CONTRACT_DEPLOYER_ADDR, DEPOSIT_GAS_PER_PUBDATA_LIMIT, EIP712_TX_TYPE,
-        ERA_CHAIN_ID, ETH_CHAIN_ID, RECOMMENDED_DEPOSIT_L1_GAS_LIMIT,
-        RECOMMENDED_DEPOSIT_L2_GAS_LIMIT,
+        self, is_precompile, CONTRACTS_L1_MESSENGER_ADDR, CONTRACTS_L2_ETH_TOKEN_ADDR,
+        CONTRACT_DEPLOYER_ADDR, DEPOSIT_GAS_PER_PUBDATA_LIMIT, EIP712_TX_TYPE, ERA_CHAIN_ID,
+        ETH_CHAIN_ID, RECOMMENDED_DEPOSIT_L1_GAS_LIMIT, RECOMMENDED_DEPOSIT_L2_GAS_LIMIT,
     },
 };
 use ethers::{
-    abi::{encode, Abi, HumanReadableParser, Token, Tokenizable, Tokenize},
+    abi::{
+        decode, encode, Abi, AbiEncode, HumanReadableParser, ParamType, Token, Tokenizable,
+        Tokenize,
+    },
     prelude::{
         encode_function_data,
         k256::{
@@ -25,7 +28,7 @@ use ethers::{
     signers::{Signer, Wallet},
     solc::{info::ContractInfo, Project, ProjectPathsConfig},
     types::{
-        transaction::eip2718::TypedTransaction, Address, Bytes, Eip1559TransactionRequest,
+        transaction::eip2718::TypedTransaction, Address, Bytes, Eip1559TransactionRequest, Log,
         Signature, TransactionReceipt, H160, H256, U256,
     },
 };
@@ -401,20 +404,20 @@ where
             if let Some(contract_dependencies) = contract_dependencies {
                 factory_deps.extend(contract_dependencies);
             }
-            factory_deps.push(contract_bytecode.clone().to_vec());
+            factory_deps.push(contract_bytecode.to_vec());
             factory_deps
         });
 
         let mut deploy_request = Eip712TransactionRequest::new()
             .r#type(EIP712_TX_TYPE)
-            .from(self.address())
+            .from(self.l2_address())
             .to(Address::from_str(CONTRACT_DEPLOYER_ADDR).map_err(|e| {
                 ZKSWalletError::CustomError(format!("invalid contract deployer address: {e}"))
             })?)
             .chain_id(ERA_CHAIN_ID)
             .nonce(
                 era_provider
-                    .get_transaction_count(self.address(), None)
+                    .get_transaction_count(self.l2_address(), None)
                     .await?,
             )
             .gas_price(era_provider.get_gas_price().await?)
@@ -435,7 +438,7 @@ where
                 })?;
                 // TODO: User could provide this instead of defaulting.
                 let salt = [0_u8; 32];
-                let bytecode_hash = hash_bytecode(&contract_bytecode)?;
+                let bytecode_hash = hash_bytecode(contract_bytecode)?;
                 let call_data = Bytes::default();
 
                 encode_function_data(create, (salt, bytecode_hash, call_data))?
@@ -449,7 +452,7 @@ where
             .gas_limit(fee.gas_limit);
 
         let signable_data: Eip712Transaction = deploy_request.clone().try_into()?;
-        let signature: Signature = self.wallet.sign_typed_data(&signable_data).await?;
+        let signature: Signature = self.l2_wallet.sign_typed_data(&signable_data).await?;
         deploy_request =
             deploy_request.custom_data(custom_data.custom_signature(signature.to_vec()));
 
@@ -602,7 +605,7 @@ where
         };
         let function_args = if let Some(function_args) = function_parameters {
             function
-                .decode_input(&*zks_utils::encode_args(&function, &function_args)?)
+                .decode_input(&zks_utils::encode_args(&function, &function_args)?)
                 .map_err(|e| ZKSWalletError::CustomError(e.to_string()))?
         } else {
             vec![]
@@ -662,7 +665,7 @@ where
                 &self.l2_wallet,
                 contract_address,
                 function_signature,
-                Some(to),
+                Some([format!("{to:?}")].into()),
                 Some(Overrides {
                     value: Some(amount),
                 }),
@@ -754,7 +757,7 @@ where
         let l1_batch_number = era_provider.get_l1_batch_number().await?;
         let l2_message_index = U256::from(proof.id);
 
-        let l2_tx_number_in_block: u16 = serde_json::from_value::<U256>(
+        let l2_tx_number_in_block: String = serde_json::from_value::<String>(
             withdrawal_receipt
                 .other
                 .get("l1BatchTxIndex")
@@ -763,10 +766,7 @@ where
                 ))?
                 .clone(),
         )
-        .map_err(|err| ZKSWalletError::CustomError(format!("Failed to deserialize field {err}")))?
-        .as_u32()
-        .try_into()
-        .map_err(|e| ZKSWalletError::CustomError(format!("failed to convert u32 to u16: {e}")))?;
+        .map_err(|err| ZKSWalletError::CustomError(format!("Failed to deserialize field {err}")))?;
 
         let message: Bytes = decode(&[ParamType::Bytes], &filtered_log.data)
             .map_err(|e| ZKSWalletError::CustomError(format!("failed to decode log data: {e}")))?
@@ -781,13 +781,15 @@ where
             ))?
             .into();
 
-        let parameters = (
-            l1_batch_number,
-            l2_message_index,
+        let parameters = [
+            format!("{l1_batch_number:?}"),
+            format!("{l2_message_index:?}"),
             l2_tx_number_in_block,
-            message,
-            merkle_proof,
-        );
+            message.encode_hex(),
+            format!("{merkle_proof:?}")
+                .replace('"', "")
+                .replace(' ', ""),
+        ];
 
         let function_signature = "function finalizeEthWithdrawal(uint256 _l2BlockNumber,uint256 _l2MessageIndex,uint16 _l2TxNumberInBlock,bytes calldata _message,bytes32[] calldata _merkleProof) external";
         let response = eth_provider
@@ -795,7 +797,7 @@ where
                 &self.l1_wallet,
                 main_contract,
                 function_signature,
-                Some(parameters),
+                Some(parameters.into()),
                 None,
             )
             .await?;
