@@ -237,7 +237,7 @@ pub fn sanitize_token(token: Token) -> Token {
                     Token::String(val) => {
                         let val = match val.as_str() {
                             // this is supposed to be an empty string
-                            "\"\"" | "''" => "".to_string(),
+                            "\"\"" | "''" => "".to_owned(),
                             _ => val,
                         };
                         Token::String(val)
@@ -254,37 +254,37 @@ pub fn sanitize_token(token: Token) -> Token {
 
 pub fn ec_add_function() -> Function {
     Function {
-        name: "".to_string(),
+        name: "".to_owned(),
         inputs: vec![
             Param {
-                name: "".to_string(),
+                name: "".to_owned(),
                 kind: ParamType::Uint(256),
                 internal_type: Some("uint256".to_owned()),
             },
             Param {
-                name: "".to_string(),
+                name: "".to_owned(),
                 kind: ParamType::Uint(256),
                 internal_type: Some("uint256".to_owned()),
             },
             Param {
-                name: "".to_string(),
+                name: "".to_owned(),
                 kind: ParamType::Uint(256),
                 internal_type: Some("uint256".to_owned()),
             },
             Param {
-                name: "".to_string(),
+                name: "".to_owned(),
                 kind: ParamType::Uint(256),
                 internal_type: Some("uint256".to_owned()),
             },
         ],
         outputs: vec![
             Param {
-                name: "".to_string(),
+                name: "".to_owned(),
                 kind: ParamType::Uint(256),
                 internal_type: Some("uint256".to_owned()),
             },
             Param {
-                name: "".to_string(),
+                name: "".to_owned(),
                 kind: ParamType::Uint(256),
                 internal_type: Some("uint256".to_owned()),
             },
