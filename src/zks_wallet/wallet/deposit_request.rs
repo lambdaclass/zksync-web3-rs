@@ -56,8 +56,8 @@ impl DepositRequest {
         self
     }
 
-    pub fn gas_price(mut self, value: U256) -> Self {
-        self.gas_price = Some(value);
+    pub fn gas_price(mut self, value: Option<U256>) -> Self {
+        self.gas_price = value;
         self
     }
 
