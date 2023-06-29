@@ -12,12 +12,14 @@ use ethers::{
     signers::{Signer, Wallet},
     types::{
         transaction::{eip2718::TypedTransaction, eip712::Eip712Error},
-        Address, Eip1559TransactionRequest, Signature, H256, U256, U64,
+        Address, BlockNumber, Eip1559TransactionRequest, Signature, TransactionReceipt, H256, U256,
+        U64,
     },
 };
 use serde::Serialize;
 use serde_json::json;
-use std::{collections::HashMap, fmt::Debug};
+use std::{collections::HashMap, fmt::Debug, time::Duration};
+use tokio::time::Instant;
 
 pub mod types;
 use types::Fee;
@@ -206,6 +208,13 @@ pub trait ZKSProvider {
     ) -> Result<(Vec<Token>, H256), ProviderError>
     where
         D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Send + Sync;
+
+    async fn wait_for_finalize(
+        &self,
+        transaction_receipt: TransactionReceipt,
+        polling_time_in_seconds: Option<Duration>,
+        timeout_in_seconds: Option<Duration>,
+    ) -> Result<TransactionReceipt, ProviderError>;
 }
 
 #[async_trait]
@@ -424,8 +433,6 @@ impl<M: Middleware + ZKSProvider, S: Signer> ZKSProvider for SignerMiddleware<M,
             .await
             .map_err(|e| ProviderError::CustomError(format!("Error sending transaction: {e:?}")))?;
 
-        // TODO: Should we wait here for the transaction to be confirmed on-chain?
-
         let transaction_receipt = pending_transaction
             .await?
             .ok_or(ProviderError::CustomError(
@@ -433,6 +440,21 @@ impl<M: Middleware + ZKSProvider, S: Signer> ZKSProvider for SignerMiddleware<M,
             ))?;
 
         Ok((Vec::new(), transaction_receipt.transaction_hash))
+    }
+
+    async fn wait_for_finalize(
+        &self,
+        transaction_receipt: TransactionReceipt,
+        polling_time_in_seconds: Option<Duration>,
+        timeout_in_seconds: Option<Duration>,
+    ) -> Result<TransactionReceipt, ProviderError> {
+        self.inner()
+            .wait_for_finalize(
+                transaction_receipt,
+                polling_time_in_seconds,
+                timeout_in_seconds,
+            )
+            .await
     }
 }
 
@@ -716,8 +738,6 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
             )
             .await?;
 
-        // TODO: Should we wait here for the transaction to be confirmed on-chain?
-
         let transaction_receipt = pending_transaction
             .await?
             .ok_or(ProviderError::CustomError(
@@ -750,8 +770,6 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
         .await?;
         let pending_transaction = self.send_transaction(tx, None).await?;
 
-        // TODO: Should we wait here for the transaction to be confirmed on-chain?
-
         let transaction_receipt = pending_transaction
             .await?
             .ok_or(ProviderError::CustomError(
@@ -759,6 +777,42 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
             ))?;
 
         Ok((Vec::new(), transaction_receipt.transaction_hash))
+    }
+
+    async fn wait_for_finalize(
+        &self,
+        transaction_receipt: TransactionReceipt,
+        polling_time_in_seconds: Option<Duration>,
+        timeout_in_seconds: Option<Duration>,
+    ) -> Result<TransactionReceipt, ProviderError> {
+        let polling_time_in_seconds = polling_time_in_seconds.unwrap_or(Duration::from_secs(2));
+        let mut timer = tokio::time::interval(polling_time_in_seconds);
+        let start = Instant::now();
+
+        loop {
+            timer.tick().await;
+
+            if let Some(timeout) = timeout_in_seconds {
+                if start.elapsed() >= timeout {
+                    return Err(ProviderError::CustomError(
+                        "Error waiting for transaction to be included into the finalized block"
+                            .to_owned(),
+                    ));
+                }
+            }
+
+            // Wait for transaction to be included into the finalized block.
+            let latest_block =
+                self.get_block(BlockNumber::Finalized)
+                    .await?
+                    .ok_or(ProviderError::CustomError(
+                        "Error getting finalized block".to_owned(),
+                    ))?;
+
+            if transaction_receipt.block_number <= latest_block.number {
+                return Ok(transaction_receipt);
+            }
+        }
     }
 }
 
