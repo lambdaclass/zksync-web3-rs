@@ -12,8 +12,8 @@ pub mod zksolc_manager;
 ///   pipeline. Additionally, it includes core build arguments defined in the `CoreBuildArgs`
 ///   structure.
 ///
-/// * `Cmd` Implementation for `ZkBuildArgs`: This implementation includes a `run` function, which
-///   initiates the zkSync contract compilation process. The `run` function takes care of the
+/// * `Cmd` Implementation for `ZkBuildArgs`: This implementation includes a `compile` function, which
+///   initiates the zkSync contract compilation process. The `compile` function takes care of the
 ///   various steps involved in the process, including downloading the zksolc compiler, setting up
 ///   the compiler directory, and invoking the compilation process.
 ///
@@ -27,21 +27,10 @@ pub mod zksolc_manager;
 /// contracts. It is designed to provide a seamless experience for developers, providing an
 /// easy-to-use interface for contract compilation while taking care of the underlying complexities.
 use self::zksolc::{ZkSolc, ZkSolcOpts};
-use self::zksolc_manager::{
-    ZkSolcManager, ZkSolcManagerBuilder, ZkSolcManagerOpts, DEFAULT_ZKSOLC_VERSION,
-};
+use self::zksolc_manager::{ZkSolcManager, ZkSolcManagerBuilder, ZkSolcManagerOpts};
 use clap::Parser;
 use ethers::prelude::Project;
 use ethers_solc::ProjectPathsConfig;
-// use foundry_config::{
-//     figment::{
-//         self,
-//         error::Kind::InvalidType,
-//         value::{Dict, Map, Value},
-//         Metadata, Profile, Provider,
-//     },
-//     Config,
-// };
 use serde::Serialize;
 use std::fmt::Debug;
 
@@ -64,7 +53,7 @@ use std::fmt::Debug;
 ///   required for building the contract, such as optimization level, output directory etc.
 ///
 /// This struct is used as input to the `ZkSolc` compiler, which will use these arguments to configure the compilation process.
-/// It implements the `Cmd` trait, which triggers the compilation process when the `run` function is called. The struct also
+/// It implements the `Cmd` trait, which triggers the compilation process when the `compile` function is called. The struct also
 /// implements the `Provider` trait, allowing it to be converted into a form that can be merged into the application's configuration object.
 #[derive(Debug, Clone, Parser, Serialize, Default)]
 #[clap(next_help_heading = "ZkBuild options", about = None)]
@@ -72,33 +61,12 @@ pub struct ZkBuildArgs {
     /// Specify the solc version, or a path to a local solc, to build with.
     ///
     /// Valid values are in the format `x.y.z`, `solc:x.y.z` or `path/to/solc`.
-    #[clap(
-        help_heading = "ZkSync Compiler options",
-        value_name = "ZK_SOLC_VERSION",
-        long = "use-zksolc",
-        default_value = DEFAULT_ZKSOLC_VERSION
-    )]
-    #[serde(skip)]
     pub use_zksolc: String,
 
     /// A flag indicating whether to enable the system contract compilation mode.
-    #[clap(
-        help_heading = "ZkSync Compiler options",
-        help = "Enable the system contract compilation mode. In this mode zkEVM extensions are enabled. For example, calls
-        to addresses `0xFFFF` and below are substituted by special zkEVM instructions.",
-        long = "is-system",
-        value_name = "SYSTEM_MODE"
-    )]
     pub is_system: bool,
 
     /// A flag indicating whether to forcibly switch to the EVM legacy assembly pipeline.
-    #[clap(
-        help_heading = "ZkSync Compiler options",
-        help = "Forcibly switch to the EVM legacy assembly pipeline. It is useful for older revisions of `solc` 0.8, where
-        Yul was considered highly experimental and contained more bugs than today",
-        long = "force-evmla",
-        value_name = "FORCE_EVMLA"
-    )]
     pub force_evmla: bool,
 }
 
@@ -118,7 +86,7 @@ impl ZkBuildArgs {
     /// The method returns `Ok(())` if the entire process completes successfully, or an error if any step in the process fails.
     /// The purpose of this function is to consolidate all steps involved in the zkSync contract compilation process in a single method,
     /// allowing for easy invocation of the process with a single function call.
-    fn run(self) -> eyre::Result<()> {
+    pub fn compile(self) -> eyre::Result<()> {
         let project_root = "./";
         let mut project = Project::builder()
             .paths(ProjectPathsConfig::builder().build_with_root(project_root))
@@ -135,9 +103,7 @@ impl ZkBuildArgs {
         println!("Compiling smart contracts...");
         self.compile_smart_contracts(zksolc_manager, project)
     }
-}
 
-impl ZkBuildArgs {
     /// The `setup_zksolc_manager` function creates and prepares an instance of `ZkSolcManager`.
     ///
     /// It follows these steps:
