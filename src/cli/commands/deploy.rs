@@ -42,7 +42,7 @@ pub(crate) async fn run(args: Deploy, config: ZKSyncWeb3Config) -> eyre::Result<
     let zk_wallet = ZKSWallet::new(wallet, None, Some(era_provider.clone()), None)?;
     let contract_address = if let Some(bytecode) = args.bytecode {
         zk_wallet
-            .deploy_from_bytecode(&*bytecode, None, None::<Token>)
+            .deploy_from_bytecode(&bytecode, None, None::<Token>)
             .await?
     } else {
         zk_wallet
