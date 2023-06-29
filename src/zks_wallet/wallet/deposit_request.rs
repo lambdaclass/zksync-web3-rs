@@ -1,4 +1,4 @@
-use ethers::types::{Address, U256};
+use crate::types::{Address, U256};
 
 use crate::zks_utils::{
     DEPOSIT_GAS_PER_PUBDATA_LIMIT, RECOMMENDED_DEPOSIT_L1_GAS_LIMIT,
