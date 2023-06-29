@@ -5,6 +5,10 @@ use crate::zks_utils::{
     RECOMMENDED_DEPOSIT_L2_GAS_LIMIT,
 };
 
+fn default_gas_limit() -> U256 {
+    RECOMMENDED_DEPOSIT_L1_GAS_LIMIT.into()
+}
+
 pub struct DepositRequest {
     pub amount: U256,
     pub to: Option<Address>,
@@ -24,7 +28,7 @@ impl DepositRequest {
             gas_per_pubdata_byte: DEPOSIT_GAS_PER_PUBDATA_LIMIT.into(),
             operator_tip: 0.into(),
             gas_price: None,
-            gas_limit: RECOMMENDED_DEPOSIT_L1_GAS_LIMIT.into(),
+            gas_limit: default_gas_limit(),
         }
     }
 
@@ -57,8 +61,11 @@ impl DepositRequest {
         self
     }
 
-    pub fn gas_limit(mut self, value: U256) -> Self {
-        self.gas_limit = value;
+    pub fn gas_limit(mut self, value: Option<U256>) -> Self {
+        self.gas_limit = match value {
+            Some(gas_limit) => gas_limit,
+            _ => default_gas_limit(),
+        };
         self
     }
 }
