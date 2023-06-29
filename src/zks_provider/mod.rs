@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use ethers::{
-    abi::{encode, HumanReadableParser, Token, Tokenizable, Tokenize},
+    abi::{encode, HumanReadableParser, Token, Tokenize},
     prelude::{
         k256::{
             ecdsa::{RecoveryId, Signature as RecoverableSignature},
@@ -187,28 +187,26 @@ pub trait ZKSProvider {
         options: Option<TracerConfig>,
     ) -> Result<DebugTrace, ProviderError>;
 
-    async fn send_eip712<T, D>(
+    async fn send_eip712<D>(
         &self,
         wallet: &Wallet<D>,
         contract_address: Address,
         function_signature: &str,
-        function_parameters: Option<T>,
+        function_parameters: Option<Vec<String>>,
         overrides: Option<Overrides>,
     ) -> Result<(Vec<Token>, H256), ProviderError>
     where
-        T: Tokenizable + Debug + Clone + Send,
         D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Send + Sync;
 
-    async fn send<T, D>(
+    async fn send<D>(
         &self,
         wallet: &Wallet<D>,
         contract_address: Address,
         function_signature: &str,
-        function_parameters: Option<T>,
+        function_parameters: Option<Vec<String>>,
         overrides: Option<Overrides>,
     ) -> Result<(Vec<Token>, H256), ProviderError>
     where
-        T: Tokenizable + Debug + Clone + Send,
         D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Send + Sync;
 
     async fn wait_for_finalize(
@@ -395,16 +393,15 @@ impl<M: Middleware + ZKSProvider, S: Signer> ZKSProvider for SignerMiddleware<M,
         ZKSProvider::debug_trace_transaction(self.inner(), hash, options).await
     }
 
-    async fn send_eip712<T, D>(
+    async fn send_eip712<D>(
         &self,
         wallet: &Wallet<D>,
         contract_address: Address,
         function_signature: &str,
-        function_parameters: Option<T>,
+        function_parameters: Option<Vec<String>>,
         overrides: Option<Overrides>,
     ) -> Result<(Vec<Token>, H256), ProviderError>
     where
-        T: Tokenizable + Debug + Clone + Send,
         D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Send + Sync,
     {
         self.inner()
@@ -418,16 +415,15 @@ impl<M: Middleware + ZKSProvider, S: Signer> ZKSProvider for SignerMiddleware<M,
             .await
     }
 
-    async fn send<T, D>(
+    async fn send<D>(
         &self,
         wallet: &Wallet<D>,
         contract_address: Address,
         function_signature: &str,
-        function_parameters: Option<T>,
+        function_parameters: Option<Vec<String>>,
         _overrides: Option<Overrides>,
     ) -> Result<(Vec<Token>, H256), ProviderError>
     where
-        T: Tokenizable + Debug + Clone + Send,
         D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Send + Sync,
     {
         let tx = build_send_tx(
@@ -690,19 +686,19 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
             .await
     }
 
-    async fn send_eip712<T, D>(
+    async fn send_eip712<D>(
         &self,
         wallet: &Wallet<D>,
         contract_address: Address,
         function_signature: &str,
-        function_parameters: Option<T>,
+        function_parameters: Option<Vec<String>>,
         overrides: Option<Overrides>,
     ) -> Result<(Vec<Token>, H256), ProviderError>
     where
-        T: Tokenizable + Debug + Clone + Send,
         D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Send + Sync,
     {
         // Note: We couldn't implement ProviderError::LexerError because ethers-rs's LexerError is not exposed.
+        // TODO check for ECADD precompile address to get the function signature.
         let function = HumanReadableParser::parse_function(function_signature)
             .map_err(|e| ProviderError::CustomError(e.to_string()))?;
 
@@ -710,6 +706,17 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
             Eip712TransactionRequest::from_overrides(overrides)
         } else {
             Eip712TransactionRequest::new()
+        };
+
+        let function_args = if let Some(function_args) = function_parameters {
+            function
+                .decode_input(
+                    &zks_utils::encode_args(&function, &function_args)
+                        .map_err(|e| ProviderError::CustomError(e.to_string()))?,
+                )
+                .map_err(|e| ProviderError::CustomError(e.to_string()))?
+        } else {
+            vec![]
         };
 
         send_request = send_request
@@ -720,11 +727,12 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
             .nonce(self.get_transaction_count(wallet.address(), None).await?)
             .gas_price(self.get_gas_price().await?)
             .max_fee_per_gas(self.get_gas_price().await?)
-            .data(match function_parameters {
-                Some(parameters) => function
-                    .encode_input(&parameters.into_tokens())
-                    .map_err(|e| ProviderError::CustomError(e.to_string()))?,
-                None => function.short_signature().into(),
+            .data(if !function_args.is_empty() {
+                function
+                    .encode_input(&function_args)
+                    .map_err(|e| ProviderError::CustomError(e.to_string()))?
+            } else {
+                function.short_signature().into()
             });
 
         let fee = self.estimate_fee(send_request.clone()).await?;
@@ -762,16 +770,15 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
         Ok((Vec::new(), transaction_receipt.transaction_hash))
     }
 
-    async fn send<T, D>(
+    async fn send<D>(
         &self,
         wallet: &Wallet<D>,
         contract_address: Address,
         function_signature: &str,
-        function_parameters: Option<T>,
+        function_parameters: Option<Vec<String>>,
         _overrides: Option<Overrides>,
     ) -> Result<(Vec<Token>, H256), ProviderError>
     where
-        T: Tokenizable + Debug + Clone + Send,
         D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Send + Sync,
     {
         let tx = build_send_tx(
@@ -887,19 +894,27 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
     }
 }
 
-async fn build_send_tx<T>(
+async fn build_send_tx(
     provider: &impl Middleware,
     sender: Address,
     contract_address: Address,
     function_signature: &str,
-    function_parameters: Option<T>,
+    function_parameters: Option<Vec<String>>,
     _overrides: Option<Overrides>,
-) -> Result<TypedTransaction, ProviderError>
-where
-    T: Tokenizable + Debug + Clone + Send,
-{
+) -> Result<TypedTransaction, ProviderError> {
     let function = HumanReadableParser::parse_function(function_signature)
         .map_err(|e| ProviderError::CustomError(e.to_string()))?;
+
+    let function_args = if let Some(function_args) = function_parameters {
+        function
+            .decode_input(
+                &zks_utils::encode_args(&function, &function_args)
+                    .map_err(|e| ProviderError::CustomError(e.to_string()))?,
+            )
+            .map_err(|e| ProviderError::CustomError(e.to_string()))?
+    } else {
+        vec![]
+    };
 
     // Sending transaction calling the main contract.
     let send_request = Eip1559TransactionRequest::new()
@@ -912,11 +927,12 @@ where
                 .await
                 .map_err(|e| ProviderError::CustomError(e.to_string()))?,
         )
-        .data(match function_parameters {
-            Some(parameters) => function
-                .encode_input(&parameters.into_tokens())
-                .map_err(|e| ProviderError::CustomError(e.to_string()))?,
-            None => function.short_signature().into(),
+        .data(if !function_args.is_empty() {
+            function
+                .encode_input(&function_args)
+                .map_err(|e| ProviderError::CustomError(e.to_string()))?
+        } else {
+            function.short_signature().into()
         })
         .value(0_u8)
         //FIXME we should use default calculation for gas related fields.
@@ -1741,7 +1757,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "skipped until the compiler OS version is fixed"]
+    //#[ignore = "skipped until the compiler OS version is fixed"]
     async fn test_send_function_with_arguments() {
         // Deploying a test contract
         let deployer_private_key =
@@ -1761,13 +1777,13 @@ mod tests {
             .await
             .unwrap();
 
-        let value_to_set = U256::from(10_u64);
+        let value_to_set = String::from("10");
         era_provider
             .send_eip712(
                 &zk_wallet.l2_wallet,
                 contract_address,
                 "setValue(uint256)",
-                Some(value_to_set),
+                Some([value_to_set.clone()].into()),
                 None,
             )
             .await
@@ -1777,10 +1793,13 @@ mod tests {
                 .await
                 .unwrap();
 
-        assert_eq!(set_value, value_to_set.into_tokens());
+        assert_eq!(
+            set_value,
+            U256::from(value_to_set.parse::<u64>().unwrap()).into_tokens()
+        );
 
         era_provider
-            .send_eip712::<Token, _>(
+            .send_eip712(
                 &zk_wallet.l2_wallet,
                 contract_address,
                 "incrementValue()",
@@ -1794,7 +1813,10 @@ mod tests {
                 .await
                 .unwrap();
 
-        assert_eq!(incremented_value, (value_to_set + 1_u64).into_tokens());
+        assert_eq!(
+            incremented_value,
+            (value_to_set.parse::<u64>().unwrap() + 1_u64).into_tokens()
+        );
     }
 
     #[tokio::test]
