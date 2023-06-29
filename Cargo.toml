@@ -7,14 +7,27 @@ edition = "2021"
 
 [dependencies]
 ethers = { version = "2.0.4", features = ["rustls", "ethers-solc"] }
+ethers-solc = { version = "2.0.4", features = ["rustls", "svm-solc"] }
+
 clap = { version = "4.2.7", features = ["derive"] }
+
+reqwest = {version = "0.11.8", default-features = false, features = [
+  "json",
+  "rustls",
+  "rustls-native-certs",
+]}
+ansi_term = "0.12.1"
+anyhow = {version = "1.0.70"}
+dirs = {version = "5.0.0"}
+url = "2.3.1"
+semver = "1.0.5"
 
 # Async
 tokio = { version = "1", features = ["macros", "process"] }
 async-trait = "0.1.68"
 
 # Serialization
-serde = "1.0.163"
+serde = {version = "1.0.163", features = ["derive"] }
 serde_json = { version = "1" }
 hex = "0.4"
 

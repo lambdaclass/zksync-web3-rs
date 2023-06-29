@@ -1,13 +1,12 @@
 use super::{Overrides, ZKSWalletError};
 use crate::{
-    compile::project::ZKProject,
     eip712::{hash_bytecode, Eip712Meta, Eip712Transaction, Eip712TransactionRequest},
     zks_provider::ZKSProvider,
     zks_utils::{
         CONTRACTS_DIAMOND_PROXY_ADDR, CONTRACTS_L1_MESSENGER_ADDR, CONTRACTS_L2_ETH_TOKEN_ADDR,
         CONTRACT_DEPLOYER_ADDR, EIP712_TX_TYPE, ERA_CHAIN_ID, ETH_CHAIN_ID, MAX_FEE_PER_GAS,
         MAX_PRIORITY_FEE_PER_GAS,
-    },
+    }, compile::ZKCompile,
 };
 use ethers::{
     abi::{decode, Abi, HumanReadableParser, ParamType, Token, Tokenizable, Tokenize},
@@ -220,13 +219,13 @@ where
     {
         let mut root = PathBuf::from("./");
         root.push::<PathBuf>(contract_path.clone().into());
-        let zk_project = ZKProject::from(
+        let zk_project = 
             Project::builder()
                 .paths(ProjectPathsConfig::builder().build_with_root(root))
                 .set_auto_detect(true)
-                .build()?,
-        );
-        let compilation_output = zk_project.compile()?;
+                .build()?;
+        let compiler = ZKCompile {};
+        let compilation_output = compiler.run(zk_project)?;
         let artifact = compilation_output
             .find_contract(ContractInfo::from_str(&format!(
                 "{contract_path}:{contract_name}"
@@ -647,7 +646,7 @@ where
 
 #[cfg(test)]
 mod zks_signer_tests {
-    use crate::compile::project::ZKProject;
+    use crate::compile::ZKCompile;
     use crate::zks_utils::ERA_CHAIN_ID;
     use crate::zks_wallet::ZKSWallet;
     use ethers::abi::{Token, Tokenize};
@@ -807,14 +806,15 @@ mod zks_signer_tests {
         let project_root = "./src/compile/test_contracts/storage";
         let contract_name = "ValueStorage";
 
-        let zk_project = ZKProject::from(
+        let mut zk_project = 
             Project::builder()
                 .paths(ProjectPathsConfig::builder().build_with_root(project_root))
                 .set_auto_detect(true)
                 .build()
-                .unwrap(),
-        );
-        let compilation_output = zk_project.compile().unwrap();
+                .unwrap();
+
+        let compiler = ZKCompile {};
+        let compilation_output = compiler.run(zk_project).unwrap();
         let artifact = compilation_output
             .find_contract(
                 ContractInfo::from_str(&format!(
