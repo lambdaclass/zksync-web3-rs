@@ -648,9 +648,10 @@ where
             None => return Err(ZKSWalletError::CustomError("no era provider".to_owned())),
         };
 
-        let contract_address = Address::from_str(CONTRACTS_L2_ETH_TOKEN_ADDR).map_err(|error| {
-            ZKSWalletError::CustomError(format!("failed to parse contract address: {error}"))
-        })?;
+        let contract_address =
+            Address::from_str(zks_utils::CONTRACTS_L2_ETH_TOKEN_ADDR).map_err(|error| {
+                ZKSWalletError::CustomError(format!("failed to parse contract address: {error}"))
+            })?;
         let function_signature = "function withdraw(address _l1Receiver) external payable override";
         let response: (Vec<Token>, H256) = era_provider
             .send_eip712(
@@ -696,8 +697,8 @@ where
             ZKSWalletError::CustomError("Error getting transaction receipt of withdraw".to_owned()),
         )?;
 
-        let messenger_contract_address =
-            Address::from_str(CONTRACTS_L1_MESSENGER_ADDR).map_err(|error| {
+        let messenger_contract_address = Address::from_str(zks_utils::CONTRACTS_L1_MESSENGER_ADDR)
+            .map_err(|error| {
                 ZKSWalletError::CustomError(format!("failed to parse contract address: {error}"))
             })?;
 
@@ -727,7 +728,7 @@ where
         .zip(0_u64..)
         .find(|(log, _)| {
             if let Some(sender) = log.get("sender") {
-                sender == CONTRACTS_L1_MESSENGER_ADDR
+                sender == zks_utils::CONTRACTS_L1_MESSENGER_ADDR
             } else {
                 false
             }
