@@ -45,6 +45,7 @@ pub mod cli;
 pub mod compile;
 pub mod contracts;
 pub mod eip712;
+pub mod zks_build;
 pub mod zks_provider;
 pub mod zks_utils;
 
