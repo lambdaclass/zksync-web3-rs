@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use ethers::{
-    abi::{encode, HumanReadableParser, Token, Tokenizable, Tokenize},
+    abi::{encode, HumanReadableParser, Token, Tokenize},
     prelude::{
         k256::{
             ecdsa::{RecoveryId, Signature as RecoverableSignature},
@@ -954,7 +954,7 @@ mod tests {
         zks_wallet::ZKSWallet,
     };
     use ethers::{
-        abi::Tokenize,
+        abi::{Token, Tokenize},
         prelude::{k256::ecdsa::SigningKey, MiddlewareBuilder, SignerMiddleware},
         providers::{Middleware, Provider},
         signers::{LocalWallet, Signer, Wallet},
