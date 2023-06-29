@@ -1,7 +1,6 @@
 use crate::cli::ZKSyncWeb3Config;
-use crate::zks_utils::ERA_CHAIN_ID;
-use crate::ZKSWallet;
-use crate::{providers::Provider, signers::Signer, types::Address};
+use crate::zks_provider::ZKSProvider;
+use crate::{providers::Provider, types::Address};
 use clap::Args;
 use ethers::signers::LocalWallet;
 
@@ -24,8 +23,6 @@ pub(crate) async fn run(args: Call, config: ZKSyncWeb3Config) -> eyre::Result<()
         host = config.host,
         port = config.port
     ))?;
-    let wallet = args.private_key.with_chain_id(ERA_CHAIN_ID);
-    let zk_wallet = ZKSWallet::new(wallet, None, Some(provider.clone()), None)?;
 
     // Note: CLI syntactic sugar need to be handle in the run() function.
     // If more sugar cases are needed, we should switch to a match statement.
@@ -36,9 +33,7 @@ pub(crate) async fn run(args: Call, config: ZKSyncWeb3Config) -> eyre::Result<()
     };
 
     // TODO: Figure out how to parse the args correctly.
-    let output = zk_wallet
-        .call(args.contract, function_signature, args.args)
-        .await?;
+    let output = ZKSProvider::call(&provider, args.contract, function_signature, args.args).await?;
     log::info!("{output:?}");
     Ok(())
 }
