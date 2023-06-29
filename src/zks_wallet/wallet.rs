@@ -12,7 +12,7 @@ use crate::{
     },
 };
 use ethers::{
-    abi::{encode, Abi, HumanReadableParser, Token, Tokenizable, Tokenize},
+    abi::{decode, encode, Abi, HumanReadableParser, ParamType, Token, Tokenizable, Tokenize},
     prelude::{
         encode_function_data,
         k256::{
@@ -25,7 +25,7 @@ use ethers::{
     signers::{Signer, Wallet},
     solc::{info::ContractInfo, Project, ProjectPathsConfig},
     types::{
-        transaction::eip2718::TypedTransaction, Address, Bytes, Eip1559TransactionRequest,
+        transaction::eip2718::TypedTransaction, Address, Bytes, Eip1559TransactionRequest, Log,
         Signature, TransactionReceipt, H160, H256, U256,
     },
 };
@@ -404,14 +404,14 @@ where
 
         let mut deploy_request = Eip712TransactionRequest::new()
             .r#type(EIP712_TX_TYPE)
-            .from(self.address())
+            .from(self.l2_address())
             .to(Address::from_str(CONTRACT_DEPLOYER_ADDR).map_err(|e| {
                 ZKSWalletError::CustomError(format!("invalid contract deployer address: {e}"))
             })?)
             .chain_id(ERA_CHAIN_ID)
             .nonce(
                 era_provider
-                    .get_transaction_count(self.address(), None)
+                    .get_transaction_count(self.l2_address(), None)
                     .await?,
             )
             .gas_price(era_provider.get_gas_price().await?)
@@ -446,7 +446,7 @@ where
             .gas_limit(fee.gas_limit);
 
         let signable_data: Eip712Transaction = deploy_request.clone().try_into()?;
-        let signature: Signature = self.wallet.sign_typed_data(&signable_data).await?;
+        let signature: Signature = self.l2_wallet.sign_typed_data(&signable_data).await?;
         deploy_request =
             deploy_request.custom_data(custom_data.custom_signature(signature.to_vec()));
 
@@ -648,9 +648,10 @@ where
             None => return Err(ZKSWalletError::CustomError("no era provider".to_owned())),
         };
 
-        let contract_address = Address::from_str(CONTRACTS_L2_ETH_TOKEN_ADDR).map_err(|error| {
-            ZKSWalletError::CustomError(format!("failed to parse contract address: {error}"))
-        })?;
+        let contract_address =
+            Address::from_str(zks_utils::CONTRACTS_L2_ETH_TOKEN_ADDR).map_err(|error| {
+                ZKSWalletError::CustomError(format!("failed to parse contract address: {error}"))
+            })?;
         let function_signature = "function withdraw(address _l1Receiver) external payable override";
         let response: (Vec<Token>, H256) = era_provider
             .send_eip712(
@@ -696,8 +697,8 @@ where
             ZKSWalletError::CustomError("Error getting transaction receipt of withdraw".to_owned()),
         )?;
 
-        let messenger_contract_address =
-            Address::from_str(CONTRACTS_L1_MESSENGER_ADDR).map_err(|error| {
+        let messenger_contract_address = Address::from_str(zks_utils::CONTRACTS_L1_MESSENGER_ADDR)
+            .map_err(|error| {
                 ZKSWalletError::CustomError(format!("failed to parse contract address: {error}"))
             })?;
 
@@ -727,7 +728,7 @@ where
         .zip(0_u64..)
         .find(|(log, _)| {
             if let Some(sender) = log.get("sender") {
-                sender == CONTRACTS_L1_MESSENGER_ADDR
+                sender == zks_utils::CONTRACTS_L1_MESSENGER_ADDR
             } else {
                 false
             }

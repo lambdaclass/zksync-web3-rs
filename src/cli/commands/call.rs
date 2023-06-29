@@ -25,7 +25,7 @@ pub(crate) async fn run(args: Call, config: ZKSyncWeb3Config) -> eyre::Result<()
         port = config.port
     ))?;
     let wallet = args.private_key.with_chain_id(ERA_CHAIN_ID);
-    let zk_wallet = ZKSWallet::new(wallet, Some(provider.clone()), None)?;
+    let zk_wallet = ZKSWallet::new(wallet, None, Some(provider.clone()), None)?;
 
     // Note: CLI syntactic sugar need to be handle in the run() function.
     // If more sugar cases are needed, we should switch to a match statement.

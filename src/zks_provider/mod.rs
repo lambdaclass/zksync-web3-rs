@@ -1695,7 +1695,7 @@ mod tests {
             .await
             .unwrap();
         let set_value = zk_wallet
-            .call::<Token>(contract_address, "getValue()(uint256)", None)
+            .call(contract_address, "getValue()(uint256)", None)
             .await
             .unwrap();
 
@@ -1712,7 +1712,7 @@ mod tests {
             .await
             .unwrap();
         let incremented_value = zk_wallet
-            .call::<Token>(contract_address, "getValue()(uint256)", None)
+            .call(contract_address, "getValue()(uint256)", None)
             .await
             .unwrap();
 
