@@ -122,7 +122,10 @@ fn get_operating_system() -> Result<ZkSolcOS> {
             "aarch64" => Ok(ZkSolcOS::MacARM),
             _ => Ok(ZkSolcOS::MacAMD),
         },
-        _ => Err(Error::msg(format!("Unsupported operating system {}", std::env::consts::OS))),
+        _ => Err(Error::msg(format!(
+            "Unsupported operating system {}",
+            std::env::consts::OS
+        ))),
     }
 }
 
@@ -284,7 +287,12 @@ impl ZkSolcManagerBuilder {
         let compilers_path = home_path.to_owned();
 
         let solc_version = parse_version(&version)?;
-        return Ok(ZkSolcManager::new(compilers_path, solc_version, compiler, download_url));
+        return Ok(ZkSolcManager::new(
+            compilers_path,
+            solc_version,
+            compiler,
+            download_url,
+        ));
     }
 }
 
@@ -386,7 +394,12 @@ impl ZkSolcManager {
         compiler: String,
         download_url: Url,
     ) -> Self {
-        Self { compilers_path, version, compiler, download_url }
+        Self {
+            compilers_path,
+            version,
+            compiler,
+            download_url,
+        }
     }
 
     /// Returns the full name of the `zksolc` compiler, including the version.
@@ -422,8 +435,12 @@ impl ZkSolcManager {
 
         let download_uri = zk_solc_os.get_download_uri();
 
-        let full_download_url =
-            format!("{}/{}/{}", self.download_url, download_uri, self.get_full_compiler());
+        let full_download_url = format!(
+            "{}/{}/{}",
+            self.download_url,
+            download_uri,
+            self.get_full_compiler()
+        );
 
         Url::parse(&full_download_url)
             .map_err(|err| anyhow!("Could not parse URL for binary download: {}", err))

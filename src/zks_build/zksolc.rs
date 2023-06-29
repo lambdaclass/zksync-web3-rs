@@ -438,9 +438,14 @@ impl ZkSolc {
         let mut has_warning = false;
 
         for error in errors {
-            let severity = error.get("severity").and_then(|v| v.as_str()).unwrap_or("Unknown");
-            let formatted_message =
-                error.get("formattedMessage").and_then(|v| v.as_str()).unwrap_or("");
+            let severity = error
+                .get("severity")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Unknown");
+            let formatted_message = error
+                .get("formattedMessage")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
 
             let is_warning = severity.eq_ignore_ascii_case("warning");
             if is_warning {
@@ -564,8 +569,11 @@ impl ZkSolc {
         let json_input_path = artifact_path.join("json_input.json");
         let stdjson = serde_json::to_value(&standard_json)
             .map_err(|e| Error::msg(format!("Could not serialize standard JSON input: {}", e)))?;
-        std::fs::write(&json_input_path, serde_json::to_string_pretty(&stdjson).unwrap())
-            .map_err(|e| Error::msg(format!("Could not write JSON input file: {}", e)))?;
+        std::fs::write(
+            &json_input_path,
+            serde_json::to_string_pretty(&stdjson).unwrap(),
+        )
+        .map_err(|e| Error::msg(format!("Could not write JSON input file: {}", e)))?;
 
         Ok(())
     }
@@ -699,7 +707,9 @@ impl ZkSolc {
     /// - The extraction of the filename from the contract source path fails.
     /// - The creation of the artifacts directory fails.
     fn build_artifacts_path(&self, source: PathBuf) -> Result<PathBuf, anyhow::Error> {
-        let filename = source.file_name().expect("Failed to get Contract filename.");
+        let filename = source
+            .file_name()
+            .expect("Failed to get Contract filename.");
         let path = self.project.paths.artifacts.join(filename);
         fs::create_dir_all(&path)
             .map_err(|e| Error::msg(format!("Could not create artifacts directory: {}", e)))?;
@@ -731,7 +741,13 @@ impl ZkSolc {
     ///
     /// This function can return an error if the creation of the artifacts file fails.
     fn build_artifacts_file(&self, source: String) -> Result<File> {
-        File::create(self.project.paths.artifacts.join(source).join("artifacts.json"))
-            .map_err(|e| Error::msg(format!("Could not create artifacts file: {}", e)))
+        File::create(
+            self.project
+                .paths
+                .artifacts
+                .join(source)
+                .join("artifacts.json"),
+        )
+        .map_err(|e| Error::msg(format!("Could not create artifacts file: {}", e)))
     }
 }

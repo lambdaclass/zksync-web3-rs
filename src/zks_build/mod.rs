@@ -103,7 +103,6 @@ pub struct ZkBuildArgs {
 }
 
 impl ZkBuildArgs {
-
     /// Executes the zkSync contract compilation process based on the parameters encapsulated in the `ZkBuildArgs` instance.
     ///
     /// This method performs the following steps:
@@ -120,7 +119,6 @@ impl ZkBuildArgs {
     /// The purpose of this function is to consolidate all steps involved in the zkSync contract compilation process in a single method,
     /// allowing for easy invocation of the process with a single function call.
     fn run(self) -> eyre::Result<()> {
-
         let project_root = "./";
         let mut project = Project::builder()
             .paths(ProjectPathsConfig::builder().build_with_root(project_root))
