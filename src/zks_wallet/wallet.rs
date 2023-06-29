@@ -12,10 +12,7 @@ use crate::{
     },
 };
 use ethers::{
-    abi::{
-        decode, encode, Abi, AbiEncode, HumanReadableParser, ParamType, Token, Tokenizable,
-        Tokenize,
-    },
+    abi::{decode, encode, Abi, HumanReadableParser, ParamType, Token, Tokenizable, Tokenize},
     prelude::{
         encode_function_data,
         k256::{
@@ -784,7 +781,7 @@ where
             format!("{l1_batch_number:?}"),
             format!("{l2_message_index:?}"),
             l2_tx_number_in_block,
-            message.encode_hex(),
+            hex::encode(&message),
             format!("{merkle_proof:?}")
                 .replace('"', "")
                 .replace(' ', ""),
@@ -1105,9 +1102,9 @@ mod zks_signer_tests {
 
     #[tokio::test]
     async fn test_withdraw_to_same_address() {
-        let deployer_private_key =
+        let sender_private_key =
             "0x28a574ab2de8a00364d5dd4b07c4f2f574ef7fcc2a86a197f65abaec836d1959";
-        let wallet = LocalWallet::from_str(deployer_private_key).unwrap();
+        let wallet = LocalWallet::from_str(sender_private_key).unwrap();
         let zk_wallet =
             ZKSWallet::new(wallet, None, Some(era_provider()), Some(eth_provider())).unwrap();
 
