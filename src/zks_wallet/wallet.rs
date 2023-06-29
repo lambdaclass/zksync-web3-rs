@@ -37,6 +37,7 @@ where
     M: Middleware,
     D: PrehashSigner<(RecoverableSignature, RecoveryId)>,
 {
+    /// Eth provider
     pub eth_provider: Option<Arc<SignerMiddleware<M, Wallet<D>>>>,
     pub era_provider: Option<Arc<SignerMiddleware<M, Wallet<D>>>>,
     pub l2_wallet: Wallet<D>,
@@ -173,8 +174,6 @@ where
         // TODO: add block as an override.
         let pending_transaction = era_provider.send_transaction(transaction, None).await?;
 
-        // TODO: Should we wait here for the transaction to be confirmed on-chain?
-
         pending_transaction
             .await?
             .ok_or(ZKSWalletError::CustomError(
@@ -226,8 +225,6 @@ where
                     .into(),
             )
             .await?;
-
-        // TODO: Should we wait here for the transaction to be confirmed on-chain?
 
         let transaction_receipt = pending_transaction
             .await?
@@ -472,8 +469,6 @@ where
             )
             .await?;
 
-        // TODO: Should we wait here for the transaction to be confirmed on-chain?
-
         pending_transaction
             .await?
             .ok_or(ZKSWalletError::CustomError(
@@ -553,12 +548,16 @@ where
             )
             .await?;
 
-        era_provider
+        let tx_receipt = era_provider
             .get_transaction_receipt(response.1)
             .await?
             .ok_or(ZKSWalletError::CustomError(
                 "No transaction receipt for withdraw".to_owned(),
-            ))
+            ))?;
+
+        Ok(era_provider
+            .wait_for_finalize(tx_receipt, None, None)
+            .await?)
     }
 
     pub async fn finalize_withdraw(
@@ -707,7 +706,6 @@ mod zks_signer_tests {
     use ethers::types::{Address, Bytes};
     use ethers::utils::parse_units;
     use std::str::FromStr;
-    use std::time::Duration;
 
     #[tokio::test]
     async fn test_transfer() {
@@ -1012,8 +1010,6 @@ mod zks_signer_tests {
 
         println!("L2 Transaction hash: {:?}", tx_receipt.transaction_hash);
 
-        tokio::time::sleep(Duration::from_secs(10)).await;
-
         let l2_balance_after_withdraw = zk_wallet.era_balance().await.unwrap();
         let l1_balance_after_withdraw = zk_wallet.eth_balance().await.unwrap();
 
@@ -1108,8 +1104,6 @@ mod zks_signer_tests {
         );
 
         println!("L2 Transaction hash: {:?}", tx_receipt.transaction_hash);
-
-        tokio::time::sleep(Duration::from_secs(10)).await;
 
         let l2_balance_after_withdraw = zk_wallet.era_balance().await.unwrap();
         let l1_balance_after_withdraw = zk_wallet.eth_balance().await.unwrap();
