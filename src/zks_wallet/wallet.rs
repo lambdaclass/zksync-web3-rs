@@ -555,10 +555,9 @@ where
                 "No transaction receipt for withdraw".to_owned(),
             ))?;
 
-        era_provider
+        Ok(era_provider
             .wait_for_finalize(tx_receipt, None, None)
-            .await
-            .map_err(|error| ZKSWalletError::CustomError(error.to_string()))
+            .await?)
     }
 
     pub async fn finalize_withdraw(
