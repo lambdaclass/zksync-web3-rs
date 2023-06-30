@@ -1,4 +1,4 @@
-use crate::zks_build::{zksolc_manager::DEFAULT_ZKSOLC_VERSION, ZkBuildArgs};
+use crate::zks_utils::program_path;
 use clap::Parser;
 use std::path::PathBuf;
 
@@ -29,78 +29,69 @@ pub struct CompileArgs {
 }
 
 pub(crate) fn run(args: CompileArgs) -> eyre::Result<String> {
-    // let zksolc_path = program_path("zksolc").ok_or(eyre::eyre!("zksolc not found"))?;
-    // let zksolc_path = PathBuf::from("/Users/mpaulucci/.zksync/zksolc-macosx-arm64-v1.3.11");
-    // let mut command = &mut std::process::Command::new(zksolc_path);
-    // if let Some(solc) = args.solc {
-    //     command = command.arg("--solc").arg(solc);
-    // } else if let Ok(solc) = std::env::var("SOLC_PATH") {
-    //     command = command.arg("--solc").arg(solc);
-    // } else {
-    //     eyre::bail!("no solc path provided");
-    // }
+    let zksolc_path = program_path("zksolc").ok_or(eyre::eyre!("zksolc not found"))?;
+    let mut command = &mut std::process::Command::new(zksolc_path);
+    if let Some(solc) = args.solc {
+        command = command.arg("--solc").arg(solc);
+    } else if let Ok(solc) = std::env::var("SOLC_PATH") {
+        command = command.arg("--solc").arg(solc);
+    } else {
+        eyre::bail!("no solc path provided");
+    }
 
-    // const VALID_COMBINED_JSON_ARGS: [&str; 10] = [
-    //     "abi",
-    //     "hashes",
-    //     "metadata",
-    //     "devdoc",
-    //     "userdoc",
-    //     "storage-layout",
-    //     "ast",
-    //     "asm",
-    //     "bin",
-    //     "bin-runtime",
-    // ];
+    const VALID_COMBINED_JSON_ARGS: [&str; 10] = [
+        "abi",
+        "hashes",
+        "metadata",
+        "devdoc",
+        "userdoc",
+        "storage-layout",
+        "ast",
+        "asm",
+        "bin",
+        "bin-runtime",
+    ];
 
-    // if let Some(combined_json_arg) = args.combined_json {
-    //     let valid_args = combined_json_arg
-    //         .split(',')
-    //         .all(|arg| VALID_COMBINED_JSON_ARGS.contains(&arg));
-    //     if !valid_args {
-    //         eyre::bail!("Invalid combined-json argument: {combined_json_arg}");
-    //     }
-    //     command = command.arg("--combined-json").arg(combined_json_arg);
-    // }
+    if let Some(combined_json_arg) = args.combined_json {
+        let valid_args = combined_json_arg
+            .split(',')
+            .all(|arg| VALID_COMBINED_JSON_ARGS.contains(&arg));
+        if !valid_args {
+            eyre::bail!("Invalid combined-json argument: {combined_json_arg}");
+        }
+        command = command.arg("--combined-json").arg(combined_json_arg);
+    }
 
-    // if args.standard_json {
-    //     command = command.arg("--standard-json");
-    // }
+    if args.standard_json {
+        command = command.arg("--standard-json");
+    }
 
-    // if args.yul {
-    //     command = command.arg("--yul");
-    // }
+    if args.yul {
+        command = command.arg("--yul");
+    }
 
-    // if args.system_mode {
-    //     command = command.arg("--system-mode");
-    // }
+    if args.system_mode {
+        command = command.arg("--system-mode");
+    }
 
-    // if args.bin {
-    //     command = command.arg("--bin");
-    // }
+    if args.bin {
+        command = command.arg("--bin");
+    }
 
-    // if args.asm {
-    //     command = command.arg("--asm");
-    // }
+    if args.asm {
+        command = command.arg("--asm");
+    }
 
-    // command = command.arg("--").args(args.contract_paths);
+    command = command.arg("--").args(args.contract_paths);
 
-    // let command_output = command.output()?;
+    let command_output = command.output()?;
 
-    // let compilation_output = String::from_utf8_lossy(&command_output.stdout)
-    //     .into_owned()
-    //     .trim()
-    //     .to_owned();
+    let compilation_output = String::from_utf8_lossy(&command_output.stdout)
+        .into_owned()
+        .trim()
+        .to_owned();
 
-    // log::info!("{compilation_output:?}");
+    log::info!("{compilation_output:?}");
 
-    // Ok(compilation_output)
-
-    let zk_build = ZkBuildArgs {
-        use_zksolc: DEFAULT_ZKSOLC_VERSION.into(),
-        is_system: false,
-        force_evmla: false,
-    };
-    zk_build.compile()?;
-    Ok("".into())
+    Ok(compilation_output)
 }
