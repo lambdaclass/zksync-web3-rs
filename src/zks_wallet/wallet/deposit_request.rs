@@ -17,6 +17,9 @@ fn default_l2_gas_limit() -> U256 {
     RECOMMENDED_DEPOSIT_L2_GAS_LIMIT.into()
 }
 
+fn default_gas_per_pubdata_byte() -> U256 {
+    DEPOSIT_GAS_PER_PUBDATA_LIMIT.into()
+}
 pub struct DepositRequest {
     pub amount: U256,
     pub to: Option<Address>,
@@ -33,7 +36,7 @@ impl DepositRequest {
             amount,
             to: None,
             l2_gas_limit: default_l2_gas_limit(),
-            gas_per_pubdata_byte: DEPOSIT_GAS_PER_PUBDATA_LIMIT.into(),
+            gas_per_pubdata_byte: default_gas_per_pubdata_byte(),
             operator_tip: default_operator_tip(),
             gas_price: None,
             gas_limit: default_gas_limit(),
@@ -57,8 +60,11 @@ impl DepositRequest {
         self
     }
 
-    pub fn gas_per_pubdata_byte(mut self, value: U256) -> Self {
-        self.gas_per_pubdata_byte = value;
+    pub fn gas_per_pubdata_byte(mut self, value: Option<U256>) -> Self {
+        self.gas_per_pubdata_byte = match value {
+            Some(gas_per_pubdata_byte) => gas_per_pubdata_byte,
+            None => default_gas_per_pubdata_byte(),
+        };
         self
     }
 
