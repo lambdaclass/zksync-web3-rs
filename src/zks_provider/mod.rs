@@ -839,6 +839,8 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
         // Note: We couldn't implement ZKSWalletError::LexerError because ethers-rs's LexerError is not exposed.
         let function = if contract_address == zks_utils::ECADD_PRECOMPILE_ADDRESS {
             zks_utils::ec_add_function()
+        } else if contract_address == zks_utils::ECMUL_PRECOMPILE_ADDRESS {
+            zks_utils::ec_mul_function()
         } else {
             HumanReadableParser::parse_function(function_signature)
                 .map_err(|e| ProviderError::CustomError(e.to_string()))?
