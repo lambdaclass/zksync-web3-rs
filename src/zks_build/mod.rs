@@ -6,13 +6,12 @@ pub mod zksolc_manager;
 ///
 /// This module consists of the following key structures and their corresponding implementations:
 ///
-/// * `ZkBuildArgs`: This structure encapsulates the parameters necessary for building zkSync
+/// * `ZkBuild`: This structure encapsulates the parameters necessary for building zkSync
 ///   contracts. These parameters include the Solidity compiler version, an option to enable the
 ///   system contract compilation mode, and an option to forcibly switch to the EVM legacy assembly
-///   pipeline. Additionally, it includes core build arguments defined in the `CoreBuildArgs`
-///   structure.
+///   pipeline.
 ///
-/// * `Cmd` Implementation for `ZkBuildArgs`: This implementation includes a `compile` function, which
+/// * Implementation for `ZkBuild`: This implementation includes a `compile` function, which
 ///   initiates the zkSync contract compilation process. The `compile` function takes care of the
 ///   various steps involved in the process, including downloading the zksolc compiler, setting up
 ///   the compiler directory, and invoking the compilation process.
@@ -34,7 +33,7 @@ use ethers_solc::ProjectPathsConfig;
 use serde::Serialize;
 use std::fmt::Debug;
 
-/// The `ZkBuildArgs` struct encapsulates the parameters required for the zkSync contract compilation process.
+/// The `ZkBuild` struct encapsulates the parameters required for the zkSync contract compilation process.
 ///
 /// This includes:
 /// * `use_zksolc`: The version of the Solidity compiler (solc) to be used for compilation, or the path to a local solc.
@@ -49,15 +48,9 @@ use std::fmt::Debug;
 ///   useful for older revisions of `solc` 0.8, where Yul was considered highly experimental and contained more bugs
 ///   than today. This flag allows us to use the EVM legacy assembly pipeline, which can be beneficial in certain situations.
 ///
-/// * `args`: Core build arguments encapsulated in the `CoreBuildArgs` struct. These include additional parameters
-///   required for building the contract, such as optimization level, output directory etc.
-///
 /// This struct is used as input to the `ZkSolc` compiler, which will use these arguments to configure the compilation process.
-/// It implements the `Cmd` trait, which triggers the compilation process when the `compile` function is called. The struct also
-/// implements the `Provider` trait, allowing it to be converted into a form that can be merged into the application's configuration object.
 #[derive(Debug, Clone, Parser, Serialize, Default)]
-#[clap(next_help_heading = "ZkBuild options", about = None)]
-pub struct ZkBuildArgs {
+pub struct ZkBuild {
     /// Specify the solc version, or a path to a local solc, to build with.
     ///
     /// Valid values are in the format `x.y.z`, `solc:x.y.z` or `path/to/solc`.
@@ -70,17 +63,17 @@ pub struct ZkBuildArgs {
     pub force_evmla: bool,
 }
 
-impl ZkBuildArgs {
-    /// Executes the zkSync contract compilation process based on the parameters encapsulated in the `ZkBuildArgs` instance.
+impl ZkBuild {
+    /// Executes the zkSync contract compilation process based on the parameters encapsulated in the `ZkBuild` instance.
     ///
     /// This method performs the following steps:
     /// 1. Tries to load the application's configuration, emitting warnings if any issues are encountered.
     /// 2. Modifies the project's artifact path to be the "zkout" directory in the project's root directory.
-    /// 3. Creates a `ZkSolcManager` instance based on the specified zkSync Solidity compiler (`use_zksolc` field in `ZkBuildArgs`).
+    /// 3. Creates a `ZkSolcManager` instance based on the specified zkSync Solidity compiler (`use_zksolc` field in `ZkBuild`).
     /// 4. Checks if the setup compilers directory is properly set up. If not, it raises an error and halts execution.
     /// 5. If the zkSync Solidity compiler does not exist in the compilers directory, it triggers its download.
     /// 6. Initiates the contract compilation process using the `ZkSolc` compiler. This process is configured with the
-    ///    `is_system` and `force_evmla` parameters from the `ZkBuildArgs` instance, and the path to the zkSync Solidity compiler.
+    ///    `is_system` and `force_evmla` parameters from the `ZkBuild` instance, and the path to the zkSync Solidity compiler.
     /// 7. If the compilation process fails, it raises an error and halts execution.
     ///
     /// The method returns `Ok(())` if the entire process completes successfully, or an error if any step in the process fails.
@@ -169,26 +162,3 @@ impl ZkBuildArgs {
         }
     }
 }
-
-// Make this args a `figment::Provider` so that it can be merged into the `Config`
-// impl Provider for ZkBuildArgs {
-//     fn metadata(&self) -> Metadata {
-//         Metadata::named("Build Args Provider")
-//     }
-
-//     fn data(&self) -> Result<Map<Profile, Dict>, figment::Error> {
-//         let value = Value::serialize(self)?;
-//         let error = InvalidType(value.to_actual(), "map".into());
-//         let dict = value.into_dict().ok_or(error)?;
-
-//         // if self.names {
-//         //     dict.insert("names".to_string(), true.into());
-//         // }
-
-//         // if self.sizes {
-//         //     dict.insert("sizes".to_string(), true.into());
-//         // }
-
-//         Ok(Map::from([(Config::selected_profile(), dict)]))
-//     }
-// }
