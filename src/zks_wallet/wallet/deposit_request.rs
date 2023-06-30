@@ -13,6 +13,10 @@ fn default_operator_tip() -> U256 {
     0.into()
 }
 
+fn default_l2_gas_limit() -> U256 {
+    RECOMMENDED_DEPOSIT_L2_GAS_LIMIT.into()
+}
+
 pub struct DepositRequest {
     pub amount: U256,
     pub to: Option<Address>,
@@ -28,7 +32,7 @@ impl DepositRequest {
         Self {
             amount,
             to: None,
-            l2_gas_limit: RECOMMENDED_DEPOSIT_L2_GAS_LIMIT.into(),
+            l2_gas_limit: default_l2_gas_limit(),
             gas_per_pubdata_byte: DEPOSIT_GAS_PER_PUBDATA_LIMIT.into(),
             operator_tip: default_operator_tip(),
             gas_price: None,
@@ -45,8 +49,11 @@ impl DepositRequest {
         self
     }
 
-    pub fn l2_gas_limit(mut self, value: U256) -> Self {
-        self.l2_gas_limit = value;
+    pub fn l2_gas_limit(mut self, value: Option<U256>) -> Self {
+        self.l2_gas_limit = match value {
+            Some(l2_gas_limit) => l2_gas_limit,
+            None => default_l2_gas_limit(),
+        };
         self
     }
 
@@ -56,10 +63,9 @@ impl DepositRequest {
     }
 
     pub fn operator_tip(mut self, value: Option<U256>) -> Self {
-        self.operator_tip = 
-        match value {
+        self.operator_tip = match value {
             Some(operator_tip) => operator_tip,
-            None => default_operator_tip()
+            None => default_operator_tip(),
         };
         self
     }
