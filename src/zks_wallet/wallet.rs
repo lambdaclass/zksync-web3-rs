@@ -378,7 +378,7 @@ where
 
         Ok(base_cost)
     }
-    async fn _deploy<T>(
+    pub async fn _deploy<T>(
         &self,
         contract_abi: Abi,
         contract_bytecode: Vec<u8>,
@@ -419,7 +419,10 @@ where
             .max_fee_per_gas(era_provider.get_gas_price().await?)
             .data({
                 let contract_deployer = Abi::load(BufReader::new(
-                    File::open("./src/abi/ContractDeployer.json").map_err(|e| {
+                    File::open(
+                        "/Users/mpaulucci/zksync/zksync-web3-rs/src/abi/ContractDeployer.json",
+                    )
+                    .map_err(|e| {
                         ZKSWalletError::CustomError(format!(
                             "failed to open ContractDeployer abi: {e}"
                         ))
@@ -442,7 +445,10 @@ where
                             contract_bytecode.to_vec(),
                             &constructor_parameters.into_tokens(),
                         )
-                        .map_err(|err| ZKSWalletError::CustomError(err.to_string()))?
+                        .map_err(|err| {
+                            dbg!(&err);
+                            ZKSWalletError::CustomError(err.to_string())
+                        })?
                         .into(),
                 };
 
