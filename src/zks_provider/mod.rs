@@ -27,7 +27,7 @@ use types::Fee;
 use crate::{
     eip712::{Eip712Meta, Eip712Transaction, Eip712TransactionRequest},
     zks_utils::{
-        DEFAULT_GAS, EIP712_TX_TYPE, ERA_CHAIN_ID, ETH_CHAIN_ID, MAX_FEE_PER_GAS,
+        DEFAULT_GAS, EIP712_TX_TYPE, ETH_CHAIN_ID, MAX_FEE_PER_GAS,
         MAX_PRIORITY_FEE_PER_GAS,
     },
     zks_wallet::Overrides,
@@ -694,7 +694,7 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
             .r#type(EIP712_TX_TYPE)
             .from(wallet.address())
             .to(contract_address)
-            .chain_id(ERA_CHAIN_ID)
+            .chain_id(wallet.chain_id())
             .nonce(self.get_transaction_count(wallet.address(), None).await?)
             .gas_price(self.get_gas_price().await?)
             .max_fee_per_gas(self.get_gas_price().await?)
