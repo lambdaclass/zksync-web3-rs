@@ -1,6 +1,17 @@
 use std::env;
 
-use ethers::providers::{Http, Provider};
+use ethers::{
+    abi::Abi,
+    providers::{Http, Provider},
+    types::Bytes,
+};
+use serde::Deserialize;
+
+#[derive(Deserialize)]
+pub(crate) struct CompiledContract {
+    pub abi: Abi,
+    pub bin: Bytes,
+}
 
 static DEFAULT_L1_PROVIDER_URL: &str = "http://65.21.140.36:8545";
 static DEFAULT_L2_PROVIDER_URL: &str = "http://65.21.140.36:3050";

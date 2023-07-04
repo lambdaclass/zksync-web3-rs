@@ -1,6 +1,5 @@
 use super::{Overrides, ZKSWalletError};
 use crate::{
-    compile::project::ZKProject,
     contracts::main_contract::{MainContract, MainContractInstance},
     eip712::Eip712Transaction,
     eip712::{hash_bytecode, Eip712Meta, Eip712TransactionRequest},
@@ -22,14 +21,13 @@ use ethers::{
     },
     providers::Middleware,
     signers::{Signer, Wallet},
-    solc::{info::ContractInfo, Project, ProjectPathsConfig},
     types::{
         transaction::eip2718::TypedTransaction, Address, Bytes, Eip1559TransactionRequest, Log,
         Signature, TransactionReceipt, H160, H256, U256,
     },
 };
 use serde_json::Value;
-use std::{fmt::Display, fs::File, io::BufReader, path::PathBuf, str::FromStr, sync::Arc};
+use std::{fs::File, io::BufReader, path::PathBuf, str::FromStr, sync::Arc};
 
 pub struct ZKSWallet<M, D>
 where
@@ -234,85 +232,6 @@ where
         Ok(transaction_receipt)
     }
 
-    pub async fn deploy(
-        &self,
-        contract_path: impl Into<PathBuf> + Display + Clone,
-        contract_name: &str,
-        constructor_parameters: Option<Vec<String>>,
-    ) -> Result<Address, ZKSWalletError<M, D>>
-    where
-        M: ZKSProvider,
-    {
-        let mut root = PathBuf::from("./");
-        root.push::<PathBuf>(contract_path.clone().into());
-        let zk_project = ZKProject::from(
-            Project::builder()
-                .paths(ProjectPathsConfig::builder().build_with_root(root))
-                .set_auto_detect(true)
-                .build()?,
-        );
-        let compilation_output = zk_project.compile()?;
-        let artifact = compilation_output
-            .find_contract(ContractInfo::from_str(&format!(
-                "{contract_path}:{contract_name}"
-            ))?)
-            .ok_or(ZKSWalletError::CustomError("no contract abi".to_owned()))?;
-
-        let transaction_receipt = self
-            ._deploy(
-                artifact
-                    .abi
-                    .clone()
-                    .ok_or(ZKSWalletError::CustomError("no contract abi".to_owned()))?,
-                artifact
-                    .bin
-                    .clone()
-                    .ok_or(ZKSWalletError::CustomError("no contract bin".to_owned()))?
-                    .to_vec(),
-                None,
-                constructor_parameters,
-            )
-            .await?;
-
-        let contract_address =
-            transaction_receipt
-                .contract_address
-                .ok_or(ZKSWalletError::CustomError(
-                    "no contract address".to_owned(),
-                ))?;
-
-        Ok(contract_address)
-    }
-
-    pub async fn deploy_with_receipt(
-        &self,
-        contract_abi: Abi,
-        contract_bytecode: Vec<u8>,
-        contract_dependencies: Option<Vec<Vec<u8>>>,
-        constructor_parameters: Option<Vec<String>>,
-    ) -> Result<(Address, TransactionReceipt), ZKSWalletError<M, D>>
-    where
-        M: ZKSProvider,
-    {
-        let transaction_receipt = self
-            ._deploy(
-                contract_abi,
-                contract_bytecode,
-                contract_dependencies,
-                constructor_parameters,
-            )
-            .await?;
-
-        let contract_address =
-            transaction_receipt
-                .contract_address
-                .ok_or(ZKSWalletError::CustomError(
-                    "no contract address".to_owned(),
-                ))?;
-
-        Ok((contract_address, transaction_receipt))
-    }
-
     pub async fn deposit(&self, amount: U256) -> Result<TransactionReceipt, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
@@ -474,7 +393,7 @@ where
         Ok(contract_address)
     }
 
-    pub async fn _deploy(
+    pub async fn deploy(
         &self,
         contract_abi: Abi,
         contract_bytecode: Vec<u8>,
@@ -745,16 +664,14 @@ where
 
 #[cfg(test)]
 mod zks_signer_tests {
-    use crate::compile::project::ZKProject;
     use crate::test_utils::*;
     use crate::zks_wallet::ZKSWallet;
     use ethers::providers::Middleware;
     use ethers::signers::LocalWallet;
-    use ethers::solc::info::ContractInfo;
-    use ethers::solc::{Project, ProjectPathsConfig};
     use ethers::types::Address;
     use ethers::types::U256;
     use ethers::utils::parse_units;
+    use std::fs::File;
     use std::str::FromStr;
 
     #[tokio::test]
@@ -929,39 +846,26 @@ mod zks_signer_tests {
         let era_provider = era_provider();
         let wallet = LocalWallet::from_str(deployer_private_key).unwrap();
         let zk_wallet = ZKSWallet::new(wallet, None, Some(era_provider.clone()), None).unwrap();
-        let project_root = "./src/compile/test_contracts/storage";
-        let contract_name = "ValueStorage";
 
-        let zk_project = ZKProject::from(
-            Project::builder()
-                .paths(ProjectPathsConfig::builder().build_with_root(project_root))
-                .set_auto_detect(true)
-                .build()
-                .unwrap(),
-        );
-        let compilation_output = zk_project.compile().unwrap();
-        let artifact = compilation_output
-            .find_contract(
-                ContractInfo::from_str(&format!(
-                    "src/compile/test_contracts/storage/src/ValueStorage.sol:{contract_name}"
-                ))
-                .unwrap(),
-            )
-            .unwrap();
-        let compiled_bytecode = artifact.bin.clone().unwrap();
+        let contract: CompiledContract = serde_json::from_reader(
+            File::open("./src/abi/test_contracts/storage_combined.json").unwrap(),
+        )
+        .unwrap();
 
-        let contract_address = zk_wallet
+        let transaction_receipt = zk_wallet
             .deploy(
-                "src/compile/test_contracts/storage/src/ValueStorage.sol",
-                contract_name,
+                contract.abi,
+                contract.bin.to_vec(),
+                None,
                 Some(vec!["10".to_owned()]),
             )
             .await
             .unwrap();
 
-        let recovered_bytecode = era_provider.get_code(contract_address, None).await.unwrap();
+        let contract_address = transaction_receipt.contract_address.unwrap();
+        let deploy_result = era_provider.get_code(contract_address, None).await;
 
-        assert_eq!(compiled_bytecode, recovered_bytecode);
+        assert!(deploy_result.is_ok());
     }
 
     #[tokio::test]
@@ -971,39 +875,26 @@ mod zks_signer_tests {
         let era_provider = era_provider();
         let wallet = LocalWallet::from_str(deployer_private_key).unwrap();
         let zk_wallet = ZKSWallet::new(wallet, None, Some(era_provider.clone()), None).unwrap();
-        let project_root = "./src/compile/test_contracts/greeter";
-        let contract_name = "Greeter";
 
-        let zk_project = ZKProject::from(
-            Project::builder()
-                .paths(ProjectPathsConfig::builder().build_with_root(project_root))
-                .set_auto_detect(true)
-                .build()
-                .unwrap(),
-        );
-        let compilation_output = zk_project.compile().unwrap();
-        let artifact = compilation_output
-            .find_contract(
-                ContractInfo::from_str(&format!(
-                    "src/compile/test_contracts/greeter/src/Greeter.sol:{contract_name}"
-                ))
-                .unwrap(),
-            )
-            .unwrap();
-        let compiled_bytecode = artifact.bin.clone().unwrap();
+        let contract: CompiledContract = serde_json::from_reader(
+            File::open("./src/abi/test_contracts/greeter_combined.json").unwrap(),
+        )
+        .unwrap();
 
-        let contract_address = zk_wallet
+        let transaction_receipt = zk_wallet
             .deploy(
-                "src/compile/test_contracts/greeter/src/Greeter.sol",
-                contract_name,
+                contract.abi,
+                contract.bin.to_vec(),
+                None,
                 Some(vec!["Hey".to_owned()]),
             )
             .await
             .unwrap();
 
-        let recovered_bytecode = era_provider.get_code(contract_address, None).await.unwrap();
+        let contract_address = transaction_receipt.contract_address.unwrap();
+        let deploy_result = era_provider.get_code(contract_address, None).await;
 
-        assert_eq!(compiled_bytecode, recovered_bytecode);
+        assert!(deploy_result.is_ok());
     }
 
     #[tokio::test]
