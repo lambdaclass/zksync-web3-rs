@@ -596,7 +596,7 @@ where
                 &self.l2_wallet,
                 contract_address,
                 function_signature,
-                Some(to),
+                Some([format!("{to:?}")].into()),
                 Some(Overrides {
                     value: Some(amount),
                 }),
@@ -692,7 +692,7 @@ where
         let l1_batch_number = era_provider.get_l1_batch_number().await?;
         let l2_message_index = U256::from(proof.id);
 
-        let l2_tx_number_in_block: u16 = serde_json::from_value::<U256>(
+        let l2_tx_number_in_block: String = serde_json::from_value::<String>(
             withdrawal_receipt
                 .other
                 .get("l1BatchTxIndex")
@@ -701,10 +701,7 @@ where
                 ))?
                 .clone(),
         )
-        .map_err(|err| ZKSWalletError::CustomError(format!("Failed to deserialize field {err}")))?
-        .as_u32()
-        .try_into()
-        .map_err(|e| ZKSWalletError::CustomError(format!("failed to convert u32 to u16: {e}")))?;
+        .map_err(|err| ZKSWalletError::CustomError(format!("Failed to deserialize field {err}")))?;
 
         let message: Bytes = decode(&[ParamType::Bytes], &filtered_log.data)
             .map_err(|e| ZKSWalletError::CustomError(format!("failed to decode log data: {e}")))?
@@ -719,13 +716,15 @@ where
             ))?
             .into();
 
-        let parameters = (
-            l1_batch_number,
-            l2_message_index,
+        let parameters = [
+            format!("{l1_batch_number:?}"),
+            format!("{l2_message_index:?}"),
             l2_tx_number_in_block,
-            message,
-            merkle_proof,
-        );
+            hex::encode(&message),
+            format!("{merkle_proof:?}")
+                .replace('"', "")
+                .replace(' ', ""),
+        ];
 
         let function_signature = "function finalizeEthWithdrawal(uint256 _l2BlockNumber,uint256 _l2MessageIndex,uint16 _l2TxNumberInBlock,bytes calldata _message,bytes32[] calldata _merkleProof) external";
         let response = eth_provider
@@ -733,7 +732,7 @@ where
                 &self.l1_wallet,
                 main_contract,
                 function_signature,
-                Some(parameters),
+                Some(parameters.into()),
                 None,
             )
             .await?;
@@ -970,9 +969,9 @@ mod zks_signer_tests {
 
     #[tokio::test]
     async fn test_withdraw_to_same_address() {
-        let deployer_private_key =
+        let sender_private_key =
             "0x28a574ab2de8a00364d5dd4b07c4f2f574ef7fcc2a86a197f65abaec836d1959";
-        let wallet = LocalWallet::from_str(deployer_private_key).unwrap();
+        let wallet = LocalWallet::from_str(sender_private_key).unwrap();
         let zk_wallet =
             ZKSWallet::new(wallet, None, Some(era_provider()), Some(eth_provider())).unwrap();
 
