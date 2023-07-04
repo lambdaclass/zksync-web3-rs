@@ -11,7 +11,7 @@ use crate::{
     },
 };
 use ethers::{
-    abi::{decode, Abi, ParamType, Token, Tokenizable, Tokenize},
+    abi::{decode, Abi, ParamType, Token, Tokenizable},
     prelude::{
         encode_function_data,
         k256::{
@@ -234,15 +234,14 @@ where
         Ok(transaction_receipt)
     }
 
-    pub async fn deploy<T>(
+    pub async fn deploy(
         &self,
         contract_path: impl Into<PathBuf> + Display + Clone,
         contract_name: &str,
-        constructor_parameters: Option<T>,
+        constructor_parameters: Option<Vec<String>>,
     ) -> Result<Address, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
-        T: Tokenizable,
     {
         let mut root = PathBuf::from("./");
         root.push::<PathBuf>(contract_path.clone().into());
@@ -285,16 +284,15 @@ where
         Ok(contract_address)
     }
 
-    pub async fn deploy_with_receipt<T>(
+    pub async fn deploy_with_receipt(
         &self,
         contract_abi: Abi,
         contract_bytecode: Vec<u8>,
         contract_dependencies: Option<Vec<Vec<u8>>>,
-        constructor_parameters: Option<T>,
+        constructor_parameters: Option<Vec<String>>,
     ) -> Result<(Address, TransactionReceipt), ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
-        T: Tokenizable,
     {
         let transaction_receipt = self
             ._deploy(
@@ -377,7 +375,7 @@ where
 
         Ok(base_cost)
     }
-    
+
     pub async fn deploy_from_bytecode<T>(
         &self,
         contract_bytecode: &[u8],
@@ -476,16 +474,15 @@ where
         Ok(contract_address)
     }
 
-    async fn _deploy<T>(
+    pub async fn _deploy(
         &self,
         contract_abi: Abi,
         contract_bytecode: Vec<u8>,
         contract_dependencies: Option<Vec<Vec<u8>>>,
-        constructor_parameters: Option<T>,
+        constructor_parameters: Option<Vec<String>>,
     ) -> Result<TransactionReceipt, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
-        T: Tokenizable,
     {
         let era_provider = match &self.era_provider {
             Some(era_provider) => era_provider,
@@ -501,6 +498,8 @@ where
             factory_deps
         });
 
+        let mut contract_deployer_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        contract_deployer_path.push("src/abi/ContractDeployer.json");
         let mut deploy_request = Eip712TransactionRequest::new()
             .r#type(EIP712_TX_TYPE)
             .from(self.l2_address())
@@ -517,10 +516,7 @@ where
             .max_fee_per_gas(era_provider.get_gas_price().await?)
             .data({
                 let contract_deployer = Abi::load(BufReader::new(
-                    File::open(
-                        "/Users/mpaulucci/zksync/zksync-web3-rs/src/abi/ContractDeployer.json",
-                    )
-                    .map_err(|e| {
+                    File::open(contract_deployer_path).map_err(|e| {
                         ZKSWalletError::CustomError(format!(
                             "failed to open ContractDeployer abi: {e}"
                         ))
@@ -538,16 +534,10 @@ where
                 let call_data: Bytes = match (contract_abi.constructor(), constructor_parameters) {
                     (None, Some(_)) => return Err(ContractError::<M>::ConstructorError.into()),
                     (None, None) | (Some(_), None) => Bytes::default(),
-                    (Some(constructor), Some(constructor_parameters)) => constructor
-                        .encode_input(
-                            contract_bytecode.to_vec(),
-                            &constructor_parameters.into_tokens(),
-                        )
-                        .map_err(|err| {
-                            dbg!(&err);
-                            ZKSWalletError::CustomError(err.to_string())
-                        })?
-                        .into(),
+                    (Some(constructor), Some(constructor_parameters)) => {
+                        zks_utils::encode_constructor_args(constructor, &constructor_parameters)?
+                            .into()
+                    }
                 };
 
                 encode_function_data(create, (salt, bytecode_hash, call_data))?
@@ -933,7 +923,7 @@ mod zks_signer_tests {
     }
 
     #[tokio::test]
-    async fn test_deploy_contract_with_constructor_args() {
+    async fn test_deploy_contract_with_constructor_arg_uint() {
         let deployer_private_key =
             "7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110";
         let era_provider = era_provider();
@@ -964,7 +954,49 @@ mod zks_signer_tests {
             .deploy(
                 "src/compile/test_contracts/storage/src/ValueStorage.sol",
                 contract_name,
-                Some(U256::from(10_i32)),
+                Some(vec!["10".to_owned()]),
+            )
+            .await
+            .unwrap();
+
+        let recovered_bytecode = era_provider.get_code(contract_address, None).await.unwrap();
+
+        assert_eq!(compiled_bytecode, recovered_bytecode);
+    }
+
+    #[tokio::test]
+    async fn test_deploy_contract_with_constructor_arg_string() {
+        let deployer_private_key =
+            "7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110";
+        let era_provider = era_provider();
+        let wallet = LocalWallet::from_str(deployer_private_key).unwrap();
+        let zk_wallet = ZKSWallet::new(wallet, None, Some(era_provider.clone()), None).unwrap();
+        let project_root = "./src/compile/test_contracts/greeter";
+        let contract_name = "Greeter";
+
+        let zk_project = ZKProject::from(
+            Project::builder()
+                .paths(ProjectPathsConfig::builder().build_with_root(project_root))
+                .set_auto_detect(true)
+                .build()
+                .unwrap(),
+        );
+        let compilation_output = zk_project.compile().unwrap();
+        let artifact = compilation_output
+            .find_contract(
+                ContractInfo::from_str(&format!(
+                    "src/compile/test_contracts/greeter/src/Greeter.sol:{contract_name}"
+                ))
+                .unwrap(),
+            )
+            .unwrap();
+        let compiled_bytecode = artifact.bin.clone().unwrap();
+
+        let contract_address = zk_wallet
+            .deploy(
+                "src/compile/test_contracts/greeter/src/Greeter.sol",
+                contract_name,
+                Some(vec!["Hey".to_owned()]),
             )
             .await
             .unwrap();
