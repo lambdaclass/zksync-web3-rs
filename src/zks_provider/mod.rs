@@ -841,6 +841,8 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
             zks_utils::ec_add_function()
         } else if contract_address == zks_utils::ECMUL_PRECOMPILE_ADDRESS {
             zks_utils::ec_mul_function()
+        } else if contract_address == zks_utils::MODEXP_PRECOMPILE_ADDRESS {
+            zks_utils::mod_exp_function()
         } else {
             HumanReadableParser::parse_function(function_signature)
                 .map_err(|e| ProviderError::CustomError(e.to_string()))?
