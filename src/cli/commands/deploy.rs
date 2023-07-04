@@ -49,7 +49,7 @@ pub(crate) async fn run(args: Deploy, config: ZKSyncWeb3Config) -> eyre::Result<
             .deploy(
                 args.contract.context("no contract path")?,
                 &args.contract_name.context("no contract name")?,
-                None::<Token>,
+                None,
             )
             .await?
     };
