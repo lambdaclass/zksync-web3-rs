@@ -7,7 +7,7 @@ use ethers::{
     types::{Address, H160, U256},
 };
 use ethers_contract::AbiError;
-use std::{env, path::PathBuf, str::FromStr};
+use std::{str::FromStr};
 
 /* Misc */
 
@@ -112,23 +112,6 @@ pub const BLAKE2F_PRECOMPILE_ADDRESS: Address = H160([
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x09,
 ]);
-
-/// Returns the location for a program in the $PATH.
-pub fn program_path(program_name: &str) -> Option<PathBuf> {
-    if let Ok(path_env) = env::var("PATH") {
-        let paths: Vec<PathBuf> = env::split_paths(&path_env).collect();
-
-        for path in paths {
-            let program_path = path.join(program_name);
-
-            if program_path.is_file() {
-                return Some(program_path);
-            }
-        }
-    }
-
-    None
-}
 
 pub fn is_precompile(address: Address) -> bool {
     address == ECRECOVER_PRECOMPILE_ADDRESS
