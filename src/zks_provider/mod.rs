@@ -1827,7 +1827,9 @@ mod tests {
         let deployer_private_key =
             "7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110";
         let era_provider = era_provider();
-        let wallet = LocalWallet::from_str(deployer_private_key).unwrap();
+        let wallet = LocalWallet::from_str(deployer_private_key)
+            .unwrap()
+            .with_chain_id(ERA_CHAIN_ID);
         let zk_wallet = ZKSWallet::new(wallet, None, Some(era_provider.clone()), None).unwrap();
 
         let contract_address = zk_wallet
@@ -1848,7 +1850,9 @@ mod tests {
         let deployer_private_key =
             "7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110";
         let era_provider = era_provider();
-        let wallet = LocalWallet::from_str(deployer_private_key).unwrap();
+        let wallet = LocalWallet::from_str(deployer_private_key)
+            .unwrap()
+            .with_chain_id(ERA_CHAIN_ID);
         let zk_wallet = ZKSWallet::new(wallet, None, Some(era_provider.clone()), None).unwrap();
 
         let contract_address = zk_wallet
