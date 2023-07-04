@@ -7,7 +7,7 @@ use ethers::{
     types::{Address, H160, U256},
 };
 use ethers_contract::AbiError;
-use std::{str::FromStr};
+use std::str::FromStr;
 
 /* Misc */
 
