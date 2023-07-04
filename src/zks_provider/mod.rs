@@ -27,8 +27,7 @@ use types::Fee;
 use crate::{
     eip712::{Eip712Meta, Eip712Transaction, Eip712TransactionRequest},
     zks_utils::{
-        self, is_precompile, DEFAULT_GAS, EIP712_TX_TYPE, ERA_CHAIN_ID, ETH_CHAIN_ID,
-        MAX_FEE_PER_GAS, MAX_PRIORITY_FEE_PER_GAS,
+        self, is_precompile, DEFAULT_GAS, EIP712_TX_TYPE, MAX_FEE_PER_GAS, MAX_PRIORITY_FEE_PER_GAS,
     },
     zks_wallet::Overrides,
 };
@@ -428,7 +427,7 @@ impl<M: Middleware + ZKSProvider, S: Signer> ZKSProvider for SignerMiddleware<M,
     {
         let tx = build_send_tx(
             self,
-            wallet.address(),
+            wallet,
             contract_address,
             function_signature,
             function_parameters,
@@ -783,7 +782,7 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
     {
         let tx = build_send_tx(
             self,
-            wallet.address(),
+            wallet,
             contract_address,
             function_signature,
             function_parameters,
@@ -894,14 +893,17 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
     }
 }
 
-async fn build_send_tx(
+async fn build_send_tx<D>(
     provider: &impl Middleware,
-    sender: Address,
+    wallet: &Wallet<D>,
     contract_address: Address,
     function_signature: &str,
     function_parameters: Option<Vec<String>>,
     _overrides: Option<Overrides>,
-) -> Result<TypedTransaction, ProviderError> {
+) -> Result<TypedTransaction, ProviderError>
+where
+    D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Send + Sync,
+{
     let function = HumanReadableParser::parse_function(function_signature)
         .map_err(|e| ProviderError::CustomError(e.to_string()))?;
 
@@ -918,12 +920,12 @@ async fn build_send_tx(
 
     // Sending transaction calling the main contract.
     let send_request = Eip1559TransactionRequest::new()
-        .from(sender)
+        .from(wallet.address())
         .to(contract_address)
-        .chain_id(ETH_CHAIN_ID)
+        .chain_id(wallet.chain_id())
         .nonce(
             provider
-                .get_transaction_count(sender, None)
+                .get_transaction_count(wallet.address(), None)
                 .await
                 .map_err(|e| ProviderError::CustomError(e.to_string()))?,
         )
