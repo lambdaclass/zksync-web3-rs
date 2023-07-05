@@ -945,7 +945,7 @@ async fn build_send_tx(
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashMap, fs::File, str::FromStr};
+    use std::{collections::HashMap, fs::File, path::PathBuf, str::FromStr};
 
     use crate::{
         test_utils::*,
@@ -1766,11 +1766,10 @@ mod tests {
             .unwrap()
             .with_chain_id(ERA_CHAIN_ID);
         let zk_wallet = ZKSWallet::new(wallet, None, Some(era_provider.clone()), None).unwrap();
-
-        let contract: CompiledContract = serde_json::from_reader(
-            File::open("./src/abi/test_contracts/storage_combined.json").unwrap(),
-        )
-        .unwrap();
+        let mut contract_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        contract_path.push("src/abi/test_contracts/storage_combined.json");
+        let contract: CompiledContract =
+            serde_json::from_reader(File::open(contract_path).unwrap()).unwrap();
 
         let transaction_receipt = zk_wallet
             .deploy(
@@ -1840,11 +1839,10 @@ mod tests {
         let era_provider = era_provider();
         let wallet = LocalWallet::from_str(deployer_private_key).unwrap();
         let zk_wallet = ZKSWallet::new(wallet, None, Some(era_provider.clone()), None).unwrap();
-
-        let contract: CompiledContract = serde_json::from_reader(
-            File::open("./src/abi/test_contracts/basic_combined.json").unwrap(),
-        )
-        .unwrap();
+        let mut contract_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        contract_path.push("src/abi/test_contracts/basic_combined.json");
+        let contract: CompiledContract =
+            serde_json::from_reader(File::open(contract_path).unwrap()).unwrap();
 
         let transaction_receipt = zk_wallet
             .deploy(contract.abi, contract.bin.to_vec(), None, None)
@@ -1868,10 +1866,10 @@ mod tests {
         let wallet = LocalWallet::from_str(deployer_private_key).unwrap();
         let zk_wallet = ZKSWallet::new(wallet, None, Some(era_provider.clone()), None).unwrap();
 
-        let contract: CompiledContract = serde_json::from_reader(
-            File::open("./src/abi/test_contracts/basic_combined.json").unwrap(),
-        )
-        .unwrap();
+        let mut contract_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        contract_path.push("src/abi/test_contracts/basic_combined.json");
+        let contract: CompiledContract =
+            serde_json::from_reader(File::open(contract_path).unwrap()).unwrap();
 
         let transaction_receipt = zk_wallet
             .deploy(contract.abi, contract.bin.to_vec(), None, None)
