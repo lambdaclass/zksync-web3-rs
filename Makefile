@@ -1,6 +1,3 @@
-cli:
-	cargo install --path .
-
 format:
 	cargo fmt --all
 

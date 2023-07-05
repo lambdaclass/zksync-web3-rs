@@ -3584,7 +3584,6 @@ dependencies = [
  "env_logger",
  "ethers",
  "ethers-contract",
- "eyre",
  "hex",
  "log",
  "serde",
