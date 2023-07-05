@@ -2,7 +2,7 @@ use ethers::{
     abi::{
         encode,
         token::{LenientTokenizer, StrictTokenizer, Tokenizer},
-        Function, Param, ParamType, Token,
+        Constructor, Function, Param, ParamType, Token,
     },
     types::{Address, H160, U256},
 };
@@ -147,6 +147,22 @@ pub fn is_precompile(address: Address) -> bool {
 /// > This function was taken from foundry.
 pub fn encode_args(func: &Function, args: &[impl AsRef<str>]) -> Result<Vec<u8>, AbiError> {
     let params = func
+        .inputs
+        .iter()
+        .zip(args)
+        .map(|(input, arg)| (&input.kind, arg.as_ref()))
+        .collect::<Vec<_>>();
+    let tokens = parse_tokens(params, true)?;
+    Ok(encode(&tokens))
+}
+
+/// Given a constructor and a vector of string arguments, it proceeds to convert the args to ethabi
+/// Tokens and then ABI encode them.
+pub fn encode_constructor_args(
+    constructor: &Constructor,
+    args: &[impl AsRef<str>],
+) -> Result<Vec<u8>, AbiError> {
+    let params = constructor
         .inputs
         .iter()
         .zip(args)
