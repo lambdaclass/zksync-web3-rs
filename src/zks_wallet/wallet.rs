@@ -513,7 +513,7 @@ where
             .to(Address::from_str(CONTRACT_DEPLOYER_ADDR).map_err(|e| {
                 ZKSWalletError::CustomError(format!("invalid contract deployer address: {e}"))
             })?)
-            .chain_id(self.l2_wallet.chain_id())
+            .chain_id(self.l2_chain_id())
             .nonce(
                 era_provider
                     .get_transaction_count(self.l2_address(), None)
