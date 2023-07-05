@@ -958,7 +958,7 @@ mod tests {
         zks_wallet::ZKSWallet,
     };
     use ethers::{
-        abi::{Token, Tokenize},
+        abi::Tokenize,
         prelude::{k256::ecdsa::SigningKey, MiddlewareBuilder, SignerMiddleware},
         providers::{Middleware, Provider},
         signers::{LocalWallet, Signer, Wallet},
@@ -1776,10 +1776,17 @@ mod tests {
             .deploy(
                 "src/compile/test_contracts/storage/src/ValueStorage.sol",
                 "ValueStorage",
-                Some(U256::zero()),
+                Some(vec!["0".to_owned()]),
             )
             .await
             .unwrap();
+
+        let initial_value =
+            ZKSProvider::call(&era_provider, contract_address, "getValue()(uint256)", None)
+                .await
+                .unwrap();
+
+        assert_eq!(initial_value, U256::from(0_i32).into_tokens());
 
         let value_to_set = String::from("10");
         era_provider
@@ -1833,7 +1840,7 @@ mod tests {
         let zk_wallet = ZKSWallet::new(wallet, None, Some(era_provider.clone()), None).unwrap();
 
         let contract_address = zk_wallet
-            .deploy::<Token>("src/compile/test_contracts/test/src/Test.sol", "Test", None)
+            .deploy("src/compile/test_contracts/test/src/Test.sol", "Test", None)
             .await
             .unwrap();
 
@@ -1854,7 +1861,7 @@ mod tests {
         let zk_wallet = ZKSWallet::new(wallet, None, Some(era_provider.clone()), None).unwrap();
 
         let contract_address = zk_wallet
-            .deploy::<Token>("src/compile/test_contracts/test/src/Test.sol", "Test", None)
+            .deploy("src/compile/test_contracts/test/src/Test.sol", "Test", None)
             .await
             .unwrap();
 
