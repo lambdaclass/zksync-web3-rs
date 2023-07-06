@@ -987,8 +987,6 @@ mod zks_signer_tests {
 
         println!("L2 Transaction hash: {:?}", tx_receipt.transaction_hash);
 
-        tokio::time::sleep(Duration::from_secs(10)).await;
-
         let l2_balance_after_withdraw = zk_wallet.era_balance().await.unwrap();
         let l1_balance_after_withdraw = zk_wallet.eth_balance().await.unwrap();
 
@@ -1083,8 +1081,6 @@ mod zks_signer_tests {
         );
 
         println!("L2 Transaction hash: {:?}", tx_receipt.transaction_hash);
-
-        tokio::time::sleep(Duration::from_secs(10)).await;
 
         let l2_balance_after_withdraw = zk_wallet.era_balance().await.unwrap();
         let l1_balance_after_withdraw = zk_wallet.eth_balance().await.unwrap();
