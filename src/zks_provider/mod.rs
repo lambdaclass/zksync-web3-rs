@@ -949,7 +949,7 @@ async fn build_send_tx(
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashMap, str::FromStr};
+    use std::{collections::HashMap, fs::File, path::PathBuf, str::FromStr};
 
     use crate::{
         test_utils::*,
@@ -1761,7 +1761,6 @@ mod tests {
     }
 
     #[tokio::test]
-    //#[ignore = "skipped until the compiler OS version is fixed"]
     async fn test_send_function_with_arguments() {
         // Deploying a test contract
         let deployer_private_key =
@@ -1771,16 +1770,22 @@ mod tests {
             .unwrap()
             .with_chain_id(ERA_CHAIN_ID);
         let zk_wallet = ZKSWallet::new(wallet, None, Some(era_provider.clone()), None).unwrap();
+        let mut contract_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        contract_path.push("src/abi/test_contracts/storage_combined.json");
+        let contract: CompiledContract =
+            serde_json::from_reader(File::open(contract_path).unwrap()).unwrap();
 
-        let contract_address = zk_wallet
+        let transaction_receipt = zk_wallet
             .deploy(
-                "src/compile/test_contracts/storage/src/ValueStorage.sol",
-                "ValueStorage",
+                contract.abi,
+                contract.bin.to_vec(),
+                None,
                 Some(vec!["0".to_owned()]),
             )
             .await
             .unwrap();
 
+        let contract_address = transaction_receipt.contract_address.unwrap();
         let initial_value =
             ZKSProvider::call(&era_provider, contract_address, "getValue()(uint256)", None)
                 .await
@@ -1838,12 +1843,17 @@ mod tests {
         let era_provider = era_provider();
         let wallet = LocalWallet::from_str(deployer_private_key).unwrap();
         let zk_wallet = ZKSWallet::new(wallet, None, Some(era_provider.clone()), None).unwrap();
+        let mut contract_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        contract_path.push("src/abi/test_contracts/basic_combined.json");
+        let contract: CompiledContract =
+            serde_json::from_reader(File::open(contract_path).unwrap()).unwrap();
 
-        let contract_address = zk_wallet
-            .deploy("src/compile/test_contracts/test/src/Test.sol", "Test", None)
+        let transaction_receipt = zk_wallet
+            .deploy(contract.abi, contract.bin.to_vec(), None, None)
             .await
             .unwrap();
 
+        let contract_address = transaction_receipt.contract_address.unwrap();
         let output = ZKSProvider::call(&era_provider, contract_address, "str_out()(string)", None)
             .await
             .unwrap();
@@ -1860,11 +1870,17 @@ mod tests {
         let wallet = LocalWallet::from_str(deployer_private_key).unwrap();
         let zk_wallet = ZKSWallet::new(wallet, None, Some(era_provider.clone()), None).unwrap();
 
-        let contract_address = zk_wallet
-            .deploy("src/compile/test_contracts/test/src/Test.sol", "Test", None)
+        let mut contract_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        contract_path.push("src/abi/test_contracts/basic_combined.json");
+        let contract: CompiledContract =
+            serde_json::from_reader(File::open(contract_path).unwrap()).unwrap();
+
+        let transaction_receipt = zk_wallet
+            .deploy(contract.abi, contract.bin.to_vec(), None, None)
             .await
             .unwrap();
 
+        let contract_address = transaction_receipt.contract_address.unwrap();
         let no_return_type_output = ZKSProvider::call(
             &era_provider,
             contract_address,

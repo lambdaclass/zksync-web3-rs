@@ -40,7 +40,6 @@
 
 pub use ethers::*;
 
-pub mod compile;
 pub mod contracts;
 pub mod eip712;
 pub mod zks_provider;
