@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ethers = { version = "2.0.4", features = ["rustls", "ethers-solc"] }
+ethers = { version = "2.0.4", features = ["rustls"] }
 ethers-contract = "2.0.7"
 clap = { version = "4.2.7", features = ["derive"] }
 
