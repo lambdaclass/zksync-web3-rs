@@ -24,6 +24,7 @@ pub struct DepositRequest {
     pub operator_tip: U256,
     pub gas_price: Option<U256>,
     pub gas_limit: U256,
+    pub token: Option<Address>,
 }
 
 impl DepositRequest {
@@ -36,6 +37,7 @@ impl DepositRequest {
             operator_tip: 0.into(),
             gas_price: None,
             gas_limit: default_gas_limit(),
+            token: None,
         }
     }
 
@@ -79,6 +81,11 @@ impl DepositRequest {
             Some(gas_limit) => gas_limit,
             _ => default_gas_limit(),
         };
+        self
+    }
+
+    pub fn token(mut self, token: Option<Address>) -> Self {
+        self.token = token;
         self
     }
 }

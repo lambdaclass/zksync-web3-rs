@@ -680,10 +680,12 @@ mod zks_signer_tests {
     use ethers::types::Address;
     use ethers::types::U256;
     use ethers::utils::parse_units;
+    use ethers_contract::ContractFactory;
+    use serde_json::Value;
     use std::fs::File;
     use std::path::PathBuf;
     use std::str::FromStr;
-    use std::time::Duration;
+    use std::sync::Arc;
 
     #[tokio::test]
     async fn test_transfer() {
@@ -839,6 +841,52 @@ mod zks_signer_tests {
             l2_balance_after >= l2_balance_before + request.amount(),
             "Balance on L2 should be increased"
         );
+    }
+
+    #[tokio::test]
+    async fn test_deposit_erc20_token() {
+        let private_key = "0x28a574ab2de8a00364d5dd4b07c4f2f574ef7fcc2a86a197f65abaec836d1959";
+        let l1_provider = eth_provider();
+        let l2_provider = era_provider();
+        let wallet = LocalWallet::from_str(private_key).unwrap();
+        let zk_wallet = ZKSWallet::new(
+            wallet,
+            None,
+            Some(l2_provider.clone()),
+            Some(l1_provider.clone()),
+        )
+        .unwrap();
+
+        // Deploys an ERC20 token to conduct the test.
+        let token_l1_address = {
+            let abi = Default::default();
+            let bytecode = {
+                let json_literal = include_str!("../../resources/testing/erc20/MyToken.json");
+                let json: Value = serde_json::from_str(json_literal).unwrap();
+                let bytecode_string: String = json.get("bytecode").unwrap().to_string();
+                let bytecode = hex::decode(bytecode_string).unwrap();
+                bytecode.into()
+            };
+            let client = Arc::new(l1_provider);
+            let factory = ContractFactory::new(abi, bytecode, client);
+            let contract = factory
+                .deploy(())
+                .unwrap()
+                .confirmations(0usize)
+                .send()
+                .await
+                .unwrap();
+
+            let address = contract.address();
+            println!("ERC20 contract address: {}", address);
+
+            address
+        };
+
+        let request = DepositRequest::new(1.into()).token(Some(token_l1_address));
+
+        let l1_receipt = zk_wallet.deposit(&request).await.unwrap();
+        assert_eq!(l1_receipt.status.unwrap(), 1.into());
     }
 
     #[tokio::test]
