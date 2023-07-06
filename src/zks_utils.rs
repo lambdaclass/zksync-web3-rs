@@ -292,3 +292,85 @@ pub fn ec_add_function() -> Function {
         constant: None,
     }
 }
+
+pub fn ec_mul_function() -> Function {
+    Function {
+        name: "".to_string(),
+        inputs: vec![
+            Param {
+                name: "".to_string(),
+                kind: ParamType::Int(256),
+                internal_type: Some("sint256".to_owned()),
+            },
+            Param {
+                name: "".to_string(),
+                kind: ParamType::Int(256),
+                internal_type: Some("sint256".to_owned()),
+            },
+            Param {
+                name: "".to_string(),
+                kind: ParamType::Uint(256),
+                internal_type: Some("uint256".to_owned()),
+            },
+        ],
+        outputs: vec![
+            Param {
+                name: "".to_string(),
+                kind: ParamType::Int(256),
+                internal_type: Some("sint256".to_owned()),
+            },
+            Param {
+                name: "".to_string(),
+                kind: ParamType::Int(256),
+                internal_type: Some("sint256".to_owned()),
+            },
+        ],
+        state_mutability: ethers::abi::StateMutability::Payable,
+        constant: None,
+    }
+}
+
+pub fn mod_exp_function() -> Function {
+    Function {
+        name: "".to_string(),
+        inputs: vec![
+            Param {
+                name: "".to_string(),
+                kind: ParamType::Int(256),
+                internal_type: Some("sint256".to_owned()),
+            },
+            Param {
+                name: "".to_string(),
+                kind: ParamType::Int(256),
+                internal_type: Some("sint256".to_owned()),
+            },
+            Param {
+                name: "".to_string(),
+                kind: ParamType::Int(256),
+                internal_type: Some("sint256".to_owned()),
+            },
+            Param {
+                name: "".to_string(),
+                kind: ParamType::Uint(256),
+                internal_type: Some("uint256".to_owned()),
+            },
+            Param {
+                name: "".to_string(),
+                kind: ParamType::Uint(256),
+                internal_type: Some("uint256".to_owned()),
+            },
+            Param {
+                name: "".to_string(),
+                kind: ParamType::Uint(256),
+                internal_type: Some("uint256".to_owned()),
+            },
+        ],
+        outputs: vec![Param {
+            name: "".to_string(),
+            kind: ParamType::Uint(256),
+            internal_type: Some("uint256".to_owned()),
+        }],
+        state_mutability: ethers::abi::StateMutability::Payable,
+        constant: None,
+    }
+}

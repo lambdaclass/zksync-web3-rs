@@ -686,6 +686,7 @@ mod zks_signer_tests {
     use std::path::PathBuf;
     use std::str::FromStr;
     use std::sync::Arc;
+    use std::time::Duration;
 
     #[tokio::test]
     async fn test_transfer() {
