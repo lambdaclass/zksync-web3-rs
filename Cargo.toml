@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ethers = { version = "2.0.4", features = ["rustls", "ethers-solc"] }
+ethers = { version = "2.0.4", features = ["rustls"] }
 ethers-contract = "2.0.7"
 clap = { version = "4.2.7", features = ["derive"] }
 
@@ -20,7 +20,6 @@ serde_json = { version = "1" }
 hex = "0.4"
 
 # Error handling
-eyre = "0.6"         # CLI error handling
 thiserror = "1.0.40" # Library error handling
 
 # Logging
@@ -29,6 +28,9 @@ env_logger = "0.10"
 
 # Hash
 sha2 = "0.9.5"
+
+[features]
+ethers-solc = ["ethers/ethers-solc"]
 
 # Examples
 

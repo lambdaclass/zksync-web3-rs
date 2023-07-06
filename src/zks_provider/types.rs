@@ -16,8 +16,10 @@ impl Copy for Fee {}
 #[serde(rename_all = "camelCase")]
 pub struct BlockDetails {
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
-    pub commit_tx_hash: H256,
-    pub committed_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub commit_tx_hash: Option<H256>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub committed_at: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub execute_tx_hash: Option<H256>,
     #[serde(skip_serializing_if = "Option::is_none")]

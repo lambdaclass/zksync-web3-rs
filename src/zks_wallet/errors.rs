@@ -1,4 +1,3 @@
-use crate::compile::errors::ZKCompilerError;
 use ethers::{
     prelude::{
         k256::{
@@ -10,7 +9,6 @@ use ethers::{
     },
     providers::{Middleware, ProviderError},
     signers::{Wallet, WalletError},
-    solc::{error::SolcError, info::ParseContractInfoError},
     types::transaction::eip712::Eip712Error,
 };
 
@@ -38,12 +36,6 @@ where
     NoL2ProviderError(),
     #[error("Contract error: {0}")]
     ContractError(#[from] ContractError<M>),
-    #[error("Solc error: {0}")]
-    SolcError(#[from] SolcError),
-    #[error("ParseContractInfoError error: {0}")]
-    ParseContractInfoError(#[from] ParseContractInfoError),
-    #[error("ZKSolc error: {0}")]
-    ZKSolcError(#[from] ZKCompilerError),
     #[error("{0}")]
     CustomError(String),
     #[error("Main contract error: {0}")]
