@@ -2,12 +2,12 @@ use ethers::{
     abi::{
         encode,
         token::{LenientTokenizer, StrictTokenizer, Tokenizer},
-        Function, Param, ParamType, Token,
+        Constructor, Function, Param, ParamType, Token,
     },
     types::{Address, H160, U256},
 };
 use ethers_contract::AbiError;
-use std::{env, path::PathBuf, str::FromStr};
+use std::str::FromStr;
 
 /* Misc */
 
@@ -113,23 +113,6 @@ pub const BLAKE2F_PRECOMPILE_ADDRESS: Address = H160([
     0x00, 0x00, 0x00, 0x09,
 ]);
 
-/// Returns the location for a program in the $PATH.
-pub fn program_path(program_name: &str) -> Option<PathBuf> {
-    if let Ok(path_env) = env::var("PATH") {
-        let paths: Vec<PathBuf> = env::split_paths(&path_env).collect();
-
-        for path in paths {
-            let program_path = path.join(program_name);
-
-            if program_path.is_file() {
-                return Some(program_path);
-            }
-        }
-    }
-
-    None
-}
-
 pub fn is_precompile(address: Address) -> bool {
     address == ECRECOVER_PRECOMPILE_ADDRESS
         || address == SHA256_PRECOMPILE_ADDRESS
@@ -147,6 +130,22 @@ pub fn is_precompile(address: Address) -> bool {
 /// > This function was taken from foundry.
 pub fn encode_args(func: &Function, args: &[impl AsRef<str>]) -> Result<Vec<u8>, AbiError> {
     let params = func
+        .inputs
+        .iter()
+        .zip(args)
+        .map(|(input, arg)| (&input.kind, arg.as_ref()))
+        .collect::<Vec<_>>();
+    let tokens = parse_tokens(params, true)?;
+    Ok(encode(&tokens))
+}
+
+/// Given a constructor and a vector of string arguments, it proceeds to convert the args to ethabi
+/// Tokens and then ABI encode them.
+pub fn encode_constructor_args(
+    constructor: &Constructor,
+    args: &[impl AsRef<str>],
+) -> Result<Vec<u8>, AbiError> {
+    let params = constructor
         .inputs
         .iter()
         .zip(args)
