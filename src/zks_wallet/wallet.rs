@@ -399,8 +399,8 @@ where
         &self,
         contract_abi: Abi,
         contract_bytecode: Vec<u8>,
-        factory_dependencies: Option<Vec<Vec<u8>>>,
         constructor_parameters: Vec<String>,
+        factory_dependencies: Option<Vec<Vec<u8>>>,
     ) -> Result<TransactionReceipt, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
@@ -866,8 +866,8 @@ mod zks_signer_tests {
             .deploy(
                 contract.abi,
                 contract.bin.to_vec(),
-                None,
                 vec!["10".to_owned()],
+                None,
             )
             .await
             .unwrap();
@@ -895,8 +895,8 @@ mod zks_signer_tests {
             .deploy(
                 contract.abi,
                 contract.bin.to_vec(),
-                None,
                 vec!["Hey".to_owned()],
+                None,
             )
             .await
             .unwrap();
@@ -912,7 +912,9 @@ mod zks_signer_tests {
         let deployer_private_key =
             "7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110";
         let era_provider = era_provider();
-        let wallet = LocalWallet::from_str(deployer_private_key).unwrap().with_chain_id(ERA_CHAIN_ID);
+        let wallet = LocalWallet::from_str(deployer_private_key)
+            .unwrap()
+            .with_chain_id(ERA_CHAIN_ID);
         let zk_wallet = ZKSWallet::new(wallet, None, Some(era_provider.clone()), None).unwrap();
 
         // Deploy imported contract first.
@@ -925,8 +927,8 @@ mod zks_signer_tests {
             .deploy(
                 counter_contract.abi,
                 counter_contract.bin.to_vec(),
-                None,
                 vec![],
+                None,
             )
             .await
             .unwrap();
@@ -947,8 +949,8 @@ mod zks_signer_tests {
             .deploy(
                 import_contract.abi,
                 import_contract.bin.to_vec(),
-                None,
                 vec![format!("{counter_contract_address:?}")],
+                None,
             )
             .await
             .unwrap();

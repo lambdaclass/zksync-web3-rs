@@ -1775,8 +1775,8 @@ mod tests {
             .deploy(
                 contract.abi,
                 contract.bin.to_vec(),
-                None,
                 vec!["0".to_owned()],
+                None,
             )
             .await
             .unwrap();
@@ -1845,7 +1845,7 @@ mod tests {
             serde_json::from_reader(File::open(contract_path).unwrap()).unwrap();
 
         let transaction_receipt = zk_wallet
-            .deploy(contract.abi, contract.bin.to_vec(), None, vec![])
+            .deploy(contract.abi, contract.bin.to_vec(), vec![], None)
             .await
             .unwrap();
 
@@ -1872,7 +1872,7 @@ mod tests {
             serde_json::from_reader(File::open(contract_path).unwrap()).unwrap();
 
         let transaction_receipt = zk_wallet
-            .deploy(contract.abi, contract.bin.to_vec(), None, vec![])
+            .deploy(contract.abi, contract.bin.to_vec(), vec![], None)
             .await
             .unwrap();
 
