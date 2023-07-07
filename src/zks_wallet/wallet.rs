@@ -680,6 +680,7 @@ mod zks_signer_tests {
     use ethers::types::Address;
     use ethers::types::U256;
     use ethers::utils::parse_units;
+    use ethers_contract::abigen;
     use ethers_contract::ContractFactory;
     use serde_json::Value;
     use std::fs::File;
@@ -687,6 +688,8 @@ mod zks_signer_tests {
     use std::str::FromStr;
     use std::sync::Arc;
     use std::time::Duration;
+
+    abigen!(ERC20Token, "resources/testing/erc20/abi.json");
 
     #[tokio::test]
     async fn test_transfer() {
@@ -846,6 +849,7 @@ mod zks_signer_tests {
 
     #[tokio::test]
     async fn test_deposit_erc20_token() {
+        let amount: U256 = 1.into();
         let private_key = "0x28a574ab2de8a00364d5dd4b07c4f2f574ef7fcc2a86a197f65abaec836d1959";
         let l1_provider = eth_provider();
         let l2_provider = era_provider();
@@ -864,11 +868,18 @@ mod zks_signer_tests {
             let bytecode = {
                 let json_literal = include_str!("../../resources/testing/erc20/MyToken.json");
                 let json: Value = serde_json::from_str(json_literal).unwrap();
-                let bytecode_string: String = json.get("bytecode").unwrap().to_string();
+                let bytecode_string = json
+                    .get("bytecode")
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+                    .strip_prefix("0x")
+                    .unwrap();
+                println!("bytecode: {:}", bytecode_string);
                 let bytecode = hex::decode(bytecode_string).unwrap();
                 bytecode.into()
             };
-            let client = Arc::new(l1_provider);
+            let client = Arc::new(l1_provider.clone());
             let factory = ContractFactory::new(abi, bytecode, client);
             let contract = factory
                 .deploy(())
@@ -884,10 +895,27 @@ mod zks_signer_tests {
             address
         };
 
-        let request = DepositRequest::new(1.into()).token(Some(token_l1_address));
+        let contract_l1 = ERC20Token::new(token_l1_address.clone(), Arc::new(l1_provider.clone()));
+
+        let balance_erc20_l1_before: U256 = contract_l1
+            .balance_of(zk_wallet.l1_address())
+            .call()
+            .await
+            .unwrap();
+
+        let request = DepositRequest::new(amount).token(Some(token_l1_address));
 
         let l1_receipt = zk_wallet.deposit(&request).await.unwrap();
         assert_eq!(l1_receipt.status.unwrap(), 1.into());
+
+        let balance_erc20_l1_after: U256 = contract_l1
+            .balance_of(zk_wallet.l1_address())
+            .call()
+            .await
+            .unwrap();
+
+        assert_eq!(balance_erc20_l1_after, balance_erc20_l1_before - amount);
+        // FIXME check balance on l2.
     }
 
     #[tokio::test]
