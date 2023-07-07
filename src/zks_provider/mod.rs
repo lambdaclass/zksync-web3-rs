@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use ethers::{
-    abi::{encode, HumanReadableParser, Token, Tokenizable, Tokenize},
+    abi::{encode, HumanReadableParser, Token, Tokenize},
     prelude::{
         k256::{
             ecdsa::{RecoveryId, Signature as RecoverableSignature},

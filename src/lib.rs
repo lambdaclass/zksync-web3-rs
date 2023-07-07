@@ -23,7 +23,6 @@
     clippy::unseparated_literal_suffix,
     clippy::unused_format_specs,
     clippy::single_char_lifetime_names,
-    clippy::str_to_string,
     clippy::string_add,
     clippy::string_slice,
     clippy::string_to_string,
@@ -34,7 +33,11 @@
 #![allow(
     clippy::module_inception,
     clippy::module_name_repetitions,
-    clippy::let_underscore_must_use
+    clippy::let_underscore_must_use,
+    clippy::type_complexity,
+    clippy::too_many_arguments,
+    clippy::indexing_slicing,
+    clippy::single_char_lifetime_names
 )]
 
 pub use ethers::*;
