@@ -399,8 +399,8 @@ where
         &self,
         contract_abi: Abi,
         contract_bytecode: Vec<u8>,
-        contract_dependencies: Option<Vec<Vec<u8>>>,
-        constructor_parameters: Option<Vec<String>>,
+        factory_dependencies: Option<Vec<Vec<u8>>>,
+        constructor_parameters: Vec<String>,
     ) -> Result<TransactionReceipt, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
@@ -412,8 +412,8 @@ where
 
         let custom_data = Eip712Meta::new().factory_deps({
             let mut factory_deps = Vec::new();
-            if let Some(contract_dependencies) = contract_dependencies {
-                factory_deps.extend(contract_dependencies);
+            if let Some(factory_dependencies) = factory_dependencies {
+                factory_deps.extend(factory_dependencies);
             }
             factory_deps.push(contract_bytecode.clone());
             factory_deps
@@ -452,10 +452,13 @@ where
                 // TODO: User could provide this instead of defaulting.
                 let salt = [0_u8; 32];
                 let bytecode_hash = hash_bytecode(&contract_bytecode)?;
-                let call_data: Bytes = match (contract_abi.constructor(), constructor_parameters) {
-                    (None, Some(_)) => return Err(ContractError::<M>::ConstructorError.into()),
-                    (None, None) | (Some(_), None) => Bytes::default(),
-                    (Some(constructor), Some(constructor_parameters)) => {
+                let call_data: Bytes = match (
+                    contract_abi.constructor(),
+                    constructor_parameters.is_empty(),
+                ) {
+                    (None, false) => return Err(ContractError::<M>::ConstructorError.into()),
+                    (None, true) | (Some(_), true) => Bytes::default(),
+                    (Some(constructor), false) => {
                         zks_utils::encode_constructor_args(constructor, &constructor_parameters)?
                             .into()
                     }
@@ -667,9 +670,13 @@ where
 #[cfg(test)]
 mod zks_signer_tests {
     use crate::test_utils::*;
+    use crate::zks_provider::ZKSProvider;
+    use crate::zks_utils::ERA_CHAIN_ID;
     use crate::zks_wallet::ZKSWallet;
+    use ethers::abi::Tokenize;
     use ethers::providers::Middleware;
     use ethers::signers::LocalWallet;
+    use ethers::signers::Signer;
     use ethers::types::Address;
     use ethers::types::U256;
     use ethers::utils::parse_units;
@@ -860,7 +867,7 @@ mod zks_signer_tests {
                 contract.abi,
                 contract.bin.to_vec(),
                 None,
-                Some(vec!["10".to_owned()]),
+                vec!["10".to_owned()],
             )
             .await
             .unwrap();
@@ -889,7 +896,7 @@ mod zks_signer_tests {
                 contract.abi,
                 contract.bin.to_vec(),
                 None,
-                Some(vec!["Hey".to_owned()]),
+                vec!["Hey".to_owned()],
             )
             .await
             .unwrap();
