@@ -29,6 +29,9 @@ env_logger = "0.10"
 # Hash
 sha2 = "0.9.5"
 
+[features]
+ethers-solc = ["ethers/ethers-solc"]
+
 # Examples
 
 [[example]]
