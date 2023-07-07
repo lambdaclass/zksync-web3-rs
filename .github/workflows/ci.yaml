@@ -9,10 +9,6 @@ concurrency:
   group: ${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
-# Make sure CI fails on all warnings, including Clippy lints
-env:
-  RUSTFLAGS: "-Dwarnings"
-
 jobs:
   Build:
     name: Build
@@ -58,6 +54,9 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    # Make sure CI fails on all warnings, including Clippy lints
+    env:
+      RUSTFLAGS: "-Dwarnings"
     steps:
       - name: Checkout sources
         uses: actions/checkout@v3
