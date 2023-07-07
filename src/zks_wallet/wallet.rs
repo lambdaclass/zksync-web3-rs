@@ -683,7 +683,6 @@ mod zks_signer_tests {
     use std::fs::File;
     use std::path::PathBuf;
     use std::str::FromStr;
-    use std::time::Duration;
 
     #[tokio::test]
     async fn test_transfer() {
@@ -798,7 +797,7 @@ mod zks_signer_tests {
             .parse()
             .unwrap();
         let amount = parse_units("0.01", "ether").unwrap().into();
-        println!("Amount: {}", amount);
+        println!("Amount: {amount}");
 
         let request = DepositRequest::new(amount).to(to);
 

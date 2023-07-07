@@ -252,6 +252,7 @@ pub fn sanitize_token(token: Token) -> Token {
 }
 
 pub fn ec_add_function() -> Function {
+    #[allow(deprecated)]
     Function {
         name: "".to_owned(),
         inputs: vec![
@@ -294,33 +295,34 @@ pub fn ec_add_function() -> Function {
 }
 
 pub fn ec_mul_function() -> Function {
+    #[allow(deprecated)]
     Function {
-        name: "".to_string(),
+        name: "".to_owned(),
         inputs: vec![
             Param {
-                name: "".to_string(),
+                name: "".to_owned(),
                 kind: ParamType::Int(256),
                 internal_type: Some("sint256".to_owned()),
             },
             Param {
-                name: "".to_string(),
+                name: "".to_owned(),
                 kind: ParamType::Int(256),
                 internal_type: Some("sint256".to_owned()),
             },
             Param {
-                name: "".to_string(),
+                name: "".to_owned(),
                 kind: ParamType::Uint(256),
                 internal_type: Some("uint256".to_owned()),
             },
         ],
         outputs: vec![
             Param {
-                name: "".to_string(),
+                name: "".to_owned(),
                 kind: ParamType::Int(256),
                 internal_type: Some("sint256".to_owned()),
             },
             Param {
-                name: "".to_string(),
+                name: "".to_owned(),
                 kind: ParamType::Int(256),
                 internal_type: Some("sint256".to_owned()),
             },
@@ -331,42 +333,43 @@ pub fn ec_mul_function() -> Function {
 }
 
 pub fn mod_exp_function() -> Function {
+    #[allow(deprecated)]
     Function {
-        name: "".to_string(),
+        name: "".to_owned(),
         inputs: vec![
             Param {
-                name: "".to_string(),
+                name: "".to_owned(),
                 kind: ParamType::Int(256),
                 internal_type: Some("sint256".to_owned()),
             },
             Param {
-                name: "".to_string(),
+                name: "".to_owned(),
                 kind: ParamType::Int(256),
                 internal_type: Some("sint256".to_owned()),
             },
             Param {
-                name: "".to_string(),
+                name: "".to_owned(),
                 kind: ParamType::Int(256),
                 internal_type: Some("sint256".to_owned()),
             },
             Param {
-                name: "".to_string(),
+                name: "".to_owned(),
                 kind: ParamType::Uint(256),
                 internal_type: Some("uint256".to_owned()),
             },
             Param {
-                name: "".to_string(),
+                name: "".to_owned(),
                 kind: ParamType::Uint(256),
                 internal_type: Some("uint256".to_owned()),
             },
             Param {
-                name: "".to_string(),
+                name: "".to_owned(),
                 kind: ParamType::Uint(256),
                 internal_type: Some("uint256".to_owned()),
             },
         ],
         outputs: vec![Param {
-            name: "".to_string(),
+            name: "".to_owned(),
             kind: ParamType::Uint(256),
             internal_type: Some("uint256".to_owned()),
         }],
