@@ -908,6 +908,65 @@ mod zks_signer_tests {
     }
 
     #[tokio::test]
+    async fn test_deploy_contract_with_import() {
+        let deployer_private_key =
+            "7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110";
+        let era_provider = era_provider();
+        let wallet = LocalWallet::from_str(deployer_private_key).unwrap().with_chain_id(ERA_CHAIN_ID);
+        let zk_wallet = ZKSWallet::new(wallet, None, Some(era_provider.clone()), None).unwrap();
+
+        // Deploy imported contract first.
+        let mut contract_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        contract_path.push("src/abi/test_contracts/counter_combined.json");
+        let counter_contract: CompiledContract =
+            serde_json::from_reader(File::open(contract_path).unwrap()).unwrap();
+
+        let transaction_receipt = zk_wallet
+            .deploy(
+                counter_contract.abi,
+                counter_contract.bin.to_vec(),
+                None,
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        let counter_contract_address = transaction_receipt.contract_address.unwrap();
+        let deploy_result = era_provider.get_code(counter_contract_address, None).await;
+
+        assert!(deploy_result.is_ok());
+
+        // Deploy another contract that imports the previous one.
+        let mut contract_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        contract_path.push("src/abi/test_contracts/import_combined.json");
+
+        let import_contract: CompiledContract =
+            serde_json::from_reader(File::open(contract_path).unwrap()).unwrap();
+
+        let transaction_receipt = zk_wallet
+            .deploy(
+                import_contract.abi,
+                import_contract.bin.to_vec(),
+                None,
+                vec![format!("{counter_contract_address:?}")],
+            )
+            .await
+            .unwrap();
+
+        let import_contract_address = transaction_receipt.contract_address.unwrap();
+        let value = ZKSProvider::call(
+            &era_provider,
+            import_contract_address,
+            "getCounterValue()(uint256)",
+            None,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(value, U256::from(0_u64).into_tokens());
+    }
+
+    #[tokio::test]
     async fn test_withdraw_to_same_address() {
         let sender_private_key =
             "0x28a574ab2de8a00364d5dd4b07c4f2f574ef7fcc2a86a197f65abaec836d1959";
