@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use ethers::{
-    abi::{encode, HumanReadableParser, Token, Tokenizable, Tokenize},
+    abi::{encode, HumanReadableParser, Token, Tokenize},
     prelude::{
         k256::{
             ecdsa::{RecoveryId, Signature as RecoverableSignature},
@@ -846,10 +846,6 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
         // Note: We couldn't implement ZKSWalletError::LexerError because ethers-rs's LexerError is not exposed.
         let function = if contract_address == zks_utils::ECADD_PRECOMPILE_ADDRESS {
             zks_utils::ec_add_function()
-        } else if contract_address == zks_utils::ECMUL_PRECOMPILE_ADDRESS {
-            zks_utils::ec_mul_function()
-        } else if contract_address == zks_utils::MODEXP_PRECOMPILE_ADDRESS {
-            zks_utils::mod_exp_function()
         } else {
             HumanReadableParser::parse_function(function_signature)
                 .map_err(|e| ProviderError::CustomError(e.to_string()))?

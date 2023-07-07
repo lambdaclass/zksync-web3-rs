@@ -4,11 +4,16 @@ use self::deposit_request::DepositRequest;
 
 use super::{Overrides, ZKSWalletError};
 use crate::{
-    contracts::main_contract::{MainContract, MainContractInstance},
+    contracts::{
+        l1_bridge_contract::L1Bridge,
+        main_contract::{MainContract, MainContractInstance},
+    },
     eip712::Eip712Transaction,
     eip712::{hash_bytecode, Eip712Meta, Eip712TransactionRequest},
     zks_provider::ZKSProvider,
-    zks_utils::{self, CONTRACT_DEPLOYER_ADDR, EIP712_TX_TYPE, ERA_CHAIN_ID, ETH_CHAIN_ID},
+    zks_utils::{
+        self, CONTRACT_DEPLOYER_ADDR, EIP712_TX_TYPE, ERA_CHAIN_ID, ETHER_L1_ADDRESS, ETH_CHAIN_ID,
+    },
 };
 use ethers::{
     abi::{decode, Abi, ParamType, Token, Tokenizable},
@@ -258,26 +263,106 @@ where
         let refund_recipient = self.l1_address();
         // FIXME check base cost
 
-        // FIXME request l2 transaction
+        let l1_token = request.token.unwrap_or(ETHER_L1_ADDRESS);
 
-        let main_contract_address = self.get_era_provider()?.get_main_contract().await?;
-        let main_contract =
-            MainContractInstance::new(main_contract_address, self.get_eth_provider()?);
+        let receipt = if l1_token == ETHER_L1_ADDRESS {
+            let main_contract_address = self.get_era_provider()?.get_main_contract().await?;
+            let main_contract =
+                MainContractInstance::new(main_contract_address, self.get_eth_provider()?);
 
-        let receipt = main_contract
-            .request_l2_transaction(
-                to,
-                l2_value,
-                call_data,
-                l2_gas_limit,
-                gas_per_pubdata_byte,
-                Default::default(),
-                refund_recipient,
-                gas_price,
-                gas_limit,
-                l1_value,
-            )
-            .await?;
+            let receipt = main_contract
+                .request_l2_transaction(
+                    to,
+                    l2_value,
+                    call_data,
+                    l2_gas_limit,
+                    gas_per_pubdata_byte,
+                    Default::default(),
+                    refund_recipient,
+                    gas_price,
+                    gas_limit,
+                    l1_value,
+                )
+                .await?;
+
+            receipt
+        } else {
+            let bridge_address = match request.bridge_address {
+                Some(bridge_address) => bridge_address,
+                None => {
+                    let bridge_contracts = self.get_era_provider()?.get_bridge_contracts().await?;
+                    bridge_contracts.l1_erc20_default_bridge
+                }
+            };
+
+            let receipt = self
+                .deposit_erc20_token(
+                    request.amount,
+                    to,
+                    l1_token,
+                    bridge_address,
+                    base_cost,
+                    operator_tip,
+                    l2_gas_limit,
+                    gas_per_pubdata_byte,
+                )
+                .await?;
+
+            receipt
+        };
+
+        Ok(receipt)
+    }
+
+    async fn deposit_erc20_token(
+        &self,
+        amount: U256,
+        l2_receiver: Address,
+        l1_token: Address,
+        bridge_address: Address,
+        // FIXME take a bridge contract instance as parameter.
+        _base_cost: U256,
+        _operator_tip: U256,
+        l2_tx_gas_limit: U256,
+        l2_tx_gas_per_pubdata_byte: U256,
+    ) -> Result<TransactionReceipt, ZKSWalletError<M, D>>
+    where
+        M: Middleware,
+    {
+        // FIXME implement check base cost!
+        // let value = base_cost + operator_tip;
+        // check_base_cost(base_cost, value)
+
+        // FIXME implement approve ERC20!
+        // if approve_erc20:
+        //     self.approve_erc20(token,
+        //                        amount,
+        //                        bridge_address,
+        //                        gas_limit)
+
+        let receipt = {
+            let bridge = L1Bridge::new(bridge_address, self.get_eth_provider()?);
+
+            let transaction_hash = bridge
+                .deposit(
+                    l2_receiver,
+                    l1_token,
+                    amount,
+                    l2_tx_gas_limit,
+                    l2_tx_gas_per_pubdata_byte,
+                )
+                .call()
+                .await?;
+
+            let receipt = self
+                .get_eth_provider()?
+                .get_transaction_receipt(transaction_hash)
+                .await?
+                // FIXME remove this unwrap!
+                .unwrap();
+
+            receipt
+        };
 
         Ok(receipt)
     }
