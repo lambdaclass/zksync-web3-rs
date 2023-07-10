@@ -34,16 +34,6 @@ Before you begin, make sure you have the following prerequisites:
 
 - Git: Install Git on your system if you haven't already. You can find installation instructions at [https://git-scm.com/book/en/v2/Getting-Started-Installing-Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git).
 
-- zkSync CLI (only if you want to run a localnet): Install the zkSync CLI on your system
-  > This particular CLI command uses Docker under the hood, you should also have Docker installed on your system. You can find installation instructions at [https://docs.docker.com/get-docker/](https://docs.docker.com/get-docker/).
-
-  ```bash
-  git clone https://github.com/lambdaclass/zksync-cli.git
-  cd zksync-cli
-  npm i -g && npm run build
-  zksync-cli localnet up
-  ```
-
 ### Adding dependencies
 
 Add the following dependencies to your `Cargo.toml` file:
@@ -71,7 +61,7 @@ use zksync-web3-rs as zksync;
 To create a wallet, you need to provide the private key of the Ethereum account that will be used to sign the transaction. You can create a wallet using the following code:
 
 > We set the chain id to 270 because we are using the zkSync Era node. If you want to use the mainnet, you should set the chain id to 9.
-> https://era.zksync.io/docs/api/hardhat/testing.html#connect-wallet-to-local-nodes
+> https://era.zksync.io/docs/tools/hardhat/testing.html#connect-wallet-to-local-nodes
 
 ```rust
 use zksync::{Signer, k256::ecdsa::SigningKey};
@@ -87,7 +77,7 @@ let wallet = zksync::Wallet::with_chain_id(private_key, zksync_era_chain_id);
 To connect to the zkSync network, you need to provide the URL of the zkSync node. The localnet runs both an *Ethereum* node (L1) on port `8545` and an *Era* node (L2) on port `3050`. You can connect to the zkSync Era network using the following code:
 
 ```rust
-let provider = zksync::Provider::try_from("http://65.21.140.36:3050").unwrap();
+let provider = zksync::Provider::try_from("http://localhost:3050").unwrap();
 ```
 
 #### Creating a Payment Transaction
@@ -162,10 +152,12 @@ cd zksync-web3-rs
 
 #### Run a zkSync localnet
 
-To run the zkSync localnet, execute the following command:
+To run the zkSync localnet, clone the `local-setup` repository and execute the following command:
 
 ```bash
-zksync-cli localnet up
+git clone https://github.com/lambdaclass/local-setup
+cd local-setup
+docker-compose up
 ```
 
 #### Run the Simple Transfer Example
@@ -173,7 +165,7 @@ zksync-cli localnet up
 To run the payment transaction example using EIP1559 transactions on zkSync Era, run the following command:
 
 ```bash
-make simple_payment HOST=<host> PORT=<port> AMOUNT=<amount_to_transfer> SENDER_ADDRESS=<sender> RECEIVER_ADDRESS=<receiver> PRIVATE_KEY=<pk> NETWORK=<net>
+cargo run --example simple_payment --host <HOST> --port <PORT> --amount <AMOUNT> --from <SENDER_ADDRESS> --to <RECEIVER_ADDRESS> --private-key <PRIVATE_KEY> --network <NETWORK>
 ```
 
 - `HOST`: The IP address or hostname of the node.
@@ -183,8 +175,6 @@ make simple_payment HOST=<host> PORT=<port> AMOUNT=<amount_to_transfer> SENDER_A
 - `RECEIVER_ADDRESS`: The address of the receiver's Ethereum account, represented in hexadecimal format with the `0x` prefix. For example, `0x456def...`.
 - `PRIVATE_KEY`: The private key of an Ethereum account with sufficient funds to perform the transaction, represented in hexadecimal format with the `0x` prefix.
 - `NETWORK`: The network you want to connect to. There are two options: `era` which will connect to the L2 node and `eth` which will connect to the L1 node.
-
-**Note:** Ensure that you have properly configured the environment variables or provided the required values as command-line arguments.
 
 This command executes the `simple_payment` binary using the provided Makefile.
 
