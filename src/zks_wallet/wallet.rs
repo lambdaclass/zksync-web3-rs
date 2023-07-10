@@ -766,13 +766,10 @@ mod zks_signer_tests {
     use ethers::types::Address;
     use ethers::types::U256;
     use ethers::utils::parse_units;
-    use ethers_contract::ContractFactory;
-    use serde_json::Value;
     use std::fs::File;
     use std::path::PathBuf;
     use std::str::FromStr;
     use std::sync::Arc;
-    use std::time::Duration;
 
     abigen!(ERC20Token, "resources/testing/erc20/ERC20Token.json");
 
