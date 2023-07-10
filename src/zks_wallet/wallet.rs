@@ -760,12 +760,12 @@ mod zks_signer_tests {
     use crate::test_utils::*;
     use crate::zks_wallet::wallet::deposit_request::DepositRequest;
     use crate::zks_wallet::ZKSWallet;
+    use ethers::contract::abigen;
     use ethers::providers::Middleware;
     use ethers::signers::LocalWallet;
     use ethers::types::Address;
     use ethers::types::U256;
     use ethers::utils::parse_units;
-    use ethers_contract::abigen;
     use ethers_contract::ContractFactory;
     use serde_json::Value;
     use std::fs::File;
@@ -774,7 +774,7 @@ mod zks_signer_tests {
     use std::sync::Arc;
     use std::time::Duration;
 
-    abigen!(ERC20Token, "resources/testing/erc20/abi.json");
+    abigen!(ERC20Token, "resources/testing/erc20/ERC20Token.json");
 
     #[tokio::test]
     async fn test_transfer() {
@@ -949,27 +949,9 @@ mod zks_signer_tests {
 
         // Deploys an ERC20 token to conduct the test.
         let token_l1_address = {
-            let abi = Default::default();
-            let bytecode = {
-                let json_literal = include_str!("../../resources/testing/erc20/MyToken.json");
-                let json: Value = serde_json::from_str(json_literal).unwrap();
-                let bytecode_string = json
-                    .get("bytecode")
-                    .unwrap()
-                    .as_str()
-                    .unwrap()
-                    .strip_prefix("0x")
-                    .unwrap();
-                println!("bytecode: {:}", bytecode_string);
-                let bytecode = hex::decode(bytecode_string).unwrap();
-                bytecode.into()
-            };
             let client = Arc::new(l1_provider.clone());
-            let factory = ContractFactory::new(abi, bytecode, client);
-            let contract = factory
-                .deploy(())
+            let contract = ERC20Token::deploy(client, ())
                 .unwrap()
-                .confirmations(0usize)
                 .send()
                 .await
                 .unwrap();
