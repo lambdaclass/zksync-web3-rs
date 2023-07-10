@@ -4,11 +4,16 @@ use self::deposit_request::DepositRequest;
 
 use super::{Overrides, ZKSWalletError};
 use crate::{
-    contracts::main_contract::{MainContract, MainContractInstance},
+    contracts::{
+        l1_bridge_contract::L1Bridge,
+        main_contract::{MainContract, MainContractInstance},
+    },
     eip712::Eip712Transaction,
     eip712::{hash_bytecode, Eip712Meta, Eip712TransactionRequest},
     zks_provider::ZKSProvider,
-    zks_utils::{self, CONTRACT_DEPLOYER_ADDR, EIP712_TX_TYPE, ERA_CHAIN_ID, ETH_CHAIN_ID},
+    zks_utils::{
+        self, CONTRACT_DEPLOYER_ADDR, EIP712_TX_TYPE, ERA_CHAIN_ID, ETHER_L1_ADDRESS, ETH_CHAIN_ID,
+    },
 };
 use ethers::{
     abi::{decode, Abi, ParamType, Token, Tokenizable},
@@ -258,26 +263,106 @@ where
         let refund_recipient = self.l1_address();
         // FIXME check base cost
 
-        // FIXME request l2 transaction
+        let l1_token = request.token.unwrap_or(ETHER_L1_ADDRESS);
 
-        let main_contract_address = self.get_era_provider()?.get_main_contract().await?;
-        let main_contract =
-            MainContractInstance::new(main_contract_address, self.get_eth_provider()?);
+        let receipt = if l1_token == ETHER_L1_ADDRESS {
+            let main_contract_address = self.get_era_provider()?.get_main_contract().await?;
+            let main_contract =
+                MainContractInstance::new(main_contract_address, self.get_eth_provider()?);
 
-        let receipt = main_contract
-            .request_l2_transaction(
-                to,
-                l2_value,
-                call_data,
-                l2_gas_limit,
-                gas_per_pubdata_byte,
-                Default::default(),
-                refund_recipient,
-                gas_price,
-                gas_limit,
-                l1_value,
-            )
-            .await?;
+            let receipt = main_contract
+                .request_l2_transaction(
+                    to,
+                    l2_value,
+                    call_data,
+                    l2_gas_limit,
+                    gas_per_pubdata_byte,
+                    Default::default(),
+                    refund_recipient,
+                    gas_price,
+                    gas_limit,
+                    l1_value,
+                )
+                .await?;
+
+            receipt
+        } else {
+            let bridge_address = match request.bridge_address {
+                Some(bridge_address) => bridge_address,
+                None => {
+                    let bridge_contracts = self.get_era_provider()?.get_bridge_contracts().await?;
+                    bridge_contracts.l1_erc20_default_bridge
+                }
+            };
+
+            let receipt = self
+                .deposit_erc20_token(
+                    request.amount,
+                    to,
+                    l1_token,
+                    bridge_address,
+                    base_cost,
+                    operator_tip,
+                    l2_gas_limit,
+                    gas_per_pubdata_byte,
+                )
+                .await?;
+
+            receipt
+        };
+
+        Ok(receipt)
+    }
+
+    async fn deposit_erc20_token(
+        &self,
+        amount: U256,
+        l2_receiver: Address,
+        l1_token: Address,
+        bridge_address: Address,
+        // FIXME take a bridge contract instance as parameter.
+        _base_cost: U256,
+        _operator_tip: U256,
+        l2_tx_gas_limit: U256,
+        l2_tx_gas_per_pubdata_byte: U256,
+    ) -> Result<TransactionReceipt, ZKSWalletError<M, D>>
+    where
+        M: Middleware,
+    {
+        // FIXME implement check base cost!
+        // let value = base_cost + operator_tip;
+        // check_base_cost(base_cost, value)
+
+        // FIXME implement approve ERC20!
+        // if approve_erc20:
+        //     self.approve_erc20(token,
+        //                        amount,
+        //                        bridge_address,
+        //                        gas_limit)
+
+        let receipt = {
+            let bridge = L1Bridge::new(bridge_address, self.get_eth_provider()?);
+
+            let transaction_hash = bridge
+                .deposit(
+                    l2_receiver,
+                    l1_token,
+                    amount,
+                    l2_tx_gas_limit,
+                    l2_tx_gas_per_pubdata_byte,
+                )
+                .call()
+                .await?;
+
+            let receipt = self
+                .get_eth_provider()?
+                .get_transaction_receipt(transaction_hash)
+                .await?
+                // FIXME remove this unwrap!
+                .unwrap();
+
+            receipt
+        };
 
         Ok(receipt)
     }
@@ -675,6 +760,7 @@ mod zks_signer_tests {
     use crate::test_utils::*;
     use crate::zks_wallet::wallet::deposit_request::DepositRequest;
     use crate::zks_wallet::ZKSWallet;
+    use ethers::contract::abigen;
     use ethers::providers::Middleware;
     use ethers::signers::LocalWallet;
     use ethers::types::Address;
@@ -683,6 +769,9 @@ mod zks_signer_tests {
     use std::fs::File;
     use std::path::PathBuf;
     use std::str::FromStr;
+    use std::sync::Arc;
+
+    abigen!(ERC20Token, "resources/testing/erc20/ERC20Token.json");
 
     #[tokio::test]
     async fn test_transfer() {
@@ -838,6 +927,59 @@ mod zks_signer_tests {
             l2_balance_after >= l2_balance_before + request.amount(),
             "Balance on L2 should be increased"
         );
+    }
+
+    #[tokio::test]
+    async fn test_deposit_erc20_token() {
+        let amount: U256 = 1.into();
+        let private_key = "0x28a574ab2de8a00364d5dd4b07c4f2f574ef7fcc2a86a197f65abaec836d1959";
+        let l1_provider = eth_provider();
+        let l2_provider = era_provider();
+        let wallet = LocalWallet::from_str(private_key).unwrap();
+        let zk_wallet = ZKSWallet::new(
+            wallet,
+            None,
+            Some(l2_provider.clone()),
+            Some(l1_provider.clone()),
+        )
+        .unwrap();
+
+        // Deploys an ERC20 token to conduct the test.
+        let token_l1_address = {
+            let client = Arc::new(l1_provider.clone());
+            let contract = ERC20Token::deploy(client, ())
+                .unwrap()
+                .send()
+                .await
+                .unwrap();
+
+            let address = contract.address();
+            println!("ERC20 contract address: {}", address);
+
+            address
+        };
+
+        let contract_l1 = ERC20Token::new(token_l1_address.clone(), Arc::new(l1_provider.clone()));
+
+        let balance_erc20_l1_before: U256 = contract_l1
+            .balance_of(zk_wallet.l1_address())
+            .call()
+            .await
+            .unwrap();
+
+        let request = DepositRequest::new(amount).token(Some(token_l1_address));
+
+        let l1_receipt = zk_wallet.deposit(&request).await.unwrap();
+        assert_eq!(l1_receipt.status.unwrap(), 1.into());
+
+        let balance_erc20_l1_after: U256 = contract_l1
+            .balance_of(zk_wallet.l1_address())
+            .call()
+            .await
+            .unwrap();
+
+        assert_eq!(balance_erc20_l1_after, balance_erc20_l1_before - amount);
+        // FIXME check balance on l2.
     }
 
     #[tokio::test]
