@@ -889,7 +889,7 @@ mod zks_signer_tests {
             .parse()
             .unwrap();
         let amount = parse_units("0.01", "ether").unwrap().into();
-        println!("Amount: {}", amount);
+        println!("Amount: {amount}");
 
         let request = DepositRequest::new(amount).to(to);
 

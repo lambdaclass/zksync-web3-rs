@@ -35,7 +35,7 @@ impl DepositRequest {
             to: None,
             l2_gas_limit: default_l2_gas_limit(),
             gas_per_pubdata_byte: default_gas_per_pubdata_byte(),
-            operator_tip: 0.into(),
+            operator_tip: 0_i32.into(),
             gas_price: None,
             gas_limit: default_gas_limit(),
             token: None,
