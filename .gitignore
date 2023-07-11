@@ -11,3 +11,5 @@ target/
 
 # Project environment config. See `envrc.example`.
 .envrc
+
+.vscode/settings.json
