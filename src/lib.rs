@@ -1,4 +1,3 @@
-#![warn(warnings, rust_2018_idioms)]
 #![forbid(unsafe_code)]
 #![recursion_limit = "256"]
 #![warn(
@@ -24,7 +23,6 @@
     clippy::unseparated_literal_suffix,
     clippy::unused_format_specs,
     clippy::single_char_lifetime_names,
-    clippy::str_to_string,
     clippy::string_add,
     clippy::string_slice,
     clippy::string_to_string,
@@ -35,7 +33,11 @@
 #![allow(
     clippy::module_inception,
     clippy::module_name_repetitions,
-    clippy::let_underscore_must_use
+    clippy::let_underscore_must_use,
+    clippy::type_complexity,
+    clippy::too_many_arguments,
+    clippy::indexing_slicing,
+    clippy::single_char_lifetime_names
 )]
 
 pub use ethers::*;
@@ -46,7 +48,7 @@ pub mod zks_provider;
 pub mod zks_utils;
 
 pub mod zks_wallet;
-pub use zks_wallet::{ZKSWallet, ZKSWalletError};
+pub use zks_wallet::{DepositRequest, ZKSWallet, ZKSWalletError};
 
 // For macro expansions only, not public API.
 #[allow(unused_extern_crates)]
