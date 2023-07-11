@@ -1,8 +1,4 @@
-pub mod deposit_request;
-
-use self::deposit_request::DepositRequest;
-
-use super::{Overrides, ZKSWalletError};
+use super::{DepositRequest, Overrides, WithdrawRequest, ZKSWalletError};
 use crate::{
     contracts::main_contract::{MainContract, MainContractInstance},
     eip712::Eip712Transaction,
@@ -30,10 +26,11 @@ use ethers::{
 use serde_json::Value;
 use std::{fs::File, io::BufReader, path::PathBuf, str::FromStr, sync::Arc};
 
+#[derive(Clone, Debug)]
 pub struct ZKSWallet<M, D>
 where
-    M: Middleware,
-    D: PrehashSigner<(RecoverableSignature, RecoveryId)>,
+    M: Middleware + Clone,
+    D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Clone,
 {
     /// Eth provider
     pub eth_provider: Option<Arc<SignerMiddleware<M, Wallet<D>>>>,
@@ -44,7 +41,7 @@ where
 
 impl<M, D> ZKSWallet<M, D>
 where
-    M: Middleware + 'static,
+    M: Middleware + 'static + Clone,
     D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Sync + Send + Clone,
 {
     pub fn new(
@@ -509,8 +506,7 @@ where
 
     pub async fn withdraw(
         &self,
-        amount: U256,
-        to: Address,
+        request: &WithdrawRequest,
     ) -> Result<TransactionReceipt, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
@@ -525,6 +521,7 @@ where
                 ZKSWalletError::CustomError(format!("failed to parse contract address: {error}"))
             })?;
         let function_signature = "function withdraw(address _l1Receiver) external payable override";
+        let to: Address = request.to.unwrap_or(self.l1_address());
         let response: (Vec<Token>, H256) = era_provider
             .send_eip712(
                 &self.l2_wallet,
@@ -532,7 +529,7 @@ where
                 function_signature,
                 Some([format!("{to:?}")].into()),
                 Some(Overrides {
-                    value: Some(amount),
+                    value: Some(request.amount),
                 }),
             )
             .await?;
@@ -685,8 +682,7 @@ mod zks_signer_tests {
     use crate::test_utils::*;
     use crate::zks_provider::ZKSProvider;
     use crate::zks_utils::{ERA_CHAIN_ID, ETH_CHAIN_ID};
-    use crate::zks_wallet::wallet::deposit_request::DepositRequest;
-    use crate::zks_wallet::ZKSWallet;
+    use crate::zks_wallet::{DepositRequest, WithdrawRequest, ZKSWallet};
     use ethers::abi::Tokenize;
     use ethers::providers::Middleware;
     use ethers::signers::{LocalWallet, Signer};
@@ -1060,10 +1056,8 @@ mod zks_signer_tests {
 
         // Withdraw
         let amount_to_withdraw: U256 = parse_units(1_u8, "ether").unwrap().into();
-        let tx_receipt = zk_wallet
-            .withdraw(amount_to_withdraw, zk_wallet.l1_address())
-            .await
-            .unwrap();
+        let withdraw_request = WithdrawRequest::with(amount_to_withdraw).to(zk_wallet.l1_address());
+        let tx_receipt = zk_wallet.withdraw(&withdraw_request).await.unwrap();
         assert_eq!(
             1,
             tx_receipt.status.unwrap().as_u64(),
@@ -1159,10 +1153,9 @@ mod zks_signer_tests {
 
         // Withdraw
         let amount_to_withdraw: U256 = parse_units(1_u8, "ether").unwrap().into();
-        let tx_receipt = zk_wallet
-            .withdraw(amount_to_withdraw, zk_wallet.l1_address())
-            .await
-            .unwrap();
+        let withdraw_request = WithdrawRequest::with(amount_to_withdraw).to(zk_wallet.l1_address());
+        let tx_receipt = zk_wallet.withdraw(&withdraw_request).await.unwrap();
+
         assert_eq!(
             1,
             tx_receipt.status.unwrap().as_u64(),
