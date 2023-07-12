@@ -1338,6 +1338,9 @@ mod tests {
             )
             .await
             .unwrap()
+            .await
+            .unwrap()
+            .unwrap()
             .transaction_hash;
         let invalid_transaction_hash: H256 =
             "0x84472204e445cb3cd5f3ce5e23abcc2892cda5e61b35855a7f0bb1562a6e30e7"
@@ -1729,6 +1732,9 @@ mod tests {
                 None,
             )
             .await
+            .unwrap()
+            .await
+            .unwrap()
             .unwrap()
             .transaction_hash;
         let invalid_transaction_hash: H256 =

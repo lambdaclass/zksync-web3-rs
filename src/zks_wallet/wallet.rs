@@ -27,6 +27,7 @@ use ethers::{
         Signature, TransactionReceipt, H160, H256, U256,
     },
 };
+use ethers_contract::providers::PendingTransaction;
 use serde_json::Value;
 use std::{fs::File, io::BufReader, path::PathBuf, str::FromStr, sync::Arc};
 
@@ -155,7 +156,7 @@ where
         amount_to_transfer: U256,
         // TODO: Support multiple-token transfers.
         _token: Option<Address>,
-    ) -> Result<TransactionReceipt, ZKSWalletError<M, D>>
+    ) -> Result<PendingTransaction<M::Provider>, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
     {
@@ -178,12 +179,7 @@ where
 
         // TODO: add block as an override.
         let pending_transaction = era_provider.send_transaction(transaction, None).await?;
-
-        pending_transaction
-            .await?
-            .ok_or(ZKSWalletError::CustomError(
-                "no transaction receipt".to_owned(),
-            ))
+        Ok(pending_transaction)
     }
 
     pub async fn transfer_eip712(
@@ -729,6 +725,9 @@ mod zks_signer_tests {
         let receipt = zk_wallet
             .transfer(receiver_address, amount_to_transfer, None)
             .await
+            .unwrap()
+            .await
+            .unwrap()
             .unwrap();
 
         assert_eq!(receipt.from, zk_wallet.l2_address());
