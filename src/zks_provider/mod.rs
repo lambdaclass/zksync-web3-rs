@@ -759,14 +759,10 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
             )
             .await?;
 
-        let transaction_receipt = pending_transaction
-            .await?
-            .ok_or(ProviderError::CustomError(
-                "no transaction receipt".to_owned(),
-            ))?;
+        let transaction_hash = pending_transaction.tx_hash();
 
         // TODO: decode function output.
-        Ok((Vec::new(), transaction_receipt.transaction_hash))
+        Ok((Vec::new(), transaction_hash))
     }
 
     async fn send<D>(
@@ -790,14 +786,9 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
         )
         .await?;
         let pending_transaction = self.send_transaction(tx, None).await?;
+        let transaction_hash = pending_transaction.tx_hash();
 
-        let transaction_receipt = pending_transaction
-            .await?
-            .ok_or(ProviderError::CustomError(
-                "no transaction receipt".to_owned(),
-            ))?;
-
-        Ok((Vec::new(), transaction_receipt.transaction_hash))
+        Ok((Vec::new(), transaction_hash))
     }
 
     async fn wait_for_finalize(
