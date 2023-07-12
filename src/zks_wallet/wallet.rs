@@ -156,10 +156,7 @@ where
     where
         M: ZKSProvider,
     {
-        let era_provider = match &self.era_provider {
-            Some(era_provider) => era_provider,
-            None => return Err(ZKSWalletError::CustomError("no era provider".to_owned())),
-        };
+        let era_provider = self.get_era_provider()?;
 
         let mut transfer_request = Eip1559TransactionRequest::new()
             .from(self.l2_address())
@@ -193,10 +190,7 @@ where
     where
         M: ZKSProvider,
     {
-        let era_provider = match &self.era_provider {
-            Some(era_provider) => era_provider,
-            None => return Err(ZKSWalletError::CustomError("no era provider".to_owned())),
-        };
+        let era_provider = self.get_era_provider()?;
 
         let mut transfer_request = Eip712TransactionRequest::new()
             .from(self.l2_address())
@@ -315,10 +309,7 @@ where
         M: ZKSProvider,
         T: Tokenizable,
     {
-        let era_provider = match &self.era_provider {
-            Some(era_provider) => era_provider,
-            None => return Err(ZKSWalletError::CustomError("no era provider".to_owned())),
-        };
+        let era_provider = self.get_era_provider()?;
 
         let custom_data = Eip712Meta::new().factory_deps({
             let mut factory_deps = Vec::new();
@@ -415,10 +406,7 @@ where
     where
         M: ZKSProvider,
     {
-        let era_provider = match &self.era_provider {
-            Some(era_provider) => era_provider,
-            None => return Err(ZKSWalletError::CustomError("no era provider".to_owned())),
-        };
+        let era_provider = self.get_era_provider()?;
 
         let custom_data = Eip712Meta::new().factory_deps({
             let mut factory_deps = Vec::new();
@@ -511,10 +499,7 @@ where
     where
         M: ZKSProvider,
     {
-        let era_provider = match &self.era_provider {
-            Some(era_provider) => era_provider,
-            None => return Err(ZKSWalletError::CustomError("no era provider".to_owned())),
-        };
+        let era_provider = self.get_era_provider()?;
 
         let contract_address =
             Address::from_str(zks_utils::CONTRACTS_L2_ETH_TOKEN_ADDR).map_err(|error| {
@@ -553,14 +538,8 @@ where
     where
         M: ZKSProvider,
     {
-        let (era_provider, eth_provider) = match (&self.era_provider, &self.eth_provider) {
-            (Some(era_provider), Some(eth_provider)) => (era_provider, eth_provider),
-            _ => {
-                return Err(ZKSWalletError::CustomError(
-                    "Both era and eth providers are necessary".to_owned(),
-                ))
-            }
-        };
+        let era_provider = self.get_era_provider()?;
+        let eth_provider = self.get_eth_provider()?;
 
         let withdrawal_receipt = era_provider.get_transaction_receipt(tx_hash).await?.ok_or(
             ZKSWalletError::CustomError("Error getting transaction receipt of withdraw".to_owned()),
