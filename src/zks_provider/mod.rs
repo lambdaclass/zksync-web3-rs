@@ -221,6 +221,15 @@ pub trait ZKSProvider {
         function_signature: &str,
         function_parameters: Option<Vec<String>>,
     ) -> Result<Vec<Token>, ProviderError>;
+
+    async fn send_transaction_eip712<T, D>(
+        &self,
+        wallet: &Wallet<D>,
+        transaction: T,
+    ) -> Result<(Vec<Token>, H256), ProviderError>
+    where
+        T: TryInto<Eip712TransactionRequest> + Send + Sync + Serialize + Debug,
+        D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Send + Sync;
 }
 
 #[async_trait]
@@ -446,6 +455,20 @@ impl<M: Middleware + ZKSProvider, S: Signer> ZKSProvider for SignerMiddleware<M,
             ))?;
 
         Ok((Vec::new(), transaction_receipt.transaction_hash))
+    }
+
+    async fn send_transaction_eip712<T, D>(
+        &self,
+        wallet: &Wallet<D>,
+        transaction: T,
+    ) -> Result<(Vec<Token>, H256), ProviderError>
+    where
+        T: TryInto<Eip712TransactionRequest> + Sync + Send + Serialize + Debug,
+        D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Send + Sync,
+    {
+        self.inner()
+            .send_transaction_eip712(wallet, transaction)
+            .await
     }
 
     async fn wait_for_finalize(
@@ -683,6 +706,54 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
     ) -> Result<DebugTrace, ProviderError> {
         self.request("debug_traceTransaction", json!([hash, options]))
             .await
+    }
+
+    async fn send_transaction_eip712<T, D>(
+        &self,
+        wallet: &Wallet<D>,
+        transaction: T,
+    ) -> Result<(Vec<Token>, H256), ProviderError>
+    where
+        T: TryInto<Eip712TransactionRequest> + Sync + Send + Debug + Serialize,
+        D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Send + Sync,
+    {
+        let mut request: Eip712TransactionRequest = transaction.try_into().map_err(|_e| {
+            ProviderError::CustomError(format!("error on send_transaction_eip712"))
+        })?;
+        request = request
+            .chain_id(wallet.chain_id())
+            .nonce(self.get_transaction_count(wallet.address(), None).await?)
+            .gas_price(self.get_gas_price().await?)
+            .max_fee_per_gas(self.get_gas_price().await?);
+
+        let fee = self.estimate_fee(request.clone()).await?;
+        request = request
+            .max_priority_fee_per_gas(fee.max_priority_fee_per_gas)
+            .max_fee_per_gas(fee.max_fee_per_gas)
+            .gas_limit(fee.gas_limit);
+
+        let signable_data: Eip712Transaction = request
+            .clone()
+            .try_into()
+            .map_err(|e: Eip712Error| ProviderError::CustomError(e.to_string()))?;
+        let signature: Signature = wallet
+            .sign_typed_data(&signable_data)
+            .await
+            .map_err(|e| ProviderError::CustomError(format!("error signing transaction: {e}")))?;
+        request = request.custom_data(Eip712Meta::new().custom_signature(signature.to_vec()));
+
+        let pending_transaction = self
+            .send_raw_transaction(
+                [&[EIP712_TX_TYPE], &*request.rlp_unsigned()]
+                    .concat()
+                    .into(),
+            )
+            .await?;
+
+        let transaction_hash = pending_transaction.tx_hash();
+
+        // TODO: decode function output.
+        Ok((Vec::new(), transaction_hash))
     }
 
     async fn send_eip712<D>(

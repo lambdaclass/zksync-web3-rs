@@ -1,5 +1,7 @@
-use ethers::types::{Address, U256};
+use ethers::types::{transaction::eip712::Eip712Error, Address, U256};
 use std::fmt::Debug;
+
+use crate::eip712::Eip712TransactionRequest;
 
 #[derive(Clone, Debug)]
 pub struct WithdrawRequest {
@@ -27,3 +29,13 @@ impl WithdrawRequest {
         self
     }
 }
+
+// impl TryFrom<Eip712TransactionRequest> for WithdrawRequest {
+//     type Error = Eip712Error;
+
+//     fn try_from(value: Eip712TransactionRequest) -> Result<Self, Self::Error> {
+//         Eip712TransactionRequest {
+
+//         }
+//     }
+// }
