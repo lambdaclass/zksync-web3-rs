@@ -16,6 +16,8 @@ fn default_l2_gas_limit() -> U256 {
 fn default_gas_per_pubdata_byte() -> U256 {
     DEPOSIT_GAS_PER_PUBDATA_LIMIT.into()
 }
+
+#[derive(Clone, Debug)]
 pub struct DepositRequest {
     pub amount: U256,
     pub to: Option<Address>,

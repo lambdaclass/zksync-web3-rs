@@ -1,10 +1,16 @@
+use std::str::FromStr;
+
 use super::{rlp_append_option, Eip712Meta};
 use crate::{
-    zks_utils::{EIP712_TX_TYPE, ERA_CHAIN_ID, MAX_PRIORITY_FEE_PER_GAS},
-    zks_wallet::Overrides,
+    zks_utils::{self, EIP712_TX_TYPE, ERA_CHAIN_ID, MAX_PRIORITY_FEE_PER_GAS},
+    zks_wallet::{Overrides, TransferRequest, WithdrawRequest},
 };
 use ethers::{
-    types::{transaction::eip2930::AccessList, Address, Bytes, Signature, U256, U64},
+    abi::HumanReadableParser,
+    types::{
+        transaction::{eip2930::AccessList, eip712::Eip712Error},
+        Address, Bytes, Signature, U256, U64,
+    },
     utils::rlp::{Encodable, RlpStream},
 };
 use serde::{Deserialize, Serialize};
@@ -227,5 +233,40 @@ impl Default for Eip712TransactionRequest {
             custom_data: Default::default(),
             ccip_read_enabled: Default::default(),
         }
+    }
+}
+
+impl TryFrom<WithdrawRequest> for Eip712TransactionRequest {
+    type Error = Eip712Error;
+
+    fn try_from(request: WithdrawRequest) -> Result<Self, Self::Error> {
+        let contract_address = Address::from_str(zks_utils::CONTRACTS_L2_ETH_TOKEN_ADDR).unwrap();
+        let function_signature = "function withdraw(address _l1Receiver) external payable override";
+        let function = HumanReadableParser::parse_function(function_signature).unwrap();
+        let function_args = function
+            .decode_input(
+                &zks_utils::encode_args(&function, &[format!("{:?}", request.to)]).unwrap(),
+            )
+            .unwrap();
+        let data: Bytes = function.encode_input(&function_args).unwrap().into();
+
+        Ok(Eip712TransactionRequest::new()
+            .r#type(EIP712_TX_TYPE)
+            .to(contract_address)
+            .value(request.amount)
+            .from(request.from)
+            .data(data))
+    }
+}
+
+impl TryFrom<TransferRequest> for Eip712TransactionRequest {
+    type Error = Eip712Error;
+
+    fn try_from(request: TransferRequest) -> Result<Self, Self::Error> {
+        Ok(Eip712TransactionRequest::new()
+            .r#type(EIP712_TX_TYPE)
+            .to(request.to)
+            .value(request.amount)
+            .from(request.from))
     }
 }

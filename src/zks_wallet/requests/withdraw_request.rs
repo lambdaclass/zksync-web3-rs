@@ -1,0 +1,29 @@
+use ethers::types::{Address, Bytes, U256};
+use std::fmt::Debug;
+
+#[derive(Clone, Debug)]
+pub struct WithdrawRequest {
+    pub amount: U256,
+    pub to: Address,
+    pub from: Address,
+}
+
+impl WithdrawRequest {
+    pub fn with(amount: U256) -> Self {
+        Self {
+            amount,
+            to: Default::default(),
+            from: Default::default(),
+        }
+    }
+
+    pub fn to(mut self, to: Address) -> Self {
+        self.to = to;
+        self
+    }
+
+    pub fn from(mut self, from: Address) -> Self {
+        self.from = from;
+        self
+    }
+}
