@@ -2,7 +2,10 @@ mod errors;
 pub use errors::ZKSWalletError;
 
 mod requests;
-pub use requests::{deposit_request::DepositRequest, withdraw_request::WithdrawRequest};
+pub use requests::{
+    deposit_request::DepositRequest, transfer_request::TransferRequest,
+    withdraw_request::WithdrawRequest,
+};
 
 mod wallet;
 pub use wallet::ZKSWallet;
