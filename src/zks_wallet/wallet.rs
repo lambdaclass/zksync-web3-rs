@@ -1,4 +1,6 @@
-use super::{DepositRequest, Overrides, WithdrawRequest, ZKSWalletError};
+use super::{
+    requests::transfer_request::TransferRequest, DepositRequest, WithdrawRequest, ZKSWalletError,
+};
 use crate::{
     contracts::main_contract::{MainContract, MainContractInstance},
     eip712::Eip712Transaction,
@@ -7,7 +9,7 @@ use crate::{
     zks_utils::{self, CONTRACT_DEPLOYER_ADDR, EIP712_TX_TYPE, ETH_CHAIN_ID},
 };
 use ethers::{
-    abi::{decode, Abi, ParamType, Token, Tokenizable},
+    abi::{decode, Abi, ParamType, Tokenizable},
     prelude::{
         encode_function_data,
         k256::{
@@ -148,8 +150,7 @@ where
 
     pub async fn transfer(
         &self,
-        to: Address,
-        amount_to_transfer: U256,
+        request: TransferRequest,
         // TODO: Support multiple-token transfers.
         _token: Option<Address>,
     ) -> Result<TransactionReceipt, ZKSWalletError<M, D>>
@@ -158,11 +159,7 @@ where
     {
         let era_provider = self.get_era_provider()?;
 
-        let mut transfer_request = Eip1559TransactionRequest::new()
-            .from(self.l2_address())
-            .to(to)
-            .value(amount_to_transfer)
-            .chain_id(self.l2_chain_id());
+        let mut transfer_request: Eip1559TransactionRequest = request.into();
 
         let fee = era_provider.estimate_fee(transfer_request.clone()).await?;
         transfer_request = transfer_request.max_priority_fee_per_gas(fee.max_priority_fee_per_gas);
@@ -182,8 +179,7 @@ where
 
     pub async fn transfer_eip712(
         &self,
-        to: Address,
-        amount_to_transfer: U256,
+        request: TransferRequest,
         // TODO: Support multiple-token transfers.
         _token: Option<Address>,
     ) -> Result<TransactionReceipt, ZKSWalletError<M, D>>
@@ -192,37 +188,12 @@ where
     {
         let era_provider = self.get_era_provider()?;
 
-        let mut transfer_request = Eip712TransactionRequest::new()
-            .from(self.l2_address())
-            .to(to)
-            .value(amount_to_transfer)
-            .nonce(
-                era_provider
-                    .get_transaction_count(self.l2_address(), None)
-                    .await?,
-            )
-            .gas_price(era_provider.get_gas_price().await?);
-
-        let fee = era_provider.estimate_fee(transfer_request.clone()).await?;
-        transfer_request = transfer_request
-            .max_priority_fee_per_gas(fee.max_priority_fee_per_gas)
-            .max_fee_per_gas(fee.max_fee_per_gas)
-            .gas_limit(fee.gas_limit);
-
-        let signable_data: Eip712Transaction = transfer_request.clone().try_into()?;
-        let signature: Signature = self.l2_wallet.sign_typed_data(&signable_data).await?;
-        transfer_request =
-            transfer_request.custom_data(Eip712Meta::new().custom_signature(signature.to_vec()));
-
-        let pending_transaction = era_provider
-            .send_raw_transaction(
-                [&[EIP712_TX_TYPE], &*transfer_request.rlp_unsigned()]
-                    .concat()
-                    .into(),
-            )
+        let response = era_provider
+            .send_transaction_eip712(&self.l2_wallet, request)
             .await?;
 
-        let transaction_receipt = pending_transaction
+        let transaction_receipt = era_provider
+            .get_transaction_receipt(response.1)
             .await?
             .ok_or(ZKSWalletError::CustomError(
                 "no transaction receipt".to_owned(),
@@ -494,29 +465,14 @@ where
 
     pub async fn withdraw(
         &self,
-        request: &WithdrawRequest,
+        request: WithdrawRequest,
     ) -> Result<TransactionReceipt, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
     {
         let era_provider = self.get_era_provider()?;
-
-        let contract_address =
-            Address::from_str(zks_utils::CONTRACTS_L2_ETH_TOKEN_ADDR).map_err(|error| {
-                ZKSWalletError::CustomError(format!("failed to parse contract address: {error}"))
-            })?;
-        let function_signature = "function withdraw(address _l1Receiver) external payable override";
-        let to: Address = request.to.unwrap_or(self.l1_address());
-        let response: (Vec<Token>, H256) = era_provider
-            .send_eip712(
-                &self.l2_wallet,
-                contract_address,
-                function_signature,
-                Some([format!("{to:?}")].into()),
-                Some(Overrides {
-                    value: Some(request.amount),
-                }),
-            )
+        let response = era_provider
+            .send_transaction_eip712(&self.l2_wallet, request)
             .await?;
 
         let tx_receipt = era_provider
@@ -661,7 +617,7 @@ mod zks_signer_tests {
     use crate::test_utils::*;
     use crate::zks_provider::ZKSProvider;
     use crate::zks_utils::{ERA_CHAIN_ID, ETH_CHAIN_ID};
-    use crate::zks_wallet::{DepositRequest, WithdrawRequest, ZKSWallet};
+    use crate::zks_wallet::{DepositRequest, TransferRequest, WithdrawRequest, ZKSWallet};
     use ethers::abi::Tokenize;
     use ethers::providers::Middleware;
     use ethers::signers::{LocalWallet, Signer};
@@ -698,13 +654,10 @@ mod zks_signer_tests {
 
         println!("Sender balance before: {sender_balance_before}");
         println!("Receiver balance before: {receiver_balance_before}");
-        println!("Sender balance before: {sender_balance_before}");
-        println!("Receiver balance before: {receiver_balance_before}");
 
-        let receipt = zk_wallet
-            .transfer(receiver_address, amount_to_transfer, None)
-            .await
-            .unwrap();
+        let transfer_request = TransferRequest::with(amount_to_transfer, receiver_address)
+            .from(zk_wallet.l2_address());
+        let receipt = zk_wallet.transfer(transfer_request, None).await.unwrap();
 
         assert_eq!(receipt.from, zk_wallet.l2_address());
         assert_eq!(receipt.to.unwrap(), receiver_address);
@@ -859,8 +812,9 @@ mod zks_signer_tests {
         println!("Sender balance before: {sender_balance_before}");
         println!("Receiver balance before: {receiver_balance_before}");
 
+        let transfer_request = TransferRequest::with(amount_to_transfer, receiver_address);
         let receipt = zk_wallet
-            .transfer_eip712(receiver_address, amount_to_transfer, None)
+            .transfer_eip712(transfer_request, None)
             .await
             .unwrap();
 
@@ -1036,7 +990,7 @@ mod zks_signer_tests {
         // Withdraw
         let amount_to_withdraw: U256 = parse_units(1_u8, "ether").unwrap().into();
         let withdraw_request = WithdrawRequest::with(amount_to_withdraw).to(zk_wallet.l1_address());
-        let tx_receipt = zk_wallet.withdraw(&withdraw_request).await.unwrap();
+        let tx_receipt = zk_wallet.withdraw(withdraw_request).await.unwrap();
         assert_eq!(
             1,
             tx_receipt.status.unwrap().as_u64(),
@@ -1133,7 +1087,7 @@ mod zks_signer_tests {
         // Withdraw
         let amount_to_withdraw: U256 = parse_units(1_u8, "ether").unwrap().into();
         let withdraw_request = WithdrawRequest::with(amount_to_withdraw).to(zk_wallet.l1_address());
-        let tx_receipt = zk_wallet.withdraw(&withdraw_request).await.unwrap();
+        let tx_receipt = zk_wallet.withdraw(withdraw_request).await.unwrap();
 
         assert_eq!(
             1,
