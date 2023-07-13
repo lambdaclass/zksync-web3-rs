@@ -228,7 +228,7 @@ pub trait ZKSProvider {
         transaction: T,
     ) -> Result<(Vec<Token>, H256), ProviderError>
     where
-        T: TryInto<Eip712TransactionRequest> + Send + Sync + Serialize + Debug,
+        T: TryInto<Eip712TransactionRequest> + Send + Sync + Debug,
         D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Send + Sync;
 }
 
@@ -463,7 +463,7 @@ impl<M: Middleware + ZKSProvider, S: Signer> ZKSProvider for SignerMiddleware<M,
         transaction: T,
     ) -> Result<(Vec<Token>, H256), ProviderError>
     where
-        T: TryInto<Eip712TransactionRequest> + Sync + Send + Serialize + Debug,
+        T: TryInto<Eip712TransactionRequest> + Sync + Send + Debug,
         D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Send + Sync,
     {
         self.inner()
@@ -714,13 +714,15 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
         transaction: T,
     ) -> Result<(Vec<Token>, H256), ProviderError>
     where
-        T: TryInto<Eip712TransactionRequest> + Sync + Send + Debug + Serialize,
+        T: TryInto<Eip712TransactionRequest> + Sync + Send + Debug,
         D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Send + Sync,
     {
         let mut request: Eip712TransactionRequest = transaction.try_into().map_err(|_e| {
             ProviderError::CustomError(format!("error on send_transaction_eip712"))
         })?;
+
         request = request
+            .from(wallet.address())
             .chain_id(wallet.chain_id())
             .nonce(self.get_transaction_count(wallet.address(), None).await?)
             .gas_price(self.get_gas_price().await?)
@@ -731,7 +733,6 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
             .max_priority_fee_per_gas(fee.max_priority_fee_per_gas)
             .max_fee_per_gas(fee.max_fee_per_gas)
             .gas_limit(fee.gas_limit);
-
         let signable_data: Eip712Transaction = request
             .clone()
             .try_into()
@@ -750,10 +751,14 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
             )
             .await?;
 
-        let transaction_hash = pending_transaction.tx_hash();
+        let transaction_receipt = pending_transaction
+            .await?
+            .ok_or(ProviderError::CustomError(
+                "no transaction receipt".to_owned(),
+            ))?;
 
         // TODO: decode function output.
-        Ok((Vec::new(), transaction_hash))
+        Ok((Vec::new(), transaction_receipt.transaction_hash))
     }
 
     async fn send_eip712<D>(
@@ -830,10 +835,14 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
             )
             .await?;
 
-        let transaction_hash = pending_transaction.tx_hash();
+        let transaction_receipt = pending_transaction
+            .await?
+            .ok_or(ProviderError::CustomError(
+                "no transaction receipt".to_owned(),
+            ))?;
 
         // TODO: decode function output.
-        Ok((Vec::new(), transaction_hash))
+        Ok((Vec::new(), transaction_receipt.transaction_hash))
     }
 
     async fn send<D>(
@@ -1019,7 +1028,7 @@ mod tests {
         test_utils::*,
         zks_provider::{types::TracerConfig, ZKSProvider},
         zks_utils::ERA_CHAIN_ID,
-        zks_wallet::ZKSWallet,
+        zks_wallet::{TransferRequest, ZKSWallet},
     };
     use ethers::{
         abi::Tokenize,
@@ -1392,12 +1401,13 @@ mod tests {
         let era_provider = era_provider();
         let zk_wallet = ZKSWallet::new(local_wallet(), None, Some(era_signer()), None).unwrap();
 
+        let transfer_request = TransferRequest::with(
+            1_u64.into(),
+            Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049").unwrap(),
+        )
+        .from(zk_wallet.l2_address());
         let transaction_hash = zk_wallet
-            .transfer(
-                Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049").unwrap(),
-                1_u64.into(),
-                None,
-            )
+            .transfer(transfer_request, None)
             .await
             .unwrap()
             .transaction_hash;
@@ -1784,12 +1794,13 @@ mod tests {
         let zk_wallet =
             ZKSWallet::new(local_wallet(), None, Some(era_signer.clone()), None).unwrap();
 
+        let transfer_request = TransferRequest::with(
+            1_u64.into(),
+            Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049").unwrap(),
+        )
+        .from(zk_wallet.l2_address());
         let transaction_hash = zk_wallet
-            .transfer(
-                Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049").unwrap(),
-                1_i32.into(),
-                None,
-            )
+            .transfer(transfer_request, None)
             .await
             .unwrap()
             .transaction_hash;
