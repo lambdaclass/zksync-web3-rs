@@ -29,7 +29,7 @@ use crate::{
     zks_utils::{
         self, is_precompile, DEFAULT_GAS, EIP712_TX_TYPE, MAX_FEE_PER_GAS, MAX_PRIORITY_FEE_PER_GAS,
     },
-    zks_wallet::Overrides,
+    zks_wallet::{CallRequest, Overrides},
 };
 
 use self::types::{
@@ -215,12 +215,7 @@ pub trait ZKSProvider {
         timeout_in_seconds: Option<Duration>,
     ) -> Result<TransactionReceipt, ProviderError>;
 
-    async fn call(
-        &self,
-        contract_address: Address,
-        function_signature: &str,
-        function_parameters: Option<Vec<String>>,
-    ) -> Result<Vec<Token>, ProviderError>;
+    async fn call(&self, request: &CallRequest) -> Result<Vec<Token>, ProviderError>;
 
     async fn send_transaction_eip712<T, D>(
         &self,
@@ -486,19 +481,8 @@ impl<M: Middleware + ZKSProvider, S: Signer> ZKSProvider for SignerMiddleware<M,
             .await
     }
 
-    async fn call(
-        &self,
-        contract_address: Address,
-        function_signature: &str,
-        function_parameters: Option<Vec<String>>,
-    ) -> Result<Vec<Token>, ProviderError> {
-        ZKSProvider::call(
-            self.inner(),
-            contract_address,
-            function_signature,
-            function_parameters,
-        )
-        .await
+    async fn call(&self, request: &CallRequest) -> Result<Vec<Token>, ProviderError> {
+        ZKSProvider::call(self.inner(), request).await
     }
 }
 
@@ -728,6 +712,7 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
             .gas_price(self.get_gas_price().await?)
             .max_fee_per_gas(self.get_gas_price().await?);
 
+        let custom_data = request.clone().custom_data;
         let fee = self.estimate_fee(request.clone()).await?;
         request = request
             .max_priority_fee_per_gas(fee.max_priority_fee_per_gas)
@@ -741,7 +726,7 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
             .sign_typed_data(&signable_data)
             .await
             .map_err(|e| ProviderError::CustomError(format!("error signing transaction: {e}")))?;
-        request = request.custom_data(Eip712Meta::new().custom_signature(signature.to_vec()));
+        request = request.custom_data(custom_data.custom_signature(signature.to_vec()));
 
         let pending_transaction = self
             .send_raw_transaction(
@@ -907,52 +892,9 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
         }
     }
 
-    async fn call(
-        &self,
-        contract_address: Address,
-        function_signature: &str,
-        function_parameters: Option<Vec<String>>,
-    ) -> Result<Vec<Token>, ProviderError> {
-        // Note: We couldn't implement ZKSWalletError::LexerError because ethers-rs's LexerError is not exposed.
-        let function = if contract_address == zks_utils::ECADD_PRECOMPILE_ADDRESS {
-            zks_utils::ec_add_function()
-        } else if contract_address == zks_utils::ECMUL_PRECOMPILE_ADDRESS {
-            zks_utils::ec_mul_function()
-        } else if contract_address == zks_utils::MODEXP_PRECOMPILE_ADDRESS {
-            zks_utils::mod_exp_function()
-        } else {
-            HumanReadableParser::parse_function(function_signature)
-                .map_err(|e| ProviderError::CustomError(e.to_string()))?
-        };
-        let function_args = if let Some(function_args) = function_parameters {
-            function
-                .decode_input(
-                    &zks_utils::encode_args(&function, &function_args)
-                        .map_err(|e| ProviderError::CustomError(e.to_string()))?,
-                )
-                .map_err(|e| ProviderError::CustomError(e.to_string()))?
-        } else {
-            vec![]
-        };
-
-        log::info!("{function_args:?}");
-
-        let request: Eip1559TransactionRequest =
-            Eip1559TransactionRequest::new().to(contract_address).data(
-                match (!function_args.is_empty(), is_precompile(contract_address)) {
-                    // The contract to call is a precompile with arguments.
-                    (true, true) => encode(&function_args),
-                    // The contract to call is a regular contract with arguments.
-                    (true, false) => function
-                        .encode_input(&function_args)
-                        .map_err(|e| ProviderError::CustomError(e.to_string()))?,
-                    // The contract to call is a precompile without arguments.
-                    (false, true) => Default::default(),
-                    // The contract to call is a regular contract without arguments.
-                    (false, false) => function.short_signature().into(),
-                },
-            );
-
+    async fn call(&self, request: &CallRequest) -> Result<Vec<Token>, ProviderError> {
+        let function = request.get_parsed_function();
+        let request: Eip1559TransactionRequest = request.clone().try_into().unwrap();
         let transaction: TypedTransaction = request.into();
 
         let encoded_output = Middleware::call(self, &transaction, None).await?;
@@ -1028,7 +970,7 @@ mod tests {
         test_utils::*,
         zks_provider::{types::TracerConfig, ZKSProvider},
         zks_utils::ERA_CHAIN_ID,
-        zks_wallet::{TransferRequest, ZKSWallet},
+        zks_wallet::{CallRequest, DeployRequest, TransferRequest, ZKSWallet},
     };
     use ethers::{
         abi::Tokenize,
@@ -1850,21 +1792,16 @@ mod tests {
         let contract: CompiledContract =
             serde_json::from_reader(File::open(contract_path).unwrap()).unwrap();
 
-        let transaction_receipt = zk_wallet
-            .deploy(
-                contract.abi,
-                contract.bin.to_vec(),
-                vec!["0".to_owned()],
-                None,
-            )
-            .await
-            .unwrap();
+        let deploy_request =
+            DeployRequest::with(contract.abi, contract.bin.to_vec(), vec!["0".to_owned()])
+                .from(zk_wallet.l2_address());
+        let transaction_receipt = zk_wallet.deploy(&deploy_request).await.unwrap();
 
         let contract_address = transaction_receipt.contract_address.unwrap();
-        let initial_value =
-            ZKSProvider::call(&era_provider, contract_address, "getValue()(uint256)", None)
-                .await
-                .unwrap();
+        let call_request = CallRequest::with(contract_address, "getValue()(uint256)".to_owned());
+        let initial_value = ZKSProvider::call(&era_provider, &call_request)
+            .await
+            .unwrap();
 
         assert_eq!(initial_value, U256::from(0_i32).into_tokens());
 
@@ -1879,10 +1816,9 @@ mod tests {
             )
             .await
             .unwrap();
-        let set_value =
-            ZKSProvider::call(&era_provider, contract_address, "getValue()(uint256)", None)
-                .await
-                .unwrap();
+        let set_value = ZKSProvider::call(&era_provider, &call_request)
+            .await
+            .unwrap();
 
         assert_eq!(
             set_value,
@@ -1899,10 +1835,9 @@ mod tests {
             )
             .await
             .unwrap();
-        let incremented_value =
-            ZKSProvider::call(&era_provider, contract_address, "getValue()(uint256)", None)
-                .await
-                .unwrap();
+        let incremented_value = ZKSProvider::call(&era_provider, &call_request)
+            .await
+            .unwrap();
 
         assert_eq!(
             incremented_value,
@@ -1925,13 +1860,12 @@ mod tests {
         let contract: CompiledContract =
             serde_json::from_reader(File::open(contract_path).unwrap()).unwrap();
 
-        let transaction_receipt = zk_wallet
-            .deploy(contract.abi, contract.bin.to_vec(), vec![], None)
-            .await
-            .unwrap();
+        let deploy_request = DeployRequest::with(contract.abi, contract.bin.to_vec(), vec![]);
+        let transaction_receipt = zk_wallet.deploy(&deploy_request).await.unwrap();
 
         let contract_address = transaction_receipt.contract_address.unwrap();
-        let output = ZKSProvider::call(&era_provider, contract_address, "str_out()(string)", None)
+        let call_request = CallRequest::with(contract_address, "str_out()(string)".to_owned());
+        let output = ZKSProvider::call(&era_provider, &call_request)
             .await
             .unwrap();
 
@@ -1954,29 +1888,21 @@ mod tests {
         let contract: CompiledContract =
             serde_json::from_reader(File::open(contract_path).unwrap()).unwrap();
 
-        let transaction_receipt = zk_wallet
-            .deploy(contract.abi, contract.bin.to_vec(), vec![], None)
+        let deploy_request = DeployRequest::with(contract.abi, contract.bin.to_vec(), vec![])
+            .from(zk_wallet.l2_address());
+        let transaction_receipt = zk_wallet.deploy(&deploy_request).await.unwrap();
+
+        let contract_address = transaction_receipt.contract_address.unwrap();
+        let call_request = CallRequest::with(contract_address, "plus_one(uint256)".to_owned())
+            .function_parameters(vec!["1".to_owned()]);
+        let no_return_type_output = ZKSProvider::call(&era_provider, &call_request)
             .await
             .unwrap();
 
-        let contract_address = transaction_receipt.contract_address.unwrap();
-        let no_return_type_output = ZKSProvider::call(
-            &era_provider,
-            contract_address,
-            "plus_one(uint256)",
-            Some(vec!["1".to_owned()]),
-        )
-        .await
-        .unwrap();
-
-        let known_return_type_output = ZKSProvider::call(
-            &era_provider,
-            contract_address,
-            "plus_one(uint256)(uint256)",
-            Some(vec!["1".to_owned()]),
-        )
-        .await
-        .unwrap();
+        let call_request = call_request.function_signature("plus_one(uint256)(uint256)".to_owned());
+        let known_return_type_output = ZKSProvider::call(&era_provider, &call_request)
+            .await
+            .unwrap();
 
         assert_eq!(
             no_return_type_output,
