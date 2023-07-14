@@ -1,18 +1,21 @@
-use std::str::FromStr;
+use std::{fs::File, io::BufReader, path::PathBuf, str::FromStr};
 
-use super::{rlp_append_option, Eip712Meta};
+use super::{hash_bytecode, rlp_append_option, Eip712Meta};
 use crate::{
-    zks_utils::{self, EIP712_TX_TYPE, ERA_CHAIN_ID, MAX_PRIORITY_FEE_PER_GAS},
-    zks_wallet::{Overrides, TransferRequest, WithdrawRequest},
+    zks_utils::{
+        self, CONTRACT_DEPLOYER_ADDR, EIP712_TX_TYPE, ERA_CHAIN_ID, MAX_PRIORITY_FEE_PER_GAS,
+    },
+    zks_wallet::{DeployRequest, Overrides, TransferRequest, WithdrawRequest},
 };
 use ethers::{
-    abi::HumanReadableParser,
+    abi::{Abi, HumanReadableParser},
     types::{
         transaction::{eip2930::AccessList, eip712::Eip712Error},
         Address, Bytes, Signature, U256, U64,
     },
     utils::rlp::{Encodable, RlpStream},
 };
+use ethers_contract::encode_function_data;
 use serde::{Deserialize, Serialize};
 
 // TODO: Not all the fields are optional. This was copied from the JS implementation.
@@ -268,5 +271,52 @@ impl TryFrom<TransferRequest> for Eip712TransactionRequest {
             .to(request.to)
             .value(request.amount)
             .from(request.from))
+    }
+}
+
+impl TryFrom<DeployRequest> for Eip712TransactionRequest {
+    type Error = Eip712Error;
+
+    fn try_from(request: DeployRequest) -> Result<Self, Self::Error> {
+        let mut contract_deployer_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        contract_deployer_path.push("src/abi/ContractDeployer.json");
+
+        let custom_data = Eip712Meta::new().factory_deps({
+            let mut factory_deps = Vec::new();
+            if let Some(factory_dependencies) = request.factory_deps {
+                factory_deps.extend(factory_dependencies);
+            }
+            factory_deps.push(request.contract_bytecode.clone());
+            factory_deps
+        });
+
+        let contract_deployer =
+            Abi::load(BufReader::new(File::open(contract_deployer_path).unwrap())).unwrap();
+        let create = contract_deployer.function("create").unwrap();
+
+        // TODO: User could provide this instead of defaulting.
+        let salt = [0_u8; 32];
+        let bytecode_hash = hash_bytecode(&request.contract_bytecode).unwrap();
+        let call_data: Bytes = match (
+            request.contract_abi.constructor(),
+            request.constructor_parameters.is_empty(),
+        ) {
+            (None, false) => return Err(Eip712Error::FailedToEncodeStruct),
+            (None, true) | (Some(_), true) => Bytes::default(),
+            (Some(constructor), false) => {
+                zks_utils::encode_constructor_args(constructor, &request.constructor_parameters)
+                    .unwrap()
+                    .into()
+            }
+        };
+
+        let data = encode_function_data(create, (salt, bytecode_hash, call_data)).unwrap();
+
+        let contract_deployer_address = Address::from_str(CONTRACT_DEPLOYER_ADDR).unwrap();
+        Ok(Eip712TransactionRequest::new()
+            .r#type(EIP712_TX_TYPE)
+            .to(contract_deployer_address)
+            .custom_data(custom_data)
+            .data(data))
     }
 }
