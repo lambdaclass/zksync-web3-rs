@@ -796,7 +796,7 @@ mod zks_signer_tests {
         let deploy_request =
             DeployRequest::with(contract.abi, contract.bin.to_vec(), vec!["10".to_owned()])
                 .from(zk_wallet.l2_address());
-        let transaction_receipt = zk_wallet.deploy(deploy_request).await.unwrap();
+        let transaction_receipt = zk_wallet.deploy(&deploy_request).await.unwrap();
 
         let contract_address = transaction_receipt.contract_address.unwrap();
         let deploy_result = era_provider.get_code(contract_address, None).await;
