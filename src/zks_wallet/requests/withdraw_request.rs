@@ -1,5 +1,6 @@
-use ethers::types::{Address, Bytes, U256};
 use std::fmt::Debug;
+
+use ethers::types::{Address, U256};
 
 #[derive(Clone, Debug)]
 pub struct WithdrawRequest {

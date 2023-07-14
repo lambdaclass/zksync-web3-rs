@@ -1,7 +1,4 @@
-use ethers::types::{
-    transaction::{eip1559::Eip1559RequestError, eip2718::TypedTransaction},
-    Address, Bytes, Eip1559TransactionRequest, U256,
-};
+use ethers::types::{Address, Eip1559TransactionRequest, U256};
 use std::fmt::Debug;
 
 use crate::zks_utils::ERA_CHAIN_ID;
