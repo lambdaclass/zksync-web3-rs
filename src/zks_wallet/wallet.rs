@@ -188,7 +188,7 @@ where
         amount_to_transfer: U256,
         // TODO: Support multiple-token transfers.
         _token: Option<Address>,
-    ) -> Result<TransactionReceipt, ZKSWalletError<M, D>>
+    ) -> Result<PendingTransaction<M::Provider>, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
     {
@@ -227,13 +227,7 @@ where
             )
             .await?;
 
-        let transaction_receipt = pending_transaction
-            .await?
-            .ok_or(ZKSWalletError::CustomError(
-                "no transaction receipt".to_owned(),
-            ))?;
-
-        Ok(transaction_receipt)
+        Ok(pending_transaction)
     }
 
     pub async fn deposit(
@@ -886,6 +880,9 @@ mod zks_signer_tests {
         let receipt = zk_wallet
             .transfer_eip712(receiver_address, amount_to_transfer, None)
             .await
+            .unwrap()
+            .await
+            .unwrap()
             .unwrap();
 
         assert_eq!(receipt.from, zk_wallet.l2_address());
