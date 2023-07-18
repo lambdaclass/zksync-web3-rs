@@ -1,8 +1,6 @@
 use ethers::types::{Address, Eip1559TransactionRequest, U256};
 use std::fmt::Debug;
 
-use crate::zks_utils::ERA_CHAIN_ID;
-
 #[derive(Clone, Debug)]
 pub struct TransferRequest {
     pub amount: U256,
@@ -31,6 +29,5 @@ impl From<TransferRequest> for Eip1559TransactionRequest {
             .to(request.to)
             .value(request.amount)
             .from(request.from)
-            .chain_id(ERA_CHAIN_ID)
     }
 }
