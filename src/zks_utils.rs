@@ -183,7 +183,7 @@ pub fn parse_tokens<'a, I: IntoIterator<Item = (&'a ParamType, &'a str)>>(
                 }
                 ParamType::Uint(_) => {
                     // try again if value is hex
-                    if let Ok(value) = U256::from_str(value).map(|v| v.to_string()) {
+                    if let Ok(value) = U256::from_str(value).map(|v| v.to_owned()) {
                         token = if lenient {
                             LenientTokenizer::tokenize(param, &value)
                         } else {
@@ -354,18 +354,18 @@ pub fn mod_exp_function() -> Function {
             },
             Param {
                 name: "".to_owned(),
-                kind: ParamType::Uint(256),
-                internal_type: Some("uint256".to_owned()),
+                kind: ParamType::Bytes,
+                internal_type: Some("bytes".to_owned()),
             },
             Param {
                 name: "".to_owned(),
-                kind: ParamType::Uint(256),
-                internal_type: Some("uint256".to_owned()),
+                kind: ParamType::Bytes,
+                internal_type: Some("bytes".to_owned()),
             },
             Param {
                 name: "".to_owned(),
-                kind: ParamType::Uint(256),
-                internal_type: Some("uint256".to_owned()),
+                kind: ParamType::Bytes,
+                internal_type: Some("bytes".to_owned()),
             },
         ],
         outputs: vec![Param {
