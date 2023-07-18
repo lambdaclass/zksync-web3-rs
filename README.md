@@ -2,21 +2,23 @@
 
 ## Table of Contents
 
-- [Getting Started with zkSync Web3 SDK](#getting-started-with-zksync-web3-sdk)
-  - [Prerequisites](#prerequisites)
-  - [Adding dependencies](#adding-dependencies)
-  - [First steps](#first-steps)
-    - [Importing dependencies](#importing-dependencies)
-    - [Creating a Wallet](#creating-a-wallet)
-    - [Connecting to the zkSync Network](#connecting-to-the-zksync-network)
-    - [Creating a Payment Transaction](#creating-a-payment-transaction)
-    - [Sending the Transaction](#sending-the-transaction)
-    - [Checking zkSync account balance](#checking-zksync-account-balance)
-  - [Simple Transfer Example](#simple-transfer-example)
-    - [Clone the Repository](#clone-the-repository)
-    - [Run a zkSync localnet](#run-a-zksync-localnet)
-    - [Run the Simple Transfer Example](#run-the-simple-transfer-example)
-  - [Conclusion](#conclusion)
+- [zksync-web3-rs](#zksync-web3-rs)
+  - [Table of Contents](#table-of-contents)
+  - [Getting Started with zkSync Web3 SDK](#getting-started-with-zksync-web3-sdk)
+    - [Prerequisites](#prerequisites)
+    - [Adding dependencies](#adding-dependencies)
+    - [First steps](#first-steps)
+      - [Importing dependencies](#importing-dependencies)
+      - [Connecting to the zkSync Network](#connecting-to-the-zksync-network)
+      - [Creating a ZK-Wallet](#creating-a-zk-wallet)
+      - [Creating a Payment Transaction](#creating-a-payment-transaction)
+      - [Sending the Transaction](#sending-the-transaction)
+      - [Checking zkSync account balance](#checking-zksync-account-balance)
+    - [Simple Transfer Example](#simple-transfer-example)
+      - [Clone the Repository](#clone-the-repository)
+      - [Run a zkSync localnet](#run-a-zksync-localnet)
+      - [Run the Simple Transfer Example](#run-the-simple-transfer-example)
+    - [Conclusion](#conclusion)
 
 ## Getting Started with zkSync Web3 SDK
 
@@ -56,9 +58,16 @@ Import the `zksync-web3-rs` library into your project by adding the following li
 use zksync-web3-rs as zksync;
 ```
 
-#### Creating a Wallet
+#### Connecting to the zkSync Network
 
-To create a wallet, you need to provide the private key of the Ethereum account that will be used to sign the transaction. You can create a wallet using the following code:
+To connect to the zkSync network, you need to provide the URL of the zkSync node. The localnet runs both an *Ethereum* node (L1) on port `8545` and an *Era* node (L2) on port `3050`. You can connect to the zkSync Era network using the following code:
+
+```rust
+let provider = zksync::Provider::try_from("http://localhost:3050").unwrap();
+```
+
+#### Creating a ZK-Wallet
+
 
 > We set the chain id to 270 because we are using the zkSync Era node. If you want to use the mainnet, you should set the chain id to 9.
 > https://era.zksync.io/docs/tools/hardhat/testing.html#connect-wallet-to-local-nodes
@@ -70,14 +79,7 @@ let private_key: Wallet<SigningKey> = "0x7726827caac94a7f9e1b160f7ea819f172f7b6f
 let zksync_era_chain_id: u64 = 270;
 
 let wallet = zksync::Wallet::with_chain_id(private_key, zksync_era_chain_id);
-```
-
-#### Connecting to the zkSync Network
-
-To connect to the zkSync network, you need to provide the URL of the zkSync node. The localnet runs both an *Ethereum* node (L1) on port `8545` and an *Era* node (L2) on port `3050`. You can connect to the zkSync Era network using the following code:
-
-```rust
-let provider = zksync::Provider::try_from("http://localhost:3050").unwrap();
+let zk_wallet = zksync::ZKSWallet::new(wallet, None, Some(provider), None).unwrap();
 ```
 
 #### Creating a Payment Transaction
@@ -91,41 +93,20 @@ let sender_address: zksync::Address = "0x36615Cf349d7F6344891B1e7CA7C72883F5dc04
 let receiver_address: zksync::Address = "0xa61464658AfeAf65CccaaFD3a512b69A83B77618".parse().unwrap();
 let amount_to_transfer = zksync::U256::from(1);
 
-let mut payment_request = zksync::Eip1559TransactionRequest::new()
-    .from(sender_address)
-    .to(receiver_address)
-    .value(amount_to_transfer);
-
-let fee = provider
-    .clone()
-    .estimate_fee(payment_request.clone())
-    .await
-    .unwrap();
-
-payment_request = payment_request.max_priority_fee_per_gas(fee.max_priority_fee_per_gas);
-payment_request = payment_request.max_fee_per_gas(fee.max_fee_per_gas);
-
-let transaction: zksync::TypedTransaction = payment_request.into();
+let mut payment_request = zksync::zks_wallet::TransferRequest::with(amount_to_transfer              
+        receiver_address)
+        .from(sender_address);
 ```
 
 #### Sending the Transaction
 
-To send the transaction, you need to provide the wallet and the transaction. You can send the transaction using the following code:
+To send the payment transaction, you need to provide use the wallet and the transaction. You can send the transaction using the following code:
 
-> In case you are wondering, the transaction is signed in the `send_transaction` method.
+> In case you are wondering, the transaction is signed in the `send_transaction` method inside the transfer process.
 
 ```rust
-use zksync::MiddlewareBuilder;
-
-let signer_middleware = provider.clone().with_signer(wallet);
-
 let payment_response: zksync::TransactionReceipt =
-    zksync::SignerMiddleware::send_transaction(&signer_middleware, transaction, None)
-        .await
-        .unwrap()
-        .await
-        .unwrap()
-        .unwrap();
+        zk_wallet.transfer(payment_request, None).await.unwrap();
 ```
 
 #### Checking zkSync account balance
@@ -165,7 +146,7 @@ docker-compose up
 To run the payment transaction example using EIP1559 transactions on zkSync Era, run the following command:
 
 ```bash
-cargo run --example simple_payment --host <HOST> --port <PORT> --amount <AMOUNT> --from <SENDER_ADDRESS> --to <RECEIVER_ADDRESS> --private-key <PRIVATE_KEY> --network <NETWORK>
+cargo run --example simple_payment -- --host <HOST> --port <PORT> --amount <AMOUNT> --from <SENDER_ADDRESS> --to <RECEIVER_ADDRESS> --private-key <PRIVATE_KEY>
 ```
 
 - `HOST`: The IP address or hostname of the node.
