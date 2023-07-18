@@ -1,10 +1,13 @@
 use ethers::{
-    abi::{encode, Function, HumanReadableParser},
-    types::{transaction::eip1559::Eip1559RequestError, Address, Eip1559TransactionRequest},
+    abi::{encode, Function, HumanReadableParser, ParseError},
+    types::{Address, Eip1559TransactionRequest},
 };
 use std::fmt::Debug;
 
-use crate::zks_utils::{self, is_precompile};
+use crate::{
+    zks_utils::{self, is_precompile},
+    zks_wallet::errors::ZKRequestError,
+};
 
 #[derive(Clone, Debug)]
 pub struct CallRequest {
@@ -37,29 +40,27 @@ impl CallRequest {
         self
     }
 
-    pub fn get_parsed_function(&self) -> Function {
-        let function = if self.to == zks_utils::ECADD_PRECOMPILE_ADDRESS {
-            zks_utils::ec_add_function()
+    pub fn get_parsed_function(&self) -> Result<Function, ParseError> {
+        if self.to == zks_utils::ECADD_PRECOMPILE_ADDRESS {
+            Ok(zks_utils::ec_add_function())
         } else if self.to == zks_utils::ECMUL_PRECOMPILE_ADDRESS {
-            zks_utils::ec_mul_function()
+            Ok(zks_utils::ec_mul_function())
         } else if self.to == zks_utils::MODEXP_PRECOMPILE_ADDRESS {
-            zks_utils::mod_exp_function()
+            Ok(zks_utils::mod_exp_function())
         } else {
-            HumanReadableParser::parse_function(&self.function_signature).unwrap()
-        };
-        function
+            HumanReadableParser::parse_function(&self.function_signature)
+                .map_err(ParseError::LexerError)
+        }
     }
 }
 
 impl TryFrom<CallRequest> for Eip1559TransactionRequest {
-    type Error = Eip1559RequestError;
+    type Error = ZKRequestError;
 
     fn try_from(request: CallRequest) -> Result<Eip1559TransactionRequest, Self::Error> {
-        let function = request.get_parsed_function();
+        let function = request.get_parsed_function()?;
         let function_args = if let Some(function_args) = request.function_parameters {
-            function
-                .decode_input(&zks_utils::encode_args(&function, &function_args).unwrap())
-                .unwrap()
+            function.decode_input(&zks_utils::encode_args(&function, &function_args)?)?
         } else {
             vec![]
         };
@@ -68,7 +69,7 @@ impl TryFrom<CallRequest> for Eip1559TransactionRequest {
             // The contract to call is a precompile with arguments.
             (true, true) => encode(&function_args),
             // The contract to call is a regular contract with arguments.
-            (true, false) => function.encode_input(&function_args).unwrap(),
+            (true, false) => function.encode_input(&function_args)?,
             // The contract to call is a precompile without arguments.
             (false, true) => Default::default(),
             // The contract to call is a regular contract without arguments.

@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use ethers::{
-    abi::{encode, HumanReadableParser, Token, Tokenize},
+    abi::{HumanReadableParser, Token, Tokenize},
     prelude::{
         k256::{
             ecdsa::{RecoveryId, Signature as RecoverableSignature},
@@ -26,9 +26,7 @@ use types::Fee;
 
 use crate::{
     eip712::{Eip712Meta, Eip712Transaction, Eip712TransactionRequest},
-    zks_utils::{
-        self, is_precompile, DEFAULT_GAS, EIP712_TX_TYPE, MAX_FEE_PER_GAS, MAX_PRIORITY_FEE_PER_GAS,
-    },
+    zks_utils::{self, DEFAULT_GAS, EIP712_TX_TYPE, MAX_FEE_PER_GAS, MAX_PRIORITY_FEE_PER_GAS},
     zks_wallet::{CallRequest, Overrides},
 };
 
@@ -702,7 +700,7 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
         D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Send + Sync,
     {
         let mut request: Eip712TransactionRequest = transaction.try_into().map_err(|_e| {
-            ProviderError::CustomError(format!("error on send_transaction_eip712"))
+            ProviderError::CustomError("error on send_transaction_eip712".to_owned())
         })?;
 
         request = request
@@ -893,8 +891,13 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
     }
 
     async fn call(&self, request: &CallRequest) -> Result<Vec<Token>, ProviderError> {
-        let function = request.get_parsed_function();
-        let request: Eip1559TransactionRequest = request.clone().try_into().unwrap();
+        let function = request
+            .get_parsed_function()
+            .map_err(|e| ProviderError::CustomError(format!("Failed to parse function: {e}")))?;
+        let request: Eip1559TransactionRequest = request
+            .clone()
+            .try_into()
+            .map_err(|e| ProviderError::CustomError(format!("Failed to convert request: {e}")))?;
         let transaction: TypedTransaction = request.into();
 
         let encoded_output = Middleware::call(self, &transaction, None).await?;

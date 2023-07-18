@@ -1,5 +1,5 @@
 mod errors;
-pub use errors::ZKSWalletError;
+pub use errors::{ZKRequestError, ZKSWalletError};
 
 mod requests;
 pub use requests::{

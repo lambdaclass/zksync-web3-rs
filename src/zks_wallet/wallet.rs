@@ -17,7 +17,7 @@ use ethers::{
             ecdsa::{RecoveryId, Signature as RecoverableSignature},
             schnorr::signature::hazmat::PrehashSigner,
         },
-        ContractError, MiddlewareBuilder, SignerMiddleware,
+        MiddlewareBuilder, SignerMiddleware,
     },
     providers::Middleware,
     signers::{Signer, Wallet},
@@ -378,7 +378,7 @@ where
     {
         let era_provider = self.get_era_provider()?;
 
-        let eip712_request: Eip712TransactionRequest = request.clone().try_into().unwrap();
+        let eip712_request: Eip712TransactionRequest = request.clone().try_into()?;
 
         let response = era_provider
             .send_transaction_eip712(&self.l2_wallet, eip712_request)
