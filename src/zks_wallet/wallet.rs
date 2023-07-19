@@ -324,6 +324,7 @@ where
     where
         M: ZKSProvider,
     {
+        let eth_provider = self.get_eth_provider()?;
         let era_provider = self.get_era_provider()?;
 
         let gas_limit: U256 = {
@@ -387,7 +388,7 @@ where
                 .into()
         };
 
-        let chain_id = era_provider.get_chainid().await?.as_u64();
+        let chain_id = eth_provider.get_chainid().await?.as_u64();
 
         println!("bridge_address: {:?}", bridge_address);
         let bridge_address: NameOrAddress = match bridge_address {
@@ -400,9 +401,9 @@ where
         println!("bridge_address: {:?}", bridge_address);
 
         // FIXME where do I set the nonce?
-        let transaction = Eip1559TransactionRequest {
+        let deposit_transaction = Eip1559TransactionRequest {
             from: Some(self.get_eth_provider()?.address()),
-            to: Some(bridge_address),
+            to: Some(bridge_address.clone()),
             gas: Some(gas_limit),
             value: Some(value),
             data: Some(data),
@@ -412,14 +413,53 @@ where
             max_fee_per_gas: None,          // FIXME
             chain_id: Some(chain_id.into()),
         };
-        println!("tx: {:?}", transaction);
 
-        let pending_transaction = era_provider.send_transaction(transaction, None).await?;
+        let _approve_tx_receipt = self
+            .approve_erc20(
+                bridge_address.as_address().unwrap().clone(),
+                amount,
+                l1_token_address,
+            )
+            .await?;
+        let pending_transaction = eth_provider
+            .send_transaction(deposit_transaction, None)
+            .await?;
 
         pending_transaction
             .await?
             .ok_or(ZKSWalletError::CustomError(
                 "no transaction receipt".to_owned(),
+            ))
+    }
+
+    async fn approve_erc20(
+        &self,
+        bridge: Address,
+        amount: U256,
+        token: Address,
+    ) -> Result<TransactionReceipt, ZKSWalletError<M, D>>
+    where
+        M: ZKSProvider,
+    {
+        let provider = self.get_eth_provider()?;
+        let function_signature =
+            "function approve(address spender,uint256 amount) public virtual returns (bool)";
+        let parameters = [format!("{:?}", bridge), format!("{:?}", amount)];
+        let response = provider
+            .send(
+                &self.l1_wallet,
+                token,
+                function_signature,
+                Some(parameters.into()),
+                None,
+            )
+            .await?;
+
+        provider
+            .get_transaction_receipt(response.1)
+            .await?
+            .ok_or(ZKSWalletError::CustomError(
+                "No transaction receipt for erc20 approval".to_owned(),
             ))
     }
 
