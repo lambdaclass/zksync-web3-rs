@@ -11,7 +11,7 @@ use crate::{
     zks_utils::{self, CONTRACT_DEPLOYER_ADDR, EIP712_TX_TYPE, ETH_CHAIN_ID},
 };
 use ethers::{
-    abi::{decode, Abi, ParamType, Token, Tokenizable},
+    abi::{decode, Abi, ParamType, Tokenizable},
     prelude::{
         encode_function_data,
         k256::{
@@ -156,7 +156,7 @@ where
         amount_to_transfer: U256,
         // TODO: Support multiple-token transfers.
         _token: Option<Address>,
-    ) -> Result<PendingTransaction<M::Provider>, ZKSWalletError<M, D>>
+    ) -> Result<PendingTransaction<<M as Middleware>::Provider>, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
     {
@@ -188,7 +188,7 @@ where
         amount_to_transfer: U256,
         // TODO: Support multiple-token transfers.
         _token: Option<Address>,
-    ) -> Result<PendingTransaction<M::Provider>, ZKSWalletError<M, D>>
+    ) -> Result<PendingTransaction<<M as Middleware>::Provider>, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
     {
@@ -501,7 +501,7 @@ where
         &self,
         amount: U256,
         to: Address,
-    ) -> Result<TransactionReceipt, ZKSWalletError<M, D>>
+    ) -> Result<PendingTransaction<<M as ZKSProvider>::ZKProvider>, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
     {
@@ -515,7 +515,7 @@ where
                 ZKSWalletError::CustomError(format!("failed to parse contract address: {error}"))
             })?;
         let function_signature = "function withdraw(address _l1Receiver) external payable override";
-        let response: (Vec<Token>, H256) = era_provider
+        let response = era_provider
             .send_eip712(
                 &self.l2_wallet,
                 contract_address,
@@ -525,24 +525,15 @@ where
                     value: Some(amount),
                 }),
             )
-            .await?;
+            .await;
 
-        let tx_receipt = era_provider
-            .get_transaction_receipt(response.1)
-            .await?
-            .ok_or(ZKSWalletError::CustomError(
-                "No transaction receipt for withdraw".to_owned(),
-            ))?;
-
-        Ok(era_provider
-            .wait_for_finalize(tx_receipt, None, None)
-            .await?)
+        response.map_err(|e| ZKSWalletError::CustomError(format!("Error calling withdraw: {e}")))
     }
 
     pub async fn finalize_withdraw(
         &self,
         tx_hash: H256,
-    ) -> Result<TransactionReceipt, ZKSWalletError<M, D>>
+    ) -> Result<PendingTransaction<<M as Middleware>::Provider>, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
     {
@@ -659,14 +650,10 @@ where
                 Some(parameters.into()),
                 None,
             )
-            .await?;
-
-        eth_provider
-            .get_transaction_receipt(response.1)
-            .await?
-            .ok_or(ZKSWalletError::CustomError(
-                "No transaction receipt for finalize withdraw".to_owned(),
-            ))
+            .await;
+        response.map_err(|e| {
+            ZKSWalletError::CustomError(format!("Error calling finalizeWithdrawal: {e}"))
+        })
     }
 }
 
@@ -1059,6 +1046,15 @@ mod zks_signer_tests {
         let tx_receipt = zk_wallet
             .withdraw(amount_to_withdraw, zk_wallet.l1_address())
             .await
+            .unwrap()
+            .await
+            .unwrap()
+            .unwrap();
+        let tx_receipt = zk_wallet
+            .get_era_provider()
+            .unwrap()
+            .wait_for_finalize(tx_receipt.clone(), None, None)
+            .await
             .unwrap();
         assert_eq!(
             1,
@@ -1086,6 +1082,9 @@ mod zks_signer_tests {
         let tx_finalize_receipt = zk_wallet
             .finalize_withdraw(tx_receipt.transaction_hash)
             .await
+            .unwrap()
+            .await
+            .unwrap()
             .unwrap();
 
         println!(
@@ -1158,6 +1157,15 @@ mod zks_signer_tests {
         let tx_receipt = zk_wallet
             .withdraw(amount_to_withdraw, zk_wallet.l1_address())
             .await
+            .unwrap()
+            .await
+            .unwrap()
+            .unwrap();
+        let tx_receipt = zk_wallet
+            .get_era_provider()
+            .unwrap()
+            .wait_for_finalize(tx_receipt, None, None)
+            .await
             .unwrap();
         assert_eq!(
             1,
@@ -1185,6 +1193,9 @@ mod zks_signer_tests {
         let tx_finalize_receipt = zk_wallet
             .finalize_withdraw(tx_receipt.transaction_hash)
             .await
+            .unwrap()
+            .await
+            .unwrap()
             .unwrap();
 
         println!(
