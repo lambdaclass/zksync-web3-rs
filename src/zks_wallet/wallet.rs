@@ -369,10 +369,7 @@ where
         Ok(contract_address)
     }
 
-    pub async fn deploy(
-        &self,
-        request: &DeployRequest,
-    ) -> Result<TransactionReceipt, ZKSWalletError<M, D>>
+    pub async fn deploy(&self, request: &DeployRequest) -> Result<H160, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
     {
@@ -384,11 +381,17 @@ where
             .send_transaction_eip712(&self.l2_wallet, eip712_request)
             .await?;
 
-        era_provider
+        let transaction_receipt = era_provider
             .get_transaction_receipt(response.1)
             .await?
             .ok_or(ZKSWalletError::CustomError(
                 "no transaction receipt".to_owned(),
+            ))?;
+
+        transaction_receipt
+            .contract_address
+            .ok_or(ZKSWalletError::CustomError(
+                "no contract address".to_owned(),
             ))
     }
 
@@ -796,9 +799,7 @@ mod zks_signer_tests {
         let deploy_request =
             DeployRequest::with(contract.abi, contract.bin.to_vec(), vec!["10".to_owned()])
                 .from(zk_wallet.l2_address());
-        let transaction_receipt = zk_wallet.deploy(&deploy_request).await.unwrap();
-
-        let contract_address = transaction_receipt.contract_address.unwrap();
+        let contract_address = zk_wallet.deploy(&deploy_request).await.unwrap();
         let deploy_result = era_provider.get_code(contract_address, None).await;
 
         assert!(deploy_result.is_ok());
@@ -822,9 +823,7 @@ mod zks_signer_tests {
         let deploy_request =
             DeployRequest::with(contract.abi, contract.bin.to_vec(), vec!["Hey".to_owned()])
                 .from(zk_wallet.l2_address());
-        let transaction_receipt = zk_wallet.deploy(&deploy_request).await.unwrap();
-
-        let contract_address = transaction_receipt.contract_address.unwrap();
+        let contract_address = zk_wallet.deploy(&deploy_request).await.unwrap();
         let deploy_result = era_provider.get_code(contract_address, None).await;
 
         assert!(deploy_result.is_ok());
@@ -849,9 +848,7 @@ mod zks_signer_tests {
         let deploy_request =
             DeployRequest::with(counter_contract.abi, counter_contract.bin.to_vec(), vec![])
                 .from(zk_wallet.l2_address());
-        let transaction_receipt = zk_wallet.deploy(&deploy_request).await.unwrap();
-
-        let counter_contract_address = transaction_receipt.contract_address.unwrap();
+        let counter_contract_address = zk_wallet.deploy(&deploy_request).await.unwrap();
         let deploy_result = era_provider.get_code(counter_contract_address, None).await;
 
         assert!(deploy_result.is_ok());
@@ -869,9 +866,7 @@ mod zks_signer_tests {
             vec![format!("{counter_contract_address:?}")],
         )
         .from(zk_wallet.l2_address());
-        let transaction_receipt = zk_wallet.deploy(&deploy_request).await.unwrap();
-
-        let import_contract_address = transaction_receipt.contract_address.unwrap();
+        let import_contract_address = zk_wallet.deploy(&deploy_request).await.unwrap();
         let call_request = CallRequest::with(
             import_contract_address,
             "getCounterValue()(uint256)".to_owned(),

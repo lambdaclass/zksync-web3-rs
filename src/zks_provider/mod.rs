@@ -1798,9 +1798,7 @@ mod tests {
         let deploy_request =
             DeployRequest::with(contract.abi, contract.bin.to_vec(), vec!["0".to_owned()])
                 .from(zk_wallet.l2_address());
-        let transaction_receipt = zk_wallet.deploy(&deploy_request).await.unwrap();
-
-        let contract_address = transaction_receipt.contract_address.unwrap();
+        let contract_address = zk_wallet.deploy(&deploy_request).await.unwrap();
         let call_request = CallRequest::with(contract_address, "getValue()(uint256)".to_owned());
         let initial_value = ZKSProvider::call(&era_provider, &call_request)
             .await
@@ -1864,9 +1862,7 @@ mod tests {
             serde_json::from_reader(File::open(contract_path).unwrap()).unwrap();
 
         let deploy_request = DeployRequest::with(contract.abi, contract.bin.to_vec(), vec![]);
-        let transaction_receipt = zk_wallet.deploy(&deploy_request).await.unwrap();
-
-        let contract_address = transaction_receipt.contract_address.unwrap();
+        let contract_address = zk_wallet.deploy(&deploy_request).await.unwrap();
         let call_request = CallRequest::with(contract_address, "str_out()(string)".to_owned());
         let output = ZKSProvider::call(&era_provider, &call_request)
             .await
@@ -1893,9 +1889,7 @@ mod tests {
 
         let deploy_request = DeployRequest::with(contract.abi, contract.bin.to_vec(), vec![])
             .from(zk_wallet.l2_address());
-        let transaction_receipt = zk_wallet.deploy(&deploy_request).await.unwrap();
-
-        let contract_address = transaction_receipt.contract_address.unwrap();
+        let contract_address = zk_wallet.deploy(&deploy_request).await.unwrap();
         let call_request = CallRequest::with(contract_address, "plus_one(uint256)".to_owned())
             .function_parameters(vec!["1".to_owned()]);
         let no_return_type_output = ZKSProvider::call(&era_provider, &call_request)
