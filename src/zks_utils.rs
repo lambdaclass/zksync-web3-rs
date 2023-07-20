@@ -183,7 +183,7 @@ pub fn parse_tokens<'a, I: IntoIterator<Item = (&'a ParamType, &'a str)>>(
                 }
                 ParamType::Uint(_) => {
                     // try again if value is hex
-                    if let Ok(value) = U256::from_str(value).map(|v| v.to_owned()) {
+                    if let Ok(value) = U256::from_str(value).map(|v| v.to_string()) {
                         token = if lenient {
                             LenientTokenizer::tokenize(param, &value)
                         } else {
