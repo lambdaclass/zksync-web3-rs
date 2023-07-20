@@ -55,3 +55,5 @@ pub use zks_wallet::{DepositRequest, ZKSWallet, ZKSWalletError};
 extern crate self as zksync_web3_rs;
 #[cfg(test)]
 pub(crate) mod test_utils;
+#[cfg(test)]
+pub(crate) mod tests;
