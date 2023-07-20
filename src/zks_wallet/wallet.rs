@@ -596,8 +596,6 @@ mod zks_signer_tests {
         assert_eq!(receipt.from, zk_wallet.l2_address());
         assert_eq!(receipt.to.unwrap(), receiver_address);
 
-        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-
         let sender_balance_after = era_provider
             .get_balance(zk_wallet.l2_address(), None)
             .await
@@ -754,8 +752,6 @@ mod zks_signer_tests {
 
         assert_eq!(receipt.from, zk_wallet.l2_address());
         assert_eq!(receipt.to.unwrap(), receiver_address);
-
-        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
 
         let sender_balance_after = era_provider
             .get_balance(zk_wallet.l2_address(), None)
