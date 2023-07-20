@@ -359,18 +359,18 @@ pub fn mod_exp_function() -> Function {
             },
             Param {
                 name: "".to_owned(),
-                kind: ParamType::Uint(256),
-                internal_type: Some("uint256".to_owned()),
+                kind: ParamType::Bytes,
+                internal_type: Some("bytes".to_owned()),
             },
             Param {
                 name: "".to_owned(),
-                kind: ParamType::Uint(256),
-                internal_type: Some("uint256".to_owned()),
+                kind: ParamType::Bytes,
+                internal_type: Some("bytes".to_owned()),
             },
             Param {
                 name: "".to_owned(),
-                kind: ParamType::Uint(256),
-                internal_type: Some("uint256".to_owned()),
+                kind: ParamType::Bytes,
+                internal_type: Some("bytes".to_owned()),
             },
         ],
         outputs: vec![Param {

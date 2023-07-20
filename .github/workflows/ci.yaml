@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  Build:
+  build:
     name: Build
     runs-on: ubuntu-latest
     steps:
@@ -76,6 +76,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CARGO_TERM_COLOR: always
+      ZKSYNC_WEB3_RS_L1_PROVIDER_URL: http://65.21.140.36:8545
+      ZKSYNC_WEB3_RS_L2_PROVIDER_URL: http://65.21.140.36:3050
     steps:
       - uses: actions/checkout@v3
 

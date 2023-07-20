@@ -27,8 +27,7 @@ use types::Fee;
 use crate::{
     eip712::{Eip712Meta, Eip712Transaction, Eip712TransactionRequest},
     zks_utils::{
-        self, is_precompile, DEFAULT_GAS, EIP712_TX_TYPE, ERA_CHAIN_ID, ETH_CHAIN_ID,
-        MAX_FEE_PER_GAS, MAX_PRIORITY_FEE_PER_GAS,
+        self, is_precompile, DEFAULT_GAS, EIP712_TX_TYPE, MAX_FEE_PER_GAS, MAX_PRIORITY_FEE_PER_GAS,
     },
     zks_wallet::Overrides,
 };
@@ -428,7 +427,7 @@ impl<M: Middleware + ZKSProvider, S: Signer> ZKSProvider for SignerMiddleware<M,
     {
         let tx = build_send_tx(
             self,
-            wallet.address(),
+            wallet,
             contract_address,
             function_signature,
             function_parameters,
@@ -723,7 +722,7 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
             .r#type(EIP712_TX_TYPE)
             .from(wallet.address())
             .to(contract_address)
-            .chain_id(ERA_CHAIN_ID)
+            .chain_id(wallet.chain_id())
             .nonce(self.get_transaction_count(wallet.address(), None).await?)
             .gas_price(self.get_gas_price().await?)
             .max_fee_per_gas(self.get_gas_price().await?)
@@ -783,7 +782,7 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
     {
         let tx = build_send_tx(
             self,
-            wallet.address(),
+            wallet,
             contract_address,
             function_signature,
             function_parameters,
@@ -894,14 +893,17 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
     }
 }
 
-async fn build_send_tx(
+async fn build_send_tx<D>(
     provider: &impl Middleware,
-    sender: Address,
+    wallet: &Wallet<D>,
     contract_address: Address,
     function_signature: &str,
     function_parameters: Option<Vec<String>>,
     _overrides: Option<Overrides>,
-) -> Result<TypedTransaction, ProviderError> {
+) -> Result<TypedTransaction, ProviderError>
+where
+    D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Send + Sync,
+{
     let function = HumanReadableParser::parse_function(function_signature)
         .map_err(|e| ProviderError::CustomError(e.to_string()))?;
 
@@ -918,12 +920,12 @@ async fn build_send_tx(
 
     // Sending transaction calling the main contract.
     let send_request = Eip1559TransactionRequest::new()
-        .from(sender)
+        .from(wallet.address())
         .to(contract_address)
-        .chain_id(ETH_CHAIN_ID)
+        .chain_id(wallet.chain_id())
         .nonce(
             provider
-                .get_transaction_count(sender, None)
+                .get_transaction_count(wallet.address(), None)
                 .await
                 .map_err(|e| ProviderError::CustomError(e.to_string()))?,
         )
@@ -1775,8 +1777,8 @@ mod tests {
             .deploy(
                 contract.abi,
                 contract.bin.to_vec(),
+                vec!["0".to_owned()],
                 None,
-                Some(vec!["0".to_owned()]),
             )
             .await
             .unwrap();
@@ -1837,7 +1839,9 @@ mod tests {
         let deployer_private_key =
             "7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110";
         let era_provider = era_provider();
-        let wallet = LocalWallet::from_str(deployer_private_key).unwrap();
+        let wallet = LocalWallet::from_str(deployer_private_key)
+            .unwrap()
+            .with_chain_id(ERA_CHAIN_ID);
         let zk_wallet = ZKSWallet::new(wallet, None, Some(era_provider.clone()), None).unwrap();
         let mut contract_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         contract_path.push("src/abi/test_contracts/basic_combined.json");
@@ -1845,7 +1849,7 @@ mod tests {
             serde_json::from_reader(File::open(contract_path).unwrap()).unwrap();
 
         let transaction_receipt = zk_wallet
-            .deploy(contract.abi, contract.bin.to_vec(), None, None)
+            .deploy(contract.abi, contract.bin.to_vec(), vec![], None)
             .await
             .unwrap();
 
@@ -1863,7 +1867,9 @@ mod tests {
         let deployer_private_key =
             "7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110";
         let era_provider = era_provider();
-        let wallet = LocalWallet::from_str(deployer_private_key).unwrap();
+        let wallet = LocalWallet::from_str(deployer_private_key)
+            .unwrap()
+            .with_chain_id(ERA_CHAIN_ID);
         let zk_wallet = ZKSWallet::new(wallet, None, Some(era_provider.clone()), None).unwrap();
 
         let mut contract_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -1872,7 +1878,7 @@ mod tests {
             serde_json::from_reader(File::open(contract_path).unwrap()).unwrap();
 
         let transaction_receipt = zk_wallet
-            .deploy(contract.abi, contract.bin.to_vec(), None, None)
+            .deploy(contract.abi, contract.bin.to_vec(), vec![], None)
             .await
             .unwrap();
 
