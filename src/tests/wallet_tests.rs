@@ -45,6 +45,9 @@ mod zks_signer_tests {
         let receipt = zk_wallet
             .transfer(receiver_address, amount_to_transfer, None)
             .await
+            .unwrap()
+            .await
+            .unwrap()
             .unwrap();
 
         assert_eq!(receipt.from, zk_wallet.l2_address());
@@ -203,6 +206,9 @@ mod zks_signer_tests {
         let receipt = zk_wallet
             .transfer_eip712(receiver_address, amount_to_transfer, None)
             .await
+            .unwrap()
+            .await
+            .unwrap()
             .unwrap();
 
         assert_eq!(receipt.from, zk_wallet.l2_address());
@@ -379,6 +385,16 @@ mod zks_signer_tests {
         let tx_receipt = zk_wallet
             .withdraw(amount_to_withdraw, zk_wallet.l1_address())
             .await
+            .unwrap()
+            .await
+            .unwrap()
+            .unwrap();
+
+        let tx_receipt = zk_wallet
+            .get_era_provider()
+            .unwrap()
+            .wait_for_finalize(tx_receipt, None, None)
+            .await
             .unwrap();
         assert_eq!(
             1,
@@ -406,6 +422,9 @@ mod zks_signer_tests {
         let tx_finalize_receipt = zk_wallet
             .finalize_withdraw(tx_receipt.transaction_hash)
             .await
+            .unwrap()
+            .await
+            .unwrap()
             .unwrap();
 
         println!(
@@ -478,6 +497,16 @@ mod zks_signer_tests {
         let tx_receipt = zk_wallet
             .withdraw(amount_to_withdraw, zk_wallet.l1_address())
             .await
+            .unwrap()
+            .await
+            .unwrap()
+            .unwrap();
+
+        let tx_receipt = zk_wallet
+            .get_era_provider()
+            .unwrap()
+            .wait_for_finalize(tx_receipt, None, None)
+            .await
             .unwrap();
         assert_eq!(
             1,
@@ -505,6 +534,9 @@ mod zks_signer_tests {
         let tx_finalize_receipt = zk_wallet
             .finalize_withdraw(tx_receipt.transaction_hash)
             .await
+            .unwrap()
+            .await
+            .unwrap()
             .unwrap();
 
         println!(

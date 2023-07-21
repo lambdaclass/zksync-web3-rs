@@ -386,6 +386,9 @@ mod zks_provider_tests {
             )
             .await
             .unwrap()
+            .await
+            .unwrap()
+            .unwrap()
             .transaction_hash;
         let invalid_transaction_hash: H256 =
             "0x84472204e445cb3cd5f3ce5e23abcc2892cda5e61b35855a7f0bb1562a6e30e7"
@@ -778,6 +781,9 @@ mod zks_provider_tests {
             )
             .await
             .unwrap()
+            .await
+            .unwrap()
+            .unwrap()
             .transaction_hash;
         let invalid_transaction_hash: H256 =
             "0x84472204e445cb3cd5f3ce5e23abcc2892cda5e61b35855a7f0bb1562a6e30e7"
@@ -853,6 +859,8 @@ mod zks_provider_tests {
                 None,
             )
             .await
+            .unwrap()
+            .await
             .unwrap();
         let set_value =
             ZKSProvider::call(&era_provider, contract_address, "getValue()(uint256)", None)
@@ -872,6 +880,8 @@ mod zks_provider_tests {
                 None,
                 None,
             )
+            .await
+            .unwrap()
             .await
             .unwrap();
         let incremented_value =
