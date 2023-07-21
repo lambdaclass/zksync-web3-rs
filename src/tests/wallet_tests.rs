@@ -1,8 +1,8 @@
 mod zks_signer_tests {
     use crate::zks_provider::ZKSProvider;
-    use crate::zks_utils::{ERA_CHAIN_ID, ETH_CHAIN_ID};
+    use crate::zks_utils::ETH_CHAIN_ID;
     use crate::zks_wallet::ZKSWallet;
-    use crate::{test_utils::*, DepositRequest};
+    use crate::{tests::utils::*, DepositRequest};
     use ethers::abi::Tokenize;
     use ethers::providers::Middleware;
     use ethers::signers::{LocalWallet, Signer};
@@ -15,17 +15,13 @@ mod zks_signer_tests {
 
     #[tokio::test]
     async fn test_transfer() {
-        let sender_private_key =
-            "0x28a574ab2de8a00364d5dd4b07c4f2f574ef7fcc2a86a197f65abaec836d1959";
         let receiver_address: Address = "0xa61464658AfeAf65CccaaFD3a512b69A83B77618"
             .parse()
             .unwrap();
         let amount_to_transfer: U256 = 1_i32.into();
 
         let era_provider = era_provider();
-        let wallet = LocalWallet::from_str(sender_private_key)
-            .unwrap()
-            .with_chain_id(ERA_CHAIN_ID);
+        let wallet = local_wallet();
         let zk_wallet = ZKSWallet::new(wallet, None, Some(era_provider.clone()), None).unwrap();
 
         let sender_balance_before = era_provider
@@ -53,8 +49,6 @@ mod zks_signer_tests {
         assert_eq!(receipt.from, zk_wallet.l2_address());
         assert_eq!(receipt.to.unwrap(), receiver_address);
 
-        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-
         let sender_balance_after = era_provider
             .get_balance(zk_wallet.l2_address(), None)
             .await
@@ -81,15 +75,9 @@ mod zks_signer_tests {
 
     #[tokio::test]
     async fn test_deposit() {
-        let private_key = "0x28a574ab2de8a00364d5dd4b07c4f2f574ef7fcc2a86a197f65abaec836d1959";
-        let request = DepositRequest::new(parse_units("0.01", "ether").unwrap().into());
-        println!("Amount: {}", request.amount);
-
         let l1_provider = eth_provider();
         let l2_provider = era_provider();
-        let wallet = LocalWallet::from_str(private_key)
-            .unwrap()
-            .with_chain_id(ERA_CHAIN_ID);
+        let wallet = local_wallet();
         let zk_wallet = ZKSWallet::new(
             wallet,
             None,
@@ -103,6 +91,8 @@ mod zks_signer_tests {
         println!("L1 balance before: {l1_balance_before}");
         println!("L2 balance before: {l2_balance_before}");
 
+        let request = DepositRequest::new(parse_units("0.01", "ether").unwrap().into());
+        println!("Amount: {}", request.amount);
         let receipt = zk_wallet.deposit(&request).await.unwrap();
         assert_eq!(receipt.status.unwrap(), 1_u8.into());
 
@@ -128,7 +118,6 @@ mod zks_signer_tests {
 
     #[tokio::test]
     async fn test_deposit_to_another_address() {
-        let private_key = "0x28a574ab2de8a00364d5dd4b07c4f2f574ef7fcc2a86a197f65abaec836d1959";
         let to: Address = "0xa61464658AfeAf65CccaaFD3a512b69A83B77618"
             .parse()
             .unwrap();
@@ -139,7 +128,7 @@ mod zks_signer_tests {
 
         let l1_provider = eth_provider();
         let l2_provider = era_provider();
-        let wallet = LocalWallet::from_str(private_key).unwrap();
+        let wallet = local_wallet();
         let zk_wallet = ZKSWallet::new(
             wallet,
             None,
@@ -178,17 +167,13 @@ mod zks_signer_tests {
 
     #[tokio::test]
     async fn test_transfer_eip712() {
-        let sender_private_key =
-            "0x28a574ab2de8a00364d5dd4b07c4f2f574ef7fcc2a86a197f65abaec836d1959";
         let receiver_address: Address = "0xa61464658AfeAf65CccaaFD3a512b69A83B77618"
             .parse()
             .unwrap();
         let amount_to_transfer: U256 = 1_i32.into();
 
         let era_provider = era_provider();
-        let wallet = LocalWallet::from_str(sender_private_key)
-            .unwrap()
-            .with_chain_id(ERA_CHAIN_ID);
+        let wallet = local_wallet();
         let zk_wallet = ZKSWallet::new(wallet, None, Some(era_provider.clone()), None).unwrap();
 
         let sender_balance_before = era_provider
@@ -213,8 +198,6 @@ mod zks_signer_tests {
 
         assert_eq!(receipt.from, zk_wallet.l2_address());
         assert_eq!(receipt.to.unwrap(), receiver_address);
-
-        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
 
         let sender_balance_after = era_provider
             .get_balance(zk_wallet.l2_address(), None)
@@ -242,12 +225,8 @@ mod zks_signer_tests {
 
     #[tokio::test]
     async fn test_deploy_contract_with_constructor_arg_uint() {
-        let deployer_private_key =
-            "7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110";
         let era_provider = era_provider();
-        let wallet = LocalWallet::from_str(deployer_private_key)
-            .unwrap()
-            .with_chain_id(ERA_CHAIN_ID);
+        let wallet = local_wallet();
         let zk_wallet = ZKSWallet::new(wallet, None, Some(era_provider.clone()), None).unwrap();
 
         let mut contract_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -273,12 +252,8 @@ mod zks_signer_tests {
 
     #[tokio::test]
     async fn test_deploy_contract_with_constructor_arg_string() {
-        let deployer_private_key =
-            "7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110";
         let era_provider = era_provider();
-        let wallet = LocalWallet::from_str(deployer_private_key)
-            .unwrap()
-            .with_chain_id(ERA_CHAIN_ID);
+        let wallet = local_wallet();
         let zk_wallet = ZKSWallet::new(wallet, None, Some(era_provider.clone()), None).unwrap();
 
         let mut contract_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -304,12 +279,8 @@ mod zks_signer_tests {
 
     #[tokio::test]
     async fn test_deploy_contract_with_import() {
-        let deployer_private_key =
-            "7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110";
         let era_provider = era_provider();
-        let wallet = LocalWallet::from_str(deployer_private_key)
-            .unwrap()
-            .with_chain_id(ERA_CHAIN_ID);
+        let wallet = local_wallet();
         let zk_wallet = ZKSWallet::new(wallet, None, Some(era_provider.clone()), None).unwrap();
 
         // Deploy imported contract first.
@@ -365,11 +336,7 @@ mod zks_signer_tests {
 
     #[tokio::test]
     async fn test_withdraw_to_same_address() {
-        let sender_private_key =
-            "0x28a574ab2de8a00364d5dd4b07c4f2f574ef7fcc2a86a197f65abaec836d1959";
-        let wallet = LocalWallet::from_str(sender_private_key)
-            .unwrap()
-            .with_chain_id(ERA_CHAIN_ID);
+        let wallet = local_wallet();
         let zk_wallet =
             ZKSWallet::new(wallet, None, Some(era_provider()), Some(eth_provider())).unwrap();
 
@@ -466,13 +433,9 @@ mod zks_signer_tests {
 
     #[tokio::test]
     async fn test_withdraw_to_other_address() {
-        let sender_private_key =
-            "0x28a574ab2de8a00364d5dd4b07c4f2f574ef7fcc2a86a197f65abaec836d1959";
         let receiver_private_key =
             "0xe667e57a9b8aaa6709e51ff7d093f1c5b73b63f9987e4ab4aa9a5c699e024ee8";
-        let l2_wallet = LocalWallet::from_str(sender_private_key)
-            .unwrap()
-            .with_chain_id(ERA_CHAIN_ID);
+        let l2_wallet = local_wallet();
 
         let l1_wallet = LocalWallet::from_str(receiver_private_key)
             .unwrap()

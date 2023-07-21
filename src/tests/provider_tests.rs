@@ -2,36 +2,16 @@ mod zks_provider_tests {
     use std::{collections::HashMap, fs::File, path::PathBuf, str::FromStr};
 
     use crate::{
-        test_utils::*,
+        tests::utils::*,
         zks_provider::{types::TracerConfig, ZKSProvider},
-        zks_utils::ERA_CHAIN_ID,
         zks_wallet::ZKSWallet,
     };
     use ethers::{
         abi::Tokenize,
-        prelude::{k256::ecdsa::SigningKey, MiddlewareBuilder, SignerMiddleware},
-        providers::{Middleware, Provider},
-        signers::{LocalWallet, Signer, Wallet},
+        providers::Middleware,
         types::{Address, Bytes, H256, U256},
     };
     use serde::{Deserialize, Serialize};
-
-    fn local_wallet() -> LocalWallet {
-        "0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110"
-            .parse::<LocalWallet>()
-            .unwrap()
-            .with_chain_id(ERA_CHAIN_ID)
-    }
-
-    fn era_signer() -> SignerMiddleware<Provider<ethers::providers::Http>, Wallet<SigningKey>> {
-        let signer = Wallet::with_chain_id(
-            "0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110"
-                .parse::<Wallet<SigningKey>>()
-                .unwrap(),
-            ERA_CHAIN_ID,
-        );
-        era_provider().with_signer(signer)
-    }
 
     #[tokio::test]
     async fn test_provider_estimate_fee() {
@@ -819,12 +799,8 @@ mod zks_provider_tests {
     #[tokio::test]
     async fn test_send_function_with_arguments() {
         // Deploying a test contract
-        let deployer_private_key =
-            "7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110";
         let era_provider = era_provider();
-        let wallet = LocalWallet::from_str(deployer_private_key)
-            .unwrap()
-            .with_chain_id(ERA_CHAIN_ID);
+        let wallet = local_wallet();
         let zk_wallet = ZKSWallet::new(wallet, None, Some(era_provider.clone()), None).unwrap();
         let mut contract_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         contract_path.push("src/abi/test_contracts/storage_combined.json");
@@ -898,12 +874,8 @@ mod zks_provider_tests {
     #[tokio::test]
     async fn test_call_view_function_with_no_parameters() {
         // Deploying a test contract
-        let deployer_private_key =
-            "7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110";
         let era_provider = era_provider();
-        let wallet = LocalWallet::from_str(deployer_private_key)
-            .unwrap()
-            .with_chain_id(ERA_CHAIN_ID);
+        let wallet = local_wallet();
         let zk_wallet = ZKSWallet::new(wallet, None, Some(era_provider.clone()), None).unwrap();
         let mut contract_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         contract_path.push("src/abi/test_contracts/basic_combined.json");
@@ -926,12 +898,8 @@ mod zks_provider_tests {
     #[tokio::test]
     async fn test_call_view_function_with_arguments() {
         // Deploying a test contract
-        let deployer_private_key =
-            "7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110";
         let era_provider = era_provider();
-        let wallet = LocalWallet::from_str(deployer_private_key)
-            .unwrap()
-            .with_chain_id(ERA_CHAIN_ID);
+        let wallet = local_wallet();
         let zk_wallet = ZKSWallet::new(wallet, None, Some(era_provider.clone()), None).unwrap();
 
         let mut contract_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
