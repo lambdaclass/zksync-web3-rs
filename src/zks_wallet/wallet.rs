@@ -3,7 +3,6 @@ pub mod deposit_request;
 use self::deposit_request::DepositRequest;
 
 use super::{Overrides, ZKSWalletError};
-use crate::types::NameOrAddress;
 use crate::zks_utils::DEPOSIT_GAS_PER_PUBDATA_LIMIT;
 use crate::{
     abi,
@@ -30,11 +29,31 @@ use ethers::{
         Signature, TransactionReceipt, H160, H256, U256,
     },
 };
+use lazy_static::lazy_static;
 use serde_json::{Map, Value};
+use std::collections::HashMap;
 use std::{fs::File, io::BufReader, path::PathBuf, str::FromStr, sync::Arc};
 use zksync_web3_rs::core::abi::Tokenize;
 
 const RAW_ERC20_DEPOSIT_GAS_LIMIT: &str = include_str!("DepositERC20GasLimit.json");
+
+lazy_static! {
+    static ref ERC20_DEPOSIT_GAS_LIMITS: HashMap<String, u64> = {
+        #![allow(clippy::expect_used)]
+        let mut m = HashMap::new();
+        let raw: Map<String, Value> = serde_json::from_str(RAW_ERC20_DEPOSIT_GAS_LIMIT)
+            .expect("Failed to parse DepositERC20GasLimit.json");
+        for (address, value) in raw.iter() {
+            m.insert(
+                address.to_owned(),
+                value
+                    .as_u64()
+                    .expect("Failed to ERC20 deposit gas limit for address {address:?}"),
+            );
+        }
+        m
+    };
+}
 
 pub struct ZKSWallet<M, D>
 where
@@ -333,14 +352,16 @@ where
         let era_provider = self.get_era_provider()?;
 
         let gas_limit: U256 = {
-            let gas_limits: Map<String, Value> =
-                serde_json::from_str(RAW_ERC20_DEPOSIT_GAS_LIMIT).unwrap(); // FIXME fix unwrap
-            let address_str = format!("{:?}", l1_token_address);
-            let is_mainnet = self.get_era_provider()?.get_chainid().await? == 324.into();
-            if is_mainnet && gas_limits.contains_key(&address_str) {
-                gas_limits.get(&address_str).unwrap().as_u64().unwrap() // FIXME fix unwrap
+            let address_str = format!("{l1_token_address:?}");
+            let default_erc20_deposit_gas_limit = 300000_u64; // FIXME make it a constant.
+            let is_mainnet = self.get_era_provider()?.get_chainid().await? == 324_i32.into();
+            if is_mainnet {
+                (*ERC20_DEPOSIT_GAS_LIMITS)
+                    .get(&address_str)
+                    .unwrap_or(&default_erc20_deposit_gas_limit)
+                    .to_owned() // FIXME fix unwrap
             } else {
-                300000u64
+                default_erc20_deposit_gas_limit
             }
         }
         .into();
@@ -357,7 +378,7 @@ where
             gas_price
         };
 
-        let l2_gas_limit = U256::from(3_000_000u32);
+        let l2_gas_limit = U256::from(3_000_000_u32);
 
         let base_cost: U256 = self
             .get_base_cost(
@@ -395,20 +416,20 @@ where
 
         let chain_id = eth_provider.get_chainid().await?.as_u64();
 
-        println!("bridge_address: {:?}", bridge_address);
-        let bridge_address: NameOrAddress = match bridge_address {
-            Some(address) => address.into(),
+        println!("bridge_address: {bridge_address:?}");
+        let bridge_address: Address = match bridge_address {
+            Some(address) => address,
             None => {
                 let bridge_contracts = era_provider.get_bridge_contracts().await?;
-                bridge_contracts.l1_erc20_default_bridge.into()
+                bridge_contracts.l1_erc20_default_bridge
             }
         };
-        println!("bridge_address: {:?}", bridge_address);
+        println!("bridge_address: {bridge_address:?}");
 
         // FIXME where do I set the nonce?
         let deposit_transaction = Eip1559TransactionRequest {
             from: Some(self.get_eth_provider()?.address()),
-            to: Some(bridge_address.clone()),
+            to: Some(bridge_address.into()),
             gas: Some(gas_limit),
             value: Some(value),
             data: Some(data),
@@ -420,11 +441,7 @@ where
         };
 
         let _approve_tx_receipt = self
-            .approve_erc20(
-                bridge_address.as_address().unwrap().clone(),
-                amount,
-                l1_token_address,
-            )
+            .approve_erc20(bridge_address, amount, l1_token_address)
             .await?;
         let pending_transaction = eth_provider
             .send_transaction(deposit_transaction, None)
@@ -449,7 +466,7 @@ where
         let provider = self.get_eth_provider()?;
         let function_signature =
             "function approve(address spender,uint256 amount) public virtual returns (bool)";
-        let parameters = [format!("{:?}", bridge), format!("{:?}", amount)];
+        let parameters = [format!("{bridge:?}"), format!("{amount:?}")];
         let response = provider
             .send(
                 &self.l1_wallet,
@@ -1049,7 +1066,7 @@ mod zks_signer_tests {
     // #[ignore]
     #[tokio::test]
     async fn test_deposit_erc20_token() {
-        let amount: U256 = 1.into();
+        let amount: U256 = 1_i32.into();
         let private_key = "0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110";
         let l1_provider = eth_provider();
         let l2_provider = era_provider();
@@ -1067,7 +1084,7 @@ mod zks_signer_tests {
             .parse()
             .unwrap();
 
-        let contract_l1 = ERC20Token::new(token_l1_address.clone(), Arc::new(l1_provider.clone()));
+        let contract_l1 = ERC20Token::new(token_l1_address, Arc::new(l1_provider.clone()));
 
         let balance_erc20_l1_before: U256 = contract_l1
             .balance_of(zk_wallet.l1_address())
@@ -1078,7 +1095,7 @@ mod zks_signer_tests {
         let request = DepositRequest::new(amount).token(Some(token_l1_address));
 
         let l1_receipt = zk_wallet.deposit(&request).await.unwrap();
-        assert_eq!(l1_receipt.status.unwrap(), 1.into());
+        assert_eq!(l1_receipt.status.unwrap(), 1_i32.into());
 
         let balance_erc20_l1_after: U256 = contract_l1
             .balance_of(zk_wallet.l1_address())
