@@ -89,7 +89,6 @@ To create a payment transaction, you need to provide the sender's address, the r
 ```rust
 use zksync::zks_provider::ZKSProvider;
 
-let sender_address: zksync::Address = "0x36615Cf349d7F6344891B1e7CA7C72883F5dc049".parse().unwrap();
 let receiver_address: zksync::Address = "0xa61464658AfeAf65CccaaFD3a512b69A83B77618".parse().unwrap();
 let amount_to_transfer = zksync::U256::from(1);
 
@@ -100,13 +99,19 @@ let mut payment_request = zksync::zks_wallet::TransferRequest::with(amount_to_tr
 
 #### Sending the Transaction
 
-To send the payment transaction, you need to provide use the wallet and the transaction. You can send the transaction using the following code:
+To send the payment transaction, you need to use the wallet and the transfer parameters. You can send the transaction using the following code:
 
 > In case you are wondering, the transaction is signed in the `send_transaction` method inside the transfer process.
 
 ```rust
-let payment_response: zksync::TransactionReceipt =
+let pending_payment =
         zk_wallet.transfer(payment_request, None).await.unwrap();
+```
+
+This will send the transaction to the node but the transaction will not be mined until we `await` on it. That will resolve to a `TransactionReceipt` confirming that the transfer went fine.
+
+```rust
+let payment_response: zksync::TransactionReceipt = pending_payment.await.unwrap().unwrap();
 ```
 
 #### Checking zkSync account balance

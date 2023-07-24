@@ -69,8 +69,10 @@ async fn main() {
         provider.get_balance(args.to, None).await.unwrap()
     );
 
-    let payment_response: TransactionReceipt =
-        zk_wallet.transfer(payment_request, None).await.unwrap();
+    let pending_payment_transaction = zk_wallet.transfer(payment_request, None).await.unwrap();
+
+    /* Waiting for the payment transaction */
+    let payment_response: TransactionReceipt = pending_payment_transaction.await.unwrap().unwrap();
     log::info!("{:?}", payment_response);
 
     log::debug!(

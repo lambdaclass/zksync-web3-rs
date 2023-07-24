@@ -16,6 +16,7 @@ use ethers::{
         U64,
     },
 };
+use ethers_contract::providers::PendingTransaction;
 use serde::Serialize;
 use serde_json::json;
 use std::{collections::HashMap, fmt::Debug, time::Duration};
@@ -39,6 +40,9 @@ use self::types::{
 /// https://era.zksync.io/docs/api/api.html#zksync-era-json-rpc-methods
 #[async_trait]
 pub trait ZKSProvider {
+    type Provider: JsonRpcClient;
+    type ZKProvider: JsonRpcClient;
+
     async fn zk_estimate_gas<T>(&self, transaction: T) -> Result<U256, ProviderError>
     where
         T: Debug + Serialize + Send + Sync;
@@ -191,7 +195,7 @@ pub trait ZKSProvider {
         function_signature: &str,
         function_parameters: Option<Vec<String>>,
         overrides: Option<Overrides>,
-    ) -> Result<(Vec<Token>, H256), ProviderError>
+    ) -> Result<PendingTransaction<Self::ZKProvider>, ProviderError>
     where
         D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Send + Sync;
 
@@ -202,7 +206,7 @@ pub trait ZKSProvider {
         function_signature: &str,
         function_parameters: Option<Vec<String>>,
         overrides: Option<Overrides>,
-    ) -> Result<(Vec<Token>, H256), ProviderError>
+    ) -> Result<PendingTransaction<Self::Provider>, ProviderError>
     where
         D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Send + Sync;
 
@@ -227,6 +231,9 @@ pub trait ZKSProvider {
 
 #[async_trait]
 impl<M: Middleware + ZKSProvider, S: Signer> ZKSProvider for SignerMiddleware<M, S> {
+    type Provider = <M as Middleware>::Provider;
+    type ZKProvider = <M as ZKSProvider>::ZKProvider;
+
     async fn zk_estimate_gas<T>(&self, transaction: T) -> Result<U256, ProviderError>
     where
         T: Debug + Serialize + Send + Sync,
@@ -401,7 +408,7 @@ impl<M: Middleware + ZKSProvider, S: Signer> ZKSProvider for SignerMiddleware<M,
         function_signature: &str,
         function_parameters: Option<Vec<String>>,
         overrides: Option<Overrides>,
-    ) -> Result<(Vec<Token>, H256), ProviderError>
+    ) -> Result<PendingTransaction<Self::ZKProvider>, ProviderError>
     where
         D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Send + Sync,
     {
@@ -423,7 +430,7 @@ impl<M: Middleware + ZKSProvider, S: Signer> ZKSProvider for SignerMiddleware<M,
         function_signature: &str,
         function_parameters: Option<Vec<String>>,
         _overrides: Option<Overrides>,
-    ) -> Result<(Vec<Token>, H256), ProviderError>
+    ) -> Result<PendingTransaction<Self::Provider>, ProviderError>
     where
         D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Send + Sync,
     {
@@ -436,18 +443,9 @@ impl<M: Middleware + ZKSProvider, S: Signer> ZKSProvider for SignerMiddleware<M,
             _overrides,
         )
         .await?;
-        let pending_transaction = self
-            .send_transaction(tx, None)
+        self.send_transaction(tx, None)
             .await
-            .map_err(|e| ProviderError::CustomError(format!("Error sending transaction: {e:?}")))?;
-
-        let transaction_receipt = pending_transaction
-            .await?
-            .ok_or(ProviderError::CustomError(
-                "no transaction receipt".to_owned(),
-            ))?;
-
-        Ok((Vec::new(), transaction_receipt.transaction_hash))
+            .map_err(|e| ProviderError::CustomError(format!("Error sending transaction: {e:?}")))
     }
 
     async fn send_transaction_eip712<T, D>(
@@ -486,6 +484,9 @@ impl<M: Middleware + ZKSProvider, S: Signer> ZKSProvider for SignerMiddleware<M,
 
 #[async_trait]
 impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
+    type Provider = P;
+    type ZKProvider = P;
+
     async fn zk_estimate_gas<T>(&self, transaction: T) -> Result<U256, ProviderError>
     where
         T: Debug + Serialize + Send + Sync,
@@ -751,7 +752,7 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
         function_signature: &str,
         function_parameters: Option<Vec<String>>,
         overrides: Option<Overrides>,
-    ) -> Result<(Vec<Token>, H256), ProviderError>
+    ) -> Result<PendingTransaction<Self::ZKProvider>, ProviderError>
     where
         D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Send + Sync,
     {
@@ -810,22 +811,12 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
         send_request =
             send_request.custom_data(Eip712Meta::new().custom_signature(signature.to_vec()));
 
-        let pending_transaction = self
-            .send_raw_transaction(
-                [&[EIP712_TX_TYPE], &*send_request.rlp_unsigned()]
-                    .concat()
-                    .into(),
-            )
-            .await?;
-
-        let transaction_receipt = pending_transaction
-            .await?
-            .ok_or(ProviderError::CustomError(
-                "no transaction receipt".to_owned(),
-            ))?;
-
-        // TODO: decode function output.
-        Ok((Vec::new(), transaction_receipt.transaction_hash))
+        self.send_raw_transaction(
+            [&[EIP712_TX_TYPE], &*send_request.rlp_unsigned()]
+                .concat()
+                .into(),
+        )
+        .await
     }
 
     async fn send<D>(
@@ -835,7 +826,7 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
         function_signature: &str,
         function_parameters: Option<Vec<String>>,
         _overrides: Option<Overrides>,
-    ) -> Result<(Vec<Token>, H256), ProviderError>
+    ) -> Result<PendingTransaction<Self::Provider>, ProviderError>
     where
         D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Send + Sync,
     {
@@ -848,10 +839,7 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
             _overrides,
         )
         .await?;
-        let pending_transaction = self.send_transaction(tx, None).await?;
-        let transaction_hash = pending_transaction.tx_hash();
-
-        Ok((Vec::new(), transaction_hash))
+        self.send_transaction(tx, None).await
     }
 
     async fn wait_for_finalize(
@@ -1355,6 +1343,9 @@ mod tests {
             .transfer(transfer_request, None)
             .await
             .unwrap()
+            .await
+            .unwrap()
+            .unwrap()
             .transaction_hash;
         let invalid_transaction_hash: H256 =
             "0x84472204e445cb3cd5f3ce5e23abcc2892cda5e61b35855a7f0bb1562a6e30e7"
@@ -1748,6 +1739,9 @@ mod tests {
             .transfer(transfer_request, None)
             .await
             .unwrap()
+            .await
+            .unwrap()
+            .unwrap()
             .transaction_hash;
         let invalid_transaction_hash: H256 =
             "0x84472204e445cb3cd5f3ce5e23abcc2892cda5e61b35855a7f0bb1562a6e30e7"
@@ -1816,6 +1810,9 @@ mod tests {
                 None,
             )
             .await
+            .unwrap()
+            .await
+            .unwrap()
             .unwrap();
         let set_value = ZKSProvider::call(&era_provider, &call_request)
             .await
@@ -1835,6 +1832,9 @@ mod tests {
                 None,
             )
             .await
+            .unwrap()
+            .await
+            .unwrap()
             .unwrap();
         let incremented_value = ZKSProvider::call(&era_provider, &call_request)
             .await
