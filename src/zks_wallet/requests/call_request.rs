@@ -17,7 +17,7 @@ pub struct CallRequest {
 }
 
 impl CallRequest {
-    pub fn with(to: Address, function_signature: String) -> Self {
+    pub fn new(to: Address, function_signature: String) -> Self {
         Self {
             to,
             function_signature,

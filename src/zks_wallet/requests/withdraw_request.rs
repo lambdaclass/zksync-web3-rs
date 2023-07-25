@@ -10,7 +10,7 @@ pub struct WithdrawRequest {
 }
 
 impl WithdrawRequest {
-    pub fn with(amount: U256) -> Self {
+    pub fn new(amount: U256) -> Self {
         Self {
             amount,
             to: Default::default(),

@@ -9,16 +9,26 @@ pub struct TransferRequest {
 }
 
 impl TransferRequest {
-    pub fn with(amount: U256, to: Address) -> Self {
+    pub fn new(amount: U256) -> Self {
         Self {
             amount,
-            to,
+            to: Default::default(),
             from: Default::default(),
         }
     }
 
     pub fn from(mut self, from: Address) -> Self {
         self.from = from;
+        self
+    }
+
+    pub fn to(mut self, to: Address) -> Self {
+        self.to = to;
+        self
+    }
+
+    pub fn amount(mut self, amount: U256) -> Self {
+        self.amount = amount;
         self
     }
 }
