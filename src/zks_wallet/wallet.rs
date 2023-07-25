@@ -23,10 +23,9 @@ use ethers::{
     signers::{Signer, Wallet},
     types::{
         transaction::eip2718::TypedTransaction, Address, Bytes, Eip1559TransactionRequest, Log,
-        Signature, TransactionReceipt, H160, H256, U256,
+        Signature, H160, H256, U256,
     },
 };
-use ethers_contract::providers::PendingTransaction;
 use serde_json::Value;
 use std::{fs::File, io::BufReader, path::PathBuf, str::FromStr, sync::Arc};
 
@@ -152,16 +151,16 @@ where
 
     pub async fn transfer(
         &self,
-        request: TransferRequest,
+        request: &TransferRequest,
         // TODO: Support multiple-token transfers.
         _token: Option<Address>,
-    ) -> Result<PendingTransaction<<M as Middleware>::Provider>, ZKSWalletError<M, D>>
+    ) -> Result<H256, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
     {
         let era_provider = self.get_era_provider()?;
 
-        let mut transfer_request: Eip1559TransactionRequest = request.into();
+        let mut transfer_request: Eip1559TransactionRequest = request.clone().into();
 
         let fee = era_provider.estimate_fee(transfer_request.clone()).await?;
         transfer_request = transfer_request.max_priority_fee_per_gas(fee.max_priority_fee_per_gas);
@@ -170,8 +169,15 @@ where
         let transaction: TypedTransaction = transfer_request.into();
 
         // TODO: add block as an override.
-        let pending_transaction = era_provider.send_transaction(transaction, None).await?;
-        Ok(pending_transaction)
+        let transaction_receipt = era_provider
+            .send_transaction(transaction, None)
+            .await?
+            .await?
+            .ok_or(ZKSWalletError::CustomError(
+                "No transaction receipt".to_owned(),
+            ))?;
+
+        Ok(transaction_receipt.transaction_hash)
     }
 
     pub async fn transfer_eip712(
@@ -179,30 +185,24 @@ where
         request: &TransferRequest,
         // TODO: Support multiple-token transfers.
         _token: Option<Address>,
-    ) -> Result<PendingTransaction<<M as Middleware>::Provider>, ZKSWalletError<M, D>>
+    ) -> Result<H256, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
     {
         let era_provider = self.get_era_provider()?;
 
-        let response = era_provider
-            .send_transaction_eip712(&self.l2_wallet, request.clone())
-            .await?;
-
         let transaction_receipt = era_provider
-            .get_transaction_receipt(response.1)
+            .send_transaction_eip712(&self.l2_wallet, request.clone())
+            .await?
             .await?
             .ok_or(ZKSWalletError::CustomError(
-                "no transaction receipt".to_owned(),
+                "No transaction receipt".to_owned(),
             ))?;
 
-        Ok(transaction_receipt)
+        Ok(transaction_receipt.transaction_hash)
     }
 
-    pub async fn deposit(
-        &self,
-        request: &DepositRequest,
-    ) -> Result<TransactionReceipt, ZKSWalletError<M, D>>
+    pub async fn deposit(&self, request: &DepositRequest) -> Result<H256, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
     {
@@ -245,7 +245,7 @@ where
             )
             .await?;
 
-        Ok(receipt)
+        Ok(receipt.transaction_hash)
     }
 
     async fn get_base_cost(
@@ -373,43 +373,38 @@ where
 
         let eip712_request: Eip712TransactionRequest = request.clone().try_into()?;
 
-        let response = era_provider
-            .send_transaction_eip712(&self.l2_wallet, eip712_request)
-            .await?;
-
         let transaction_receipt = era_provider
-            .get_transaction_receipt(response.1)
+            .send_transaction_eip712(&self.l2_wallet, eip712_request)
+            .await?
             .await?
             .ok_or(ZKSWalletError::CustomError(
-                "no transaction receipt".to_owned(),
+                "No transaction receipt".to_owned(),
             ))?;
 
         transaction_receipt
             .contract_address
             .ok_or(ZKSWalletError::CustomError(
-                "no contract address".to_owned(),
+                "No contract address".to_owned(),
             ))
     }
 
-    pub async fn withdraw(
-        &self,
-        request: &WithdrawRequest,
-    ) -> Result<TransactionReceipt, ZKSWalletError<M, D>>
+    pub async fn withdraw(&self, request: &WithdrawRequest) -> Result<H256, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
     {
         let era_provider = self.get_era_provider()?;
-        let response = era_provider
+        let transaction_receipt = era_provider
             .send_transaction_eip712(&self.l2_wallet, request.clone())
-            .await?;
+            .await?
+            .await?
+            .ok_or(ZKSWalletError::CustomError(
+                "No transaction receipt".to_owned(),
+            ))?;
 
-        response.map_err(|e| ZKSWalletError::CustomError(format!("Error calling withdraw: {e}")))
+        Ok(transaction_receipt.transaction_hash)
     }
 
-    pub async fn finalize_withdraw(
-        &self,
-        tx_hash: H256,
-    ) -> Result<PendingTransaction<<M as Middleware>::Provider>, ZKSWalletError<M, D>>
+    pub async fn finalize_withdraw(&self, tx_hash: H256) -> Result<H256, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
     {
@@ -512,7 +507,7 @@ where
         ];
 
         let function_signature = "function finalizeEthWithdrawal(uint256 _l2BlockNumber,uint256 _l2MessageIndex,uint16 _l2TxNumberInBlock,bytes calldata _message,bytes32[] calldata _merkleProof) external";
-        let response = eth_provider
+        let transaction_receipt = eth_provider
             .send(
                 &self.l1_wallet,
                 main_contract,
@@ -520,10 +515,13 @@ where
                 Some(parameters.into()),
                 None,
             )
-            .await;
-        response.map_err(|e| {
-            ZKSWalletError::CustomError(format!("Error calling finalizeWithdrawal: {e}"))
-        })
+            .await?
+            .await?
+            .ok_or(ZKSWalletError::CustomError(
+                "No transaction receipt".to_owned(),
+            ))?;
+
+        Ok(transaction_receipt.transaction_hash)
     }
 }
 
@@ -572,10 +570,13 @@ mod zks_signer_tests {
         println!("Sender balance before: {sender_balance_before}");
         println!("Receiver balance before: {receiver_balance_before}");
 
-        let receipt = zk_wallet
-            .transfer(receiver_address, amount_to_transfer, None)
-            .await
-            .unwrap()
+        let request = TransferRequest::new(amount_to_transfer)
+            .to(receiver_address)
+            .from(zk_wallet.l2_address());
+        let tx_hash = zk_wallet.transfer(&request, None).await.unwrap();
+
+        let receipt = era_provider
+            .get_transaction_receipt(tx_hash)
             .await
             .unwrap()
             .unwrap();
@@ -631,7 +632,12 @@ mod zks_signer_tests {
         println!("L1 balance before: {l1_balance_before}");
         println!("L2 balance before: {l2_balance_before}");
 
-        let receipt = zk_wallet.deposit(&request).await.unwrap();
+        let tx_hash = zk_wallet.deposit(&request).await.unwrap();
+        let receipt = l1_provider
+            .get_transaction_receipt(tx_hash)
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(receipt.status.unwrap(), 1_u8.into());
 
         let _l2_receipt = l2_provider
@@ -681,7 +687,12 @@ mod zks_signer_tests {
         println!("L1 balance before: {l1_balance_before}");
         println!("L2 balance before: {l2_balance_before}");
 
-        let receipt = zk_wallet.deposit(&request).await.unwrap();
+        let tx_hash = zk_wallet.deposit(&request).await.unwrap();
+        let receipt = l1_provider
+            .get_transaction_receipt(tx_hash)
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(receipt.status.unwrap(), 1_u8.into());
 
         let _l2_receipt = l2_provider
@@ -731,15 +742,19 @@ mod zks_signer_tests {
         println!("Sender balance before: {sender_balance_before}");
         println!("Receiver balance before: {receiver_balance_before}");
 
-        let transfer_request = TransferRequest::with(amount_to_transfer, receiver_address);
-        let receipt = zk_wallet
+        let transfer_request = TransferRequest::new(amount_to_transfer)
+            .to(receiver_address)
+            .from(zk_wallet.l2_address());
+        let tx_hash = zk_wallet
             .transfer_eip712(&transfer_request, None)
             .await
-            .unwrap()
+            .unwrap();
+
+        let receipt = era_provider
+            .get_transaction_receipt(tx_hash)
             .await
             .unwrap()
             .unwrap();
-
         assert_eq!(receipt.from, zk_wallet.l2_address());
         assert_eq!(receipt.to.unwrap(), receiver_address);
 
@@ -853,7 +868,7 @@ mod zks_signer_tests {
         )
         .from(zk_wallet.l2_address());
         let import_contract_address = zk_wallet.deploy(&deploy_request).await.unwrap();
-        let call_request = CallRequest::with(
+        let call_request = CallRequest::new(
             import_contract_address,
             "getCounterValue()(uint256)".to_owned(),
         );
@@ -883,17 +898,13 @@ mod zks_signer_tests {
 
         // Withdraw
         let amount_to_withdraw: U256 = parse_units(1_u8, "ether").unwrap().into();
-        let tx_receipt = zk_wallet
-            .withdraw(amount_to_withdraw, zk_wallet.l1_address())
-            .await
-            .unwrap()
-            .await
-            .unwrap()
-            .unwrap();
+
+        let withdraw_request = WithdrawRequest::new(amount_to_withdraw).to(zk_wallet.l1_address());
+        let tx_hash = zk_wallet.withdraw(&withdraw_request).await.unwrap();
         let tx_receipt = zk_wallet
             .get_era_provider()
             .unwrap()
-            .wait_for_finalize(tx_receipt.clone(), None, None)
+            .wait_for_finalize(tx_hash, None, None)
             .await
             .unwrap();
         assert_eq!(
@@ -919,14 +930,15 @@ mod zks_signer_tests {
             "Check that L1 balance has not changed"
         );
 
+        let tx_finalize_hash = zk_wallet.finalize_withdraw(tx_hash).await.unwrap();
+
         let tx_finalize_receipt = zk_wallet
-            .finalize_withdraw(tx_receipt.transaction_hash)
-            .await
+            .get_eth_provider()
             .unwrap()
+            .get_transaction_receipt(tx_finalize_hash)
             .await
             .unwrap()
             .unwrap();
-
         println!(
             "L1 Transaction hash: {:?}",
             tx_finalize_receipt.transaction_hash
@@ -994,13 +1006,8 @@ mod zks_signer_tests {
 
         // Withdraw
         let amount_to_withdraw: U256 = parse_units(1_u8, "ether").unwrap().into();
-        let tx_receipt = zk_wallet
-            .withdraw(amount_to_withdraw, zk_wallet.l1_address())
-            .await
-            .unwrap()
-            .await
-            .unwrap()
-            .unwrap();
+        let withdraw_request = WithdrawRequest::new(amount_to_withdraw).to(zk_wallet.l1_address());
+        let tx_receipt = zk_wallet.withdraw(&withdraw_request).await.unwrap();
         let tx_receipt = zk_wallet
             .get_era_provider()
             .unwrap()
@@ -1030,14 +1037,18 @@ mod zks_signer_tests {
             "Check that L1 balance has not changed"
         );
 
-        let tx_finalize_receipt = zk_wallet
+        let tx_finalize_hash = zk_wallet
             .finalize_withdraw(tx_receipt.transaction_hash)
             .await
+            .unwrap();
+
+        let tx_finalize_receipt = zk_wallet
+            .get_eth_provider()
             .unwrap()
+            .get_transaction_receipt(tx_finalize_hash)
             .await
             .unwrap()
             .unwrap();
-
         println!(
             "L1 Transaction hash: {:?}",
             tx_finalize_receipt.transaction_hash
