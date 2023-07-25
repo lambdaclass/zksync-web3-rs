@@ -12,8 +12,8 @@ use ethers::{
     signers::{Signer, Wallet},
     types::{
         transaction::{eip2718::TypedTransaction, eip712::Eip712Error},
-        Address, BlockNumber, Eip1559TransactionRequest, Signature, TransactionReceipt, H256, U256,
-        U64,
+        Address, BlockNumber, Eip1559TransactionRequest, Signature, TransactionReceipt, TxHash,
+        H256, U256, U64,
     },
 };
 use ethers_contract::providers::PendingTransaction;
@@ -212,7 +212,7 @@ pub trait ZKSProvider {
 
     async fn wait_for_finalize(
         &self,
-        transaction_receipt: TransactionReceipt,
+        transaction_receipt: TxHash,
         polling_time_in_seconds: Option<Duration>,
         timeout_in_seconds: Option<Duration>,
     ) -> Result<TransactionReceipt, ProviderError>;
@@ -223,7 +223,7 @@ pub trait ZKSProvider {
         &self,
         wallet: &Wallet<D>,
         transaction: T,
-    ) -> Result<(Vec<Token>, H256), ProviderError>
+    ) -> Result<PendingTransaction<Self::ZKProvider>, ProviderError>
     where
         T: TryInto<Eip712TransactionRequest> + Send + Sync + Debug,
         D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Send + Sync;
@@ -452,7 +452,7 @@ impl<M: Middleware + ZKSProvider, S: Signer> ZKSProvider for SignerMiddleware<M,
         &self,
         wallet: &Wallet<D>,
         transaction: T,
-    ) -> Result<(Vec<Token>, H256), ProviderError>
+    ) -> Result<PendingTransaction<Self::ZKProvider>, ProviderError>
     where
         T: TryInto<Eip712TransactionRequest> + Sync + Send + Debug,
         D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Send + Sync,
@@ -464,7 +464,7 @@ impl<M: Middleware + ZKSProvider, S: Signer> ZKSProvider for SignerMiddleware<M,
 
     async fn wait_for_finalize(
         &self,
-        transaction_receipt: TransactionReceipt,
+        transaction_receipt: TxHash,
         polling_time_in_seconds: Option<Duration>,
         timeout_in_seconds: Option<Duration>,
     ) -> Result<TransactionReceipt, ProviderError> {
@@ -695,7 +695,7 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
         &self,
         wallet: &Wallet<D>,
         transaction: T,
-    ) -> Result<(Vec<Token>, H256), ProviderError>
+    ) -> Result<PendingTransaction<Self::ZKProvider>, ProviderError>
     where
         T: TryInto<Eip712TransactionRequest> + Sync + Send + Debug,
         D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Send + Sync,
@@ -727,22 +727,12 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
             .map_err(|e| ProviderError::CustomError(format!("error signing transaction: {e}")))?;
         request = request.custom_data(custom_data.custom_signature(signature.to_vec()));
 
-        let pending_transaction = self
-            .send_raw_transaction(
-                [&[EIP712_TX_TYPE], &*request.rlp_unsigned()]
-                    .concat()
-                    .into(),
-            )
-            .await?;
-
-        let transaction_receipt = pending_transaction
-            .await?
-            .ok_or(ProviderError::CustomError(
-                "no transaction receipt".to_owned(),
-            ))?;
-
-        // TODO: decode function output.
-        Ok((Vec::new(), transaction_receipt.transaction_hash))
+        self.send_raw_transaction(
+            [&[EIP712_TX_TYPE], &*request.rlp_unsigned()]
+                .concat()
+                .into(),
+        )
+        .await
     }
 
     async fn send_eip712<D>(
@@ -844,13 +834,20 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
 
     async fn wait_for_finalize(
         &self,
-        transaction_receipt: TransactionReceipt,
+        tx_hash: TxHash,
         polling_time_in_seconds: Option<Duration>,
         timeout_in_seconds: Option<Duration>,
     ) -> Result<TransactionReceipt, ProviderError> {
         let polling_time_in_seconds = polling_time_in_seconds.unwrap_or(Duration::from_secs(2));
         let mut timer = tokio::time::interval(polling_time_in_seconds);
         let start = Instant::now();
+
+        let transaction_receipt =
+            self.get_transaction_receipt(tx_hash)
+                .await?
+                .ok_or(ProviderError::CustomError(
+                    "No transaction receipt".to_owned(),
+                ))?;
 
         loop {
             timer.tick().await;
@@ -1332,21 +1329,13 @@ mod tests {
     #[tokio::test]
     async fn test_provider_debug_trace_transaction() {
         let era_provider = era_provider();
-        let zk_wallet = ZKSWallet::new(local_wallet(), None, Some(era_signer()), None).unwrap();
+        let zk_wallet =
+            ZKSWallet::new(local_wallet(), None, Some(era_provider.clone()), None).unwrap();
 
-        let transfer_request = TransferRequest::with(
-            1_u64.into(),
-            Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049").unwrap(),
-        )
-        .from(zk_wallet.l2_address());
-        let transaction_hash = zk_wallet
-            .transfer(transfer_request, None)
-            .await
-            .unwrap()
-            .await
-            .unwrap()
-            .unwrap()
-            .transaction_hash;
+        let transfer_request = TransferRequest::new(1_u64.into())
+            .to(Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049").unwrap())
+            .from(zk_wallet.l2_address());
+        let transaction_hash = zk_wallet.transfer(&transfer_request, None).await.unwrap();
         let invalid_transaction_hash: H256 =
             "0x84472204e445cb3cd5f3ce5e23abcc2892cda5e61b35855a7f0bb1562a6e30e7"
                 .parse()
@@ -1730,19 +1719,10 @@ mod tests {
         let zk_wallet =
             ZKSWallet::new(local_wallet(), None, Some(era_signer.clone()), None).unwrap();
 
-        let transfer_request = TransferRequest::with(
-            1_u64.into(),
-            Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049").unwrap(),
-        )
-        .from(zk_wallet.l2_address());
-        let transaction_hash = zk_wallet
-            .transfer(transfer_request, None)
-            .await
-            .unwrap()
-            .await
-            .unwrap()
-            .unwrap()
-            .transaction_hash;
+        let transfer_request = TransferRequest::new(1_u64.into())
+            .to(Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049").unwrap())
+            .from(zk_wallet.l2_address());
+        let transaction_hash = zk_wallet.transfer(&transfer_request, None).await.unwrap();
         let invalid_transaction_hash: H256 =
             "0x84472204e445cb3cd5f3ce5e23abcc2892cda5e61b35855a7f0bb1562a6e30e7"
                 .parse()
@@ -1793,7 +1773,7 @@ mod tests {
             DeployRequest::with(contract.abi, contract.bin.to_vec(), vec!["0".to_owned()])
                 .from(zk_wallet.l2_address());
         let contract_address = zk_wallet.deploy(&deploy_request).await.unwrap();
-        let call_request = CallRequest::with(contract_address, "getValue()(uint256)".to_owned());
+        let call_request = CallRequest::new(contract_address, "getValue()(uint256)".to_owned());
         let initial_value = ZKSProvider::call(&era_provider, &call_request)
             .await
             .unwrap();
@@ -1863,7 +1843,7 @@ mod tests {
 
         let deploy_request = DeployRequest::with(contract.abi, contract.bin.to_vec(), vec![]);
         let contract_address = zk_wallet.deploy(&deploy_request).await.unwrap();
-        let call_request = CallRequest::with(contract_address, "str_out()(string)".to_owned());
+        let call_request = CallRequest::new(contract_address, "str_out()(string)".to_owned());
         let output = ZKSProvider::call(&era_provider, &call_request)
             .await
             .unwrap();
@@ -1890,7 +1870,7 @@ mod tests {
         let deploy_request = DeployRequest::with(contract.abi, contract.bin.to_vec(), vec![])
             .from(zk_wallet.l2_address());
         let contract_address = zk_wallet.deploy(&deploy_request).await.unwrap();
-        let call_request = CallRequest::with(contract_address, "plus_one(uint256)".to_owned())
+        let call_request = CallRequest::new(contract_address, "plus_one(uint256)".to_owned())
             .function_parameters(vec!["1".to_owned()]);
         let no_return_type_output = ZKSProvider::call(&era_provider, &call_request)
             .await
