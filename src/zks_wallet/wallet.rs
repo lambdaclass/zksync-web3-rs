@@ -290,7 +290,7 @@ where
             let main_contract =
                 MainContractInstance::new(main_contract_address, self.get_eth_provider()?);
 
-            let receipt = main_contract
+            main_contract
                 .request_l2_transaction(
                     to,
                     l2_value,
@@ -303,23 +303,18 @@ where
                     gas_limit,
                     l1_value,
                 )
-                .await?;
-
-            receipt
+                .await?
         } else {
-            let receipt = self
-                .deposit_erc20_token(
-                    l1_token,
-                    request.amount().to_owned(),
-                    to,
-                    operator_tip,
-                    request.bridge_address,
-                    None,
-                    Some(gas_price),
-                )
-                .await?;
-
-            receipt
+            self.deposit_erc20_token(
+                l1_token,
+                request.amount().to_owned(),
+                to,
+                operator_tip,
+                request.bridge_address,
+                None,
+                Some(gas_price),
+            )
+            .await?
         };
 
         Ok(receipt)
@@ -363,9 +358,7 @@ where
         } else if let Some(gas_price) = gas_price {
             gas_price
         } else {
-            let gas_price = era_provider.get_gas_price().await?;
-
-            gas_price
+            era_provider.get_gas_price().await?
         };
 
         let l2_gas_limit = U256::from(3_000_000_u32);
