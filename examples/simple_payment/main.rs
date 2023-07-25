@@ -4,7 +4,7 @@ use ethers::{
     prelude::k256::ecdsa::SigningKey,
     providers::{Middleware, Provider},
     signers::{Signer, Wallet},
-    types::{TransactionReceipt, U256},
+    types::U256,
 };
 use zksync_web3_rs::{zks_wallet::TransferRequest, ZKSWallet};
 
@@ -54,7 +54,7 @@ async fn main() {
     let zk_wallet = ZKSWallet::new(signer, None, Some(provider.clone()), None).unwrap();
 
     /* Payment transaction building */
-    let payment_request = TransferRequest::with(amount, args.to).from(args.from);
+    let payment_request = TransferRequest::new(amount).to(args.to).from(args.from);
 
     log::debug!("{:?}", payment_request);
 
@@ -69,11 +69,14 @@ async fn main() {
         provider.get_balance(args.to, None).await.unwrap()
     );
 
-    let pending_payment_transaction = zk_wallet.transfer(payment_request, None).await.unwrap();
+    let payment_transaction_id = zk_wallet.transfer(&payment_request, None).await.unwrap();
+    let payment_transaction_receipt = provider
+        .get_transaction_receipt(payment_transaction_id)
+        .await
+        .unwrap()
+        .unwrap();
 
-    /* Waiting for the payment transaction */
-    let payment_response: TransactionReceipt = pending_payment_transaction.await.unwrap().unwrap();
-    log::info!("{:?}", payment_response);
+    log::info!("{:?}", payment_transaction_receipt);
 
     log::debug!(
         "Sender's balance after paying: {:?}",

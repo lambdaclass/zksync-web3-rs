@@ -92,26 +92,30 @@ use zksync::zks_provider::ZKSProvider;
 let receiver_address: zksync::Address = "0xa61464658AfeAf65CccaaFD3a512b69A83B77618".parse().unwrap();
 let amount_to_transfer = zksync::U256::from(1);
 
-let mut payment_request = zksync::zks_wallet::TransferRequest::with(amount_to_transfer              
-        receiver_address)
-        .from(sender_address);
+let mut payment_request = zksync::zks_wallet::TransferRequest::new(amount_to_transfer)
+        .to(receiver_address)
+        .from(sender_address); // Use zk_wallet.l2_address() method to send it from the wallet    address.
 ```
 
 #### Sending the Transaction
 
-To send the payment transaction, you need to use the wallet and the transfer parameters. You can send the transaction using the following code:
+To send the payment transaction, you need to use the wallet and the transfer request. You can send the transaction using the following code:
 
 > In case you are wondering, the transaction is signed in the `send_transaction` method inside the transfer process.
 
 ```rust
-let pending_payment =
+let payment_transaction_id =
         zk_wallet.transfer(payment_request, None).await.unwrap();
 ```
 
-This will send the transaction to the node but the transaction will not be mined until we `await` on it. That will resolve to a `TransactionReceipt` confirming that the transfer went fine.
+This will send the transaction to the node and return its ID (hash). To get more information about the transaction we can ask for the `TransactionReceipt` with the following lines:
 
 ```rust
-let payment_response: zksync::TransactionReceipt = pending_payment.await.unwrap().unwrap();
+let payment_transaction_receipt = provider
+        .get_transaction_receipt(payment_transaction_id)
+        .await
+        .unwrap()
+        .unwrap();
 ```
 
 #### Checking zkSync account balance
