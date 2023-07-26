@@ -1036,7 +1036,7 @@ mod zks_signer_tests {
         );
     }
 
-    // #[ignore]
+    #[ignore = "Implement a fixture that deploys an ERC20 token"]
     #[tokio::test]
     async fn test_deposit_erc20_token() {
         let amount: U256 = 1_i32.into();
