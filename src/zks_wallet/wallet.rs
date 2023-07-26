@@ -460,8 +460,8 @@ where
             )
             .await?;
 
-        provider
-            .get_transaction_receipt(response.tx_hash())
+        response
+            .confirmations(1)
             .await?
             .ok_or(ZKSWalletError::CustomError(
                 "No transaction receipt for erc20 approval".to_owned(),
