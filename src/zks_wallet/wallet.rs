@@ -1052,8 +1052,7 @@ mod zks_signer_tests {
         )
         .unwrap();
 
-        // Deploys an ERC20 token to conduct the test.
-        let token_l1_address: Address = "0x5C9b194733b9D6A93c51B3F313A2029873426740"
+        let token_l1_address: Address = "0xc8F8cE6491227a6a2Ab92e67a64011a4Eba1C6CF"
             .parse()
             .unwrap();
 
