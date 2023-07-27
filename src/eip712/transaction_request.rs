@@ -1,6 +1,6 @@
 use super::{rlp_append_option, Eip712Meta};
 use crate::{
-    zks_utils::{EIP712_TX_TYPE, ERA_CHAIN_ID, MAX_PRIORITY_FEE_PER_GAS},
+    zks_utils::{EIP712_TX_TYPE, MAX_PRIORITY_FEE_PER_GAS},
     zks_wallet::Overrides,
 };
 use ethers::{
@@ -219,7 +219,7 @@ impl Default for Eip712TransactionRequest {
             gas_price: Default::default(),
             data: Default::default(),
             value: Default::default(),
-            chain_id: ERA_CHAIN_ID.into(),
+            chain_id: Default::default(),
             r#type: EIP712_TX_TYPE.into(),
             access_list: Default::default(),
             max_priority_fee_per_gas: MAX_PRIORITY_FEE_PER_GAS.into(),

@@ -939,7 +939,6 @@ mod tests {
     use crate::{
         test_utils::*,
         zks_provider::{types::TracerConfig, ZKSProvider},
-        zks_utils::ERA_CHAIN_ID,
         zks_wallet::ZKSWallet,
     };
     use ethers::{
@@ -955,7 +954,7 @@ mod tests {
         "0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110"
             .parse::<LocalWallet>()
             .unwrap()
-            .with_chain_id(ERA_CHAIN_ID)
+            .with_chain_id(era_provider_chain_id())
     }
 
     fn era_signer() -> SignerMiddleware<Provider<ethers::providers::Http>, Wallet<SigningKey>> {
@@ -963,7 +962,7 @@ mod tests {
             "0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110"
                 .parse::<Wallet<SigningKey>>()
                 .unwrap(),
-            ERA_CHAIN_ID,
+            era_provider_chain_id(),
         );
         era_provider().with_signer(signer)
     }
@@ -1759,7 +1758,7 @@ mod tests {
         let era_provider = era_provider();
         let wallet = LocalWallet::from_str(deployer_private_key)
             .unwrap()
-            .with_chain_id(ERA_CHAIN_ID);
+            .with_chain_id(era_provider_chain_id());
         let zk_wallet = ZKSWallet::new(wallet, None, Some(era_provider.clone()), None).unwrap();
         let mut contract_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         contract_path.push("src/abi/test_contracts/storage_combined.json");
@@ -1840,7 +1839,7 @@ mod tests {
         let era_provider = era_provider();
         let wallet = LocalWallet::from_str(deployer_private_key)
             .unwrap()
-            .with_chain_id(ERA_CHAIN_ID);
+            .with_chain_id(era_provider_chain_id());
         let zk_wallet = ZKSWallet::new(wallet, None, Some(era_provider.clone()), None).unwrap();
         let mut contract_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         contract_path.push("src/abi/test_contracts/basic_combined.json");
@@ -1868,7 +1867,7 @@ mod tests {
         let era_provider = era_provider();
         let wallet = LocalWallet::from_str(deployer_private_key)
             .unwrap()
-            .with_chain_id(ERA_CHAIN_ID);
+            .with_chain_id(era_provider_chain_id());
         let zk_wallet = ZKSWallet::new(wallet, None, Some(era_provider.clone()), None).unwrap();
 
         let mut contract_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
