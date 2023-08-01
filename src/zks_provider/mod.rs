@@ -752,12 +752,11 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
         send_request =
             send_request.custom_data(Eip712Meta::new().custom_signature(signature.to_vec()));
 
-        self.send_raw_transaction(
-            [&[EIP712_TX_TYPE], &*send_request.rlp_unsigned()]
-                .concat()
-                .into(),
-        )
-        .await
+        let encoded_rlp = &*send_request
+            .rlp_signed(signature)
+            .map_err(|e| ProviderError::CustomError(format!("error encoding transaction: {e}")))?;
+        self.send_raw_transaction([&[EIP712_TX_TYPE], encoded_rlp].concat().into())
+            .await
     }
 
     async fn send<D>(
