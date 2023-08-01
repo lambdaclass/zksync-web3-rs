@@ -29,6 +29,8 @@ pub struct Eip712Transaction {
     pub data: Bytes,
     pub factory_deps: Vec<Bytes>,
     pub paymaster_input: Bytes,
+    #[serde(skip_serializing)]
+    pub chain_id: U256,
 }
 
 impl Eip712Transaction {
@@ -140,6 +142,14 @@ impl Eip712Transaction {
         self.paymaster_input = paymaster_input.into();
         self
     }
+
+    pub fn chain_id<T>(mut self, chain_id: T) -> Self
+    where
+        T: Into<U256>,
+    {
+        self.chain_id = chain_id.into();
+        self
+    }
 }
 
 impl Default for Eip712Transaction {
@@ -158,6 +168,7 @@ impl Default for Eip712Transaction {
             data: Default::default(),
             factory_deps: <Vec<Bytes>>::default(),
             paymaster_input: Default::default(),
+            chain_id: Default::default(),
         }
     }
 }
@@ -233,7 +244,7 @@ impl Eip712 for Eip712Transaction {
         Ok(EIP712Domain {
             name: Some(String::from("zkSync")),
             version: Some(String::from("2")),
-            chain_id: Some(U256::from(270_i32)),
+            chain_id: Some(self.chain_id),
             verifying_contract: None,
             salt: None,
         })
@@ -276,7 +287,8 @@ impl TryFrom<Eip712TransactionRequest> for Eip712Transaction {
                         hash_bytecode(&Bytes::from(dependency_bytecode)).map(Bytes::from)
                     })
                     .collect::<Result<Vec<Bytes>, _>>()?,
-            );
+            )
+            .chain_id(tx.chain_id);
 
         if let Some(paymaster_params) = tx.custom_data.paymaster_params {
             if let Some(paymaster) = paymaster_params.paymaster {
