@@ -280,10 +280,7 @@ where
         let refund_recipient = self.l1_address();
         // FIXME check base cost
 
-        // FIXME Set this default on the DepositRequest builder struct.
-        let l1_token = request.token.unwrap_or(ETHER_L1_ADDRESS);
-
-        let receipt = if l1_token == ETHER_L1_ADDRESS {
+        let receipt = if request.token == ETHER_L1_ADDRESS {
             let main_contract_address = self.get_era_provider()?.get_main_contract().await?;
             let main_contract =
                 MainContractInstance::new(main_contract_address, self.get_eth_provider()?);
@@ -304,7 +301,7 @@ where
                 .await?
         } else {
             self.deposit_erc20_token(
-                l1_token,
+                request.token,
                 request.amount().to_owned(),
                 to,
                 operator_tip,

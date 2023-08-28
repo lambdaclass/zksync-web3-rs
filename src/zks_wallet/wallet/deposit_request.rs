@@ -2,7 +2,7 @@ use crate::types::{Address, U256};
 
 use crate::zks_utils::{
     DEPOSIT_GAS_PER_PUBDATA_LIMIT, RECOMMENDED_DEPOSIT_L1_GAS_LIMIT,
-    RECOMMENDED_DEPOSIT_L2_GAS_LIMIT,
+    RECOMMENDED_DEPOSIT_L2_GAS_LIMIT, ETHER_L1_ADDRESS,
 };
 
 fn default_gas_limit() -> U256 {
@@ -24,7 +24,7 @@ pub struct DepositRequest {
     pub operator_tip: U256,
     pub gas_price: Option<U256>,
     pub gas_limit: U256,
-    pub token: Option<Address>,
+    pub token: Address,
     pub bridge_address: Option<Address>,
 }
 
@@ -38,7 +38,7 @@ impl DepositRequest {
             operator_tip: 0_i32.into(),
             gas_price: None,
             gas_limit: default_gas_limit(),
-            token: None,
+            token: ETHER_L1_ADDRESS,
             bridge_address: None,
         }
     }
@@ -87,7 +87,10 @@ impl DepositRequest {
     }
 
     pub fn token(mut self, token: Option<Address>) -> Self {
-        self.token = token;
+        self.token = match token {
+            Some(address) => address,
+            _ => ETHER_L1_ADDRESS,
+        };
         self
     }
 
