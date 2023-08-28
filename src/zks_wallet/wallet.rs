@@ -3,7 +3,7 @@ pub mod deposit_request;
 use self::deposit_request::DepositRequest;
 
 use super::{Overrides, ZKSWalletError};
-use crate::zks_utils::DEPOSIT_GAS_PER_PUBDATA_LIMIT;
+use crate::zks_utils::{DEPOSIT_GAS_PER_PUBDATA_LIMIT, DEFAULT_ERC20_DEPOSIT_GAS_LIMIT, ERA_MAINNET_CHAIN_ID};
 use crate::{
     abi,
     contracts::main_contract::{MainContract, MainContractInstance},
@@ -336,15 +336,14 @@ where
 
         let gas_limit: U256 = {
             let address_str = format!("{l1_token_address:?}");
-            let default_erc20_deposit_gas_limit = 300000_u64; // FIXME make it a constant.
-            let is_mainnet = self.get_era_provider()?.get_chainid().await? == 324_i32.into();
+            let is_mainnet = self.get_era_provider()?.get_chainid().await? == ERA_MAINNET_CHAIN_ID.into();
             if is_mainnet {
                 (*ERC20_DEPOSIT_GAS_LIMITS)
                     .get(&address_str)
-                    .unwrap_or(&default_erc20_deposit_gas_limit)
-                    .to_owned() // FIXME fix unwrap
+                    .unwrap_or(&DEFAULT_ERC20_DEPOSIT_GAS_LIMIT)
+                    .to_owned()
             } else {
-                default_erc20_deposit_gas_limit
+                DEFAULT_ERC20_DEPOSIT_GAS_LIMIT
             }
         }
         .into();

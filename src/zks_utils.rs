@@ -13,6 +13,7 @@ use std::str::FromStr;
 
 pub const ETH_CHAIN_ID: u16 = 0x9;
 pub const ERA_CHAIN_ID: u16 = 0x10E;
+pub const ERA_MAINNET_CHAIN_ID: u16 = 324;
 pub const EIP712_TX_TYPE: u8 = 0x71;
 // The large L2 gas per pubdata to sign. This gas is enough to ensure that
 // any reasonable limit will be accepted. Note, that the operator is NOT required to
@@ -35,6 +36,7 @@ pub const MAX_GAS_PER_PUBDATA_BYTE: u64 = MAX_L2_TX_GAS_LIMIT / GUARANTEED_PUBDA
 pub const RECOMMENDED_DEPOSIT_L1_GAS_LIMIT: u64 = 10000000;
 pub const RECOMMENDED_DEPOSIT_L2_GAS_LIMIT: u64 = 10000000;
 pub const DEPOSIT_GAS_PER_PUBDATA_LIMIT: u64 = 800;
+pub const DEFAULT_ERC20_DEPOSIT_GAS_LIMIT: u64 = 300000_u64;
 
 /* Contracts */
 
