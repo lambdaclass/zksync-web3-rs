@@ -29,7 +29,6 @@ pub struct Eip712Transaction {
     pub data: Bytes,
     pub factory_deps: Vec<Bytes>,
     pub paymaster_input: Bytes,
-    #[serde(skip_serializing)]
     pub chain_id: U256,
 }
 
