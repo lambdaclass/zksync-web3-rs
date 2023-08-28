@@ -262,7 +262,6 @@ where
     where
         M: ZKSProvider,
     {
-        println!("IN DEPOSIT");
         let to = request.to.unwrap_or(self.l2_address());
         let call_data = Bytes::default();
         let l2_gas_limit: U256 = request.l2_gas_limit;
@@ -284,7 +283,6 @@ where
         // FIXME Set this default on the DepositRequest builder struct.
         let l1_token = request.token.unwrap_or(ETHER_L1_ADDRESS);
 
-        println!("request.bridge_address: {:?}", request.bridge_address);
         let receipt = if l1_token == ETHER_L1_ADDRESS {
             let main_contract_address = self.get_era_provider()?.get_main_contract().await?;
             let main_contract =
@@ -399,7 +397,6 @@ where
 
         let chain_id = eth_provider.get_chainid().await?.as_u64();
 
-        println!("bridge_address: {bridge_address:?}");
         let bridge_address: Address = match bridge_address {
             Some(address) => address,
             None => {
@@ -407,7 +404,6 @@ where
                 bridge_contracts.l1_erc20_default_bridge
             }
         };
-        println!("bridge_address: {bridge_address:?}");
 
         // FIXME where do I set the nonce?
         let deposit_transaction = Eip1559TransactionRequest {
