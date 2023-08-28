@@ -457,7 +457,6 @@ where
             .await?;
 
         response
-            .confirmations(1)
             .await?
             .ok_or(ZKSWalletError::CustomError(
                 "No transaction receipt for erc20 approval".to_owned(),
