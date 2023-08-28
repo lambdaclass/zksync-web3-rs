@@ -401,14 +401,13 @@ where
             }
         };
 
-        // FIXME where do I set the nonce?
         let deposit_transaction = Eip1559TransactionRequest {
             from: Some(self.get_eth_provider()?.address()),
             to: Some(bridge_address.into()),
             gas: Some(gas_limit),
             value: Some(value),
             data: Some(data),
-            nonce: None, // FIXME
+            nonce: None,
             access_list: Default::default(),
             max_priority_fee_per_gas: None, // FIXME
             max_fee_per_gas: None,          // FIXME
