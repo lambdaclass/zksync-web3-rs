@@ -1,4 +1,5 @@
 use ethers::{
+    abi::{Error, ParseError},
     prelude::{
         k256::{
             ecdsa::{RecoveryId, Signature as RecoverableSignature},
@@ -36,6 +37,8 @@ where
     NoL2ProviderError(),
     #[error("Contract error: {0}")]
     ContractError(#[from] ContractError<M>),
+    #[error("Contract error: {0}")]
+    RequestConversionError(#[from] ZKRequestError),
     #[error("{0}")]
     CustomError(String),
     #[error("Main contract error: {0}")]
@@ -50,4 +53,16 @@ where
     fn from(value: ContractError<SignerMiddleware<M, Wallet<D>>>) -> Self {
         Self::CustomError(format!("{value:?}"))
     }
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum ZKRequestError {
+    #[error("Error parsing function: {0}")]
+    ParseFunctionError(#[from] ParseError),
+    #[error("ABI error: {0}")]
+    AbiError(#[from] AbiError),
+    #[error("Encoding or decoding error: {0}")]
+    Error(#[from] Error),
+    #[error("{0}")]
+    CustomError(String),
 }

@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use ethers::{
-    abi::{encode, HumanReadableParser, Token, Tokenize},
+    abi::{HumanReadableParser, Token, Tokenize},
     prelude::{
         k256::{
             ecdsa::{RecoveryId, Signature as RecoverableSignature},
@@ -12,8 +12,8 @@ use ethers::{
     signers::{Signer, Wallet},
     types::{
         transaction::{eip2718::TypedTransaction, eip712::Eip712Error},
-        Address, BlockNumber, Eip1559TransactionRequest, Signature, TransactionReceipt, H256, U256,
-        U64,
+        Address, BlockNumber, Eip1559TransactionRequest, Signature, TransactionReceipt, TxHash,
+        H256, U256, U64,
     },
 };
 use ethers_contract::providers::PendingTransaction;
@@ -27,10 +27,8 @@ use types::Fee;
 
 use crate::{
     eip712::{Eip712Meta, Eip712Transaction, Eip712TransactionRequest},
-    zks_utils::{
-        self, is_precompile, DEFAULT_GAS, EIP712_TX_TYPE, MAX_FEE_PER_GAS, MAX_PRIORITY_FEE_PER_GAS,
-    },
-    zks_wallet::Overrides,
+    zks_utils::{self, DEFAULT_GAS, EIP712_TX_TYPE, MAX_FEE_PER_GAS, MAX_PRIORITY_FEE_PER_GAS},
+    zks_wallet::{CallRequest, Overrides},
 };
 
 use self::types::{
@@ -214,17 +212,21 @@ pub trait ZKSProvider {
 
     async fn wait_for_finalize(
         &self,
-        transaction_receipt: TransactionReceipt,
+        transaction_receipt: TxHash,
         polling_time_in_seconds: Option<Duration>,
         timeout_in_seconds: Option<Duration>,
     ) -> Result<TransactionReceipt, ProviderError>;
 
-    async fn call(
+    async fn call(&self, request: &CallRequest) -> Result<Vec<Token>, ProviderError>;
+
+    async fn send_transaction_eip712<T, D>(
         &self,
-        contract_address: Address,
-        function_signature: &str,
-        function_parameters: Option<Vec<String>>,
-    ) -> Result<Vec<Token>, ProviderError>;
+        wallet: &Wallet<D>,
+        transaction: T,
+    ) -> Result<PendingTransaction<Self::ZKProvider>, ProviderError>
+    where
+        T: TryInto<Eip712TransactionRequest> + Send + Sync + Debug,
+        D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Send + Sync;
 }
 
 #[async_trait]
@@ -446,9 +448,23 @@ impl<M: Middleware + ZKSProvider, S: Signer> ZKSProvider for SignerMiddleware<M,
             .map_err(|e| ProviderError::CustomError(format!("Error sending transaction: {e:?}")))
     }
 
+    async fn send_transaction_eip712<T, D>(
+        &self,
+        wallet: &Wallet<D>,
+        transaction: T,
+    ) -> Result<PendingTransaction<Self::ZKProvider>, ProviderError>
+    where
+        T: TryInto<Eip712TransactionRequest> + Sync + Send + Debug,
+        D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Send + Sync,
+    {
+        self.inner()
+            .send_transaction_eip712(wallet, transaction)
+            .await
+    }
+
     async fn wait_for_finalize(
         &self,
-        transaction_receipt: TransactionReceipt,
+        transaction_receipt: TxHash,
         polling_time_in_seconds: Option<Duration>,
         timeout_in_seconds: Option<Duration>,
     ) -> Result<TransactionReceipt, ProviderError> {
@@ -461,19 +477,8 @@ impl<M: Middleware + ZKSProvider, S: Signer> ZKSProvider for SignerMiddleware<M,
             .await
     }
 
-    async fn call(
-        &self,
-        contract_address: Address,
-        function_signature: &str,
-        function_parameters: Option<Vec<String>>,
-    ) -> Result<Vec<Token>, ProviderError> {
-        ZKSProvider::call(
-            self.inner(),
-            contract_address,
-            function_signature,
-            function_parameters,
-        )
-        .await
+    async fn call(&self, request: &CallRequest) -> Result<Vec<Token>, ProviderError> {
+        ZKSProvider::call(self.inner(), request).await
     }
 }
 
@@ -686,6 +691,49 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
             .await
     }
 
+    async fn send_transaction_eip712<T, D>(
+        &self,
+        wallet: &Wallet<D>,
+        transaction: T,
+    ) -> Result<PendingTransaction<Self::ZKProvider>, ProviderError>
+    where
+        T: TryInto<Eip712TransactionRequest> + Sync + Send + Debug,
+        D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Send + Sync,
+    {
+        let mut request: Eip712TransactionRequest = transaction.try_into().map_err(|_e| {
+            ProviderError::CustomError("error on send_transaction_eip712".to_owned())
+        })?;
+
+        request = request
+            .from(wallet.address())
+            .chain_id(wallet.chain_id())
+            .nonce(self.get_transaction_count(wallet.address(), None).await?)
+            .gas_price(self.get_gas_price().await?)
+            .max_fee_per_gas(self.get_gas_price().await?);
+
+        let custom_data = request.clone().custom_data;
+        let fee = self.estimate_fee(request.clone()).await?;
+        request = request
+            .max_priority_fee_per_gas(fee.max_priority_fee_per_gas)
+            .max_fee_per_gas(fee.max_fee_per_gas)
+            .gas_limit(fee.gas_limit);
+        let signable_data: Eip712Transaction = request
+            .clone()
+            .try_into()
+            .map_err(|e: Eip712Error| ProviderError::CustomError(e.to_string()))?;
+        let signature: Signature = wallet
+            .sign_typed_data(&signable_data)
+            .await
+            .map_err(|e| ProviderError::CustomError(format!("error signing transaction: {e}")))?;
+        request = request.custom_data(custom_data.custom_signature(signature.to_vec()));
+        let encoded_rlp = &*request
+            .rlp_signed(signature)
+            .map_err(|e| ProviderError::CustomError(format!("Error in the rlp encoding {e}")))?;
+
+        self.send_raw_transaction([&[EIP712_TX_TYPE], encoded_rlp].concat().into())
+            .await
+    }
+
     async fn send_eip712<D>(
         &self,
         wallet: &Wallet<D>,
@@ -784,13 +832,20 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
 
     async fn wait_for_finalize(
         &self,
-        transaction_receipt: TransactionReceipt,
+        tx_hash: TxHash,
         polling_time_in_seconds: Option<Duration>,
         timeout_in_seconds: Option<Duration>,
     ) -> Result<TransactionReceipt, ProviderError> {
         let polling_time_in_seconds = polling_time_in_seconds.unwrap_or(Duration::from_secs(2));
         let mut timer = tokio::time::interval(polling_time_in_seconds);
         let start = Instant::now();
+
+        let transaction_receipt =
+            self.get_transaction_receipt(tx_hash)
+                .await?
+                .ok_or(ProviderError::CustomError(
+                    "No transaction receipt".to_owned(),
+                ))?;
 
         loop {
             timer.tick().await;
@@ -818,52 +873,14 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
         }
     }
 
-    async fn call(
-        &self,
-        contract_address: Address,
-        function_signature: &str,
-        function_parameters: Option<Vec<String>>,
-    ) -> Result<Vec<Token>, ProviderError> {
-        // Note: We couldn't implement ZKSWalletError::LexerError because ethers-rs's LexerError is not exposed.
-        let function = if contract_address == zks_utils::ECADD_PRECOMPILE_ADDRESS {
-            zks_utils::ec_add_function()
-        } else if contract_address == zks_utils::ECMUL_PRECOMPILE_ADDRESS {
-            zks_utils::ec_mul_function()
-        } else if contract_address == zks_utils::MODEXP_PRECOMPILE_ADDRESS {
-            zks_utils::mod_exp_function()
-        } else {
-            HumanReadableParser::parse_function(function_signature)
-                .map_err(|e| ProviderError::CustomError(e.to_string()))?
-        };
-        let function_args = if let Some(function_args) = function_parameters {
-            function
-                .decode_input(
-                    &zks_utils::encode_args(&function, &function_args)
-                        .map_err(|e| ProviderError::CustomError(e.to_string()))?,
-                )
-                .map_err(|e| ProviderError::CustomError(e.to_string()))?
-        } else {
-            vec![]
-        };
-
-        log::info!("{function_args:?}");
-
-        let request: Eip1559TransactionRequest =
-            Eip1559TransactionRequest::new().to(contract_address).data(
-                match (!function_args.is_empty(), is_precompile(contract_address)) {
-                    // The contract to call is a precompile with arguments.
-                    (true, true) => encode(&function_args),
-                    // The contract to call is a regular contract with arguments.
-                    (true, false) => function
-                        .encode_input(&function_args)
-                        .map_err(|e| ProviderError::CustomError(e.to_string()))?,
-                    // The contract to call is a precompile without arguments.
-                    (false, true) => Default::default(),
-                    // The contract to call is a regular contract without arguments.
-                    (false, false) => function.short_signature().into(),
-                },
-            );
-
+    async fn call(&self, request: &CallRequest) -> Result<Vec<Token>, ProviderError> {
+        let function = request
+            .get_parsed_function()
+            .map_err(|e| ProviderError::CustomError(format!("Failed to parse function: {e}")))?;
+        let request: Eip1559TransactionRequest = request
+            .clone()
+            .try_into()
+            .map_err(|e| ProviderError::CustomError(format!("Failed to convert request: {e}")))?;
         let transaction: TypedTransaction = request.into();
 
         let encoded_output = Middleware::call(self, &transaction, None).await?;

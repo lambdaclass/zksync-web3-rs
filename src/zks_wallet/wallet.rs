@@ -1,8 +1,7 @@
-pub mod deposit_request;
-
-use self::deposit_request::DepositRequest;
-
-use super::{Overrides, ZKSWalletError};
+use super::{
+    requests::transfer_request::TransferRequest, DeployRequest, DepositRequest, WithdrawRequest,
+    ZKSWalletError,
+};
 use crate::{
     contracts::main_contract::{MainContract, MainContractInstance},
     eip712::Eip712Transaction,
@@ -18,23 +17,23 @@ use ethers::{
             ecdsa::{RecoveryId, Signature as RecoverableSignature},
             schnorr::signature::hazmat::PrehashSigner,
         },
-        ContractError, MiddlewareBuilder, SignerMiddleware,
+        MiddlewareBuilder, SignerMiddleware,
     },
     providers::Middleware,
     signers::{Signer, Wallet},
     types::{
         transaction::eip2718::TypedTransaction, Address, Bytes, Eip1559TransactionRequest, Log,
-        Signature, TransactionReceipt, H160, H256, U256,
+        Signature, H160, H256, U256,
     },
 };
-use ethers_contract::providers::PendingTransaction;
 use serde_json::Value;
 use std::{fs::File, io::BufReader, path::PathBuf, str::FromStr, sync::Arc};
 
+#[derive(Clone, Debug)]
 pub struct ZKSWallet<M, D>
 where
-    M: Middleware,
-    D: PrehashSigner<(RecoverableSignature, RecoveryId)>,
+    M: Middleware + Clone,
+    D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Clone,
 {
     /// Eth provider
     pub eth_provider: Option<Arc<SignerMiddleware<M, Wallet<D>>>>,
@@ -45,7 +44,7 @@ where
 
 impl<M, D> ZKSWallet<M, D>
 where
-    M: Middleware + 'static,
+    M: Middleware + 'static + Clone,
     D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Sync + Send + Clone,
 {
     pub fn new(
@@ -152,24 +151,16 @@ where
 
     pub async fn transfer(
         &self,
-        to: Address,
-        amount_to_transfer: U256,
+        request: &TransferRequest,
         // TODO: Support multiple-token transfers.
         _token: Option<Address>,
-    ) -> Result<PendingTransaction<<M as Middleware>::Provider>, ZKSWalletError<M, D>>
+    ) -> Result<H256, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
     {
-        let era_provider = match &self.era_provider {
-            Some(era_provider) => era_provider,
-            None => return Err(ZKSWalletError::CustomError("no era provider".to_owned())),
-        };
+        let era_provider = self.get_era_provider()?;
 
-        let mut transfer_request = Eip1559TransactionRequest::new()
-            .from(self.l2_address())
-            .to(to)
-            .value(amount_to_transfer)
-            .chain_id(self.l2_chain_id());
+        let mut transfer_request: Eip1559TransactionRequest = request.clone().into();
 
         let fee = era_provider.estimate_fee(transfer_request.clone()).await?;
         transfer_request = transfer_request.max_priority_fee_per_gas(fee.max_priority_fee_per_gas);
@@ -178,59 +169,40 @@ where
         let transaction: TypedTransaction = transfer_request.into();
 
         // TODO: add block as an override.
-        let pending_transaction = era_provider.send_transaction(transaction, None).await?;
-        Ok(pending_transaction)
+        let transaction_receipt = era_provider
+            .send_transaction(transaction, None)
+            .await?
+            .await?
+            .ok_or(ZKSWalletError::CustomError(
+                "No transaction receipt".to_owned(),
+            ))?;
+
+        Ok(transaction_receipt.transaction_hash)
     }
 
     pub async fn transfer_eip712(
         &self,
-        to: Address,
-        amount_to_transfer: U256,
+        request: &TransferRequest,
         // TODO: Support multiple-token transfers.
         _token: Option<Address>,
-    ) -> Result<PendingTransaction<<M as Middleware>::Provider>, ZKSWalletError<M, D>>
+    ) -> Result<H256, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
     {
-        let era_provider = match &self.era_provider {
-            Some(era_provider) => era_provider,
-            None => return Err(ZKSWalletError::CustomError("no era provider".to_owned())),
-        };
+        let era_provider = self.get_era_provider()?;
 
-        let mut transfer_request = Eip712TransactionRequest::new()
-            .from(self.l2_address())
-            .to(to)
-            .value(amount_to_transfer)
-            .nonce(
-                era_provider
-                    .get_transaction_count(self.l2_address(), None)
-                    .await?,
-            )
-            .gas_price(era_provider.get_gas_price().await?);
+        let transaction_receipt = era_provider
+            .send_transaction_eip712(&self.l2_wallet, request.clone())
+            .await?
+            .await?
+            .ok_or(ZKSWalletError::CustomError(
+                "No transaction receipt".to_owned(),
+            ))?;
 
-        let fee = era_provider.estimate_fee(transfer_request.clone()).await?;
-        transfer_request = transfer_request
-            .max_priority_fee_per_gas(fee.max_priority_fee_per_gas)
-            .max_fee_per_gas(fee.max_fee_per_gas)
-            .gas_limit(fee.gas_limit);
-
-        let signable_data: Eip712Transaction = transfer_request.clone().try_into()?;
-        let signature: Signature = self.l2_wallet.sign_typed_data(&signable_data).await?;
-        transfer_request =
-            transfer_request.custom_data(Eip712Meta::new().custom_signature(signature.to_vec()));
-
-        let encoded_rlp = &*transfer_request.rlp_signed(signature)?;
-        let pending_transaction = era_provider
-            .send_raw_transaction([&[EIP712_TX_TYPE], encoded_rlp].concat().into())
-            .await?;
-
-        Ok(pending_transaction)
+        Ok(transaction_receipt.transaction_hash)
     }
 
-    pub async fn deposit(
-        &self,
-        request: &DepositRequest,
-    ) -> Result<TransactionReceipt, ZKSWalletError<M, D>>
+    pub async fn deposit(&self, request: &DepositRequest) -> Result<H256, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
     {
@@ -273,7 +245,7 @@ where
             )
             .await?;
 
-        Ok(receipt)
+        Ok(receipt.transaction_hash)
     }
 
     async fn get_base_cost(
@@ -299,16 +271,14 @@ where
         &self,
         contract_bytecode: &[u8],
         contract_dependencies: Option<Vec<Vec<u8>>>,
+        // TODO: accept constructor parameters.
         _constructor_parameters: Option<T>,
     ) -> Result<H160, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
         T: Tokenizable,
     {
-        let era_provider = match &self.era_provider {
-            Some(era_provider) => era_provider,
-            None => return Err(ZKSWalletError::CustomError("no era provider".to_owned())),
-        };
+        let era_provider = self.get_era_provider()?;
 
         let custom_data = Eip712Meta::new().factory_deps({
             let mut factory_deps = Vec::new();
@@ -392,147 +362,51 @@ where
         Ok(contract_address)
     }
 
-    pub async fn deploy(
-        &self,
-        contract_abi: Abi,
-        contract_bytecode: Vec<u8>,
-        constructor_parameters: Vec<String>,
-        factory_dependencies: Option<Vec<Vec<u8>>>,
-    ) -> Result<TransactionReceipt, ZKSWalletError<M, D>>
+    pub async fn deploy(&self, request: &DeployRequest) -> Result<H160, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
     {
-        let era_provider = match &self.era_provider {
-            Some(era_provider) => era_provider,
-            None => return Err(ZKSWalletError::CustomError("no era provider".to_owned())),
-        };
+        let era_provider = self.get_era_provider()?;
 
-        let custom_data = Eip712Meta::new().factory_deps({
-            let mut factory_deps = Vec::new();
-            if let Some(factory_dependencies) = factory_dependencies {
-                factory_deps.extend(factory_dependencies);
-            }
-            factory_deps.push(contract_bytecode.clone());
-            factory_deps
-        });
+        let eip712_request: Eip712TransactionRequest = request.clone().try_into()?;
 
-        let mut contract_deployer_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        contract_deployer_path.push("src/abi/ContractDeployer.json");
-        let mut deploy_request = Eip712TransactionRequest::new()
-            .r#type(EIP712_TX_TYPE)
-            .from(self.l2_address())
-            .to(Address::from_str(CONTRACT_DEPLOYER_ADDR).map_err(|e| {
-                ZKSWalletError::CustomError(format!("invalid contract deployer address: {e}"))
-            })?)
-            .chain_id(self.l2_chain_id())
-            .nonce(
-                era_provider
-                    .get_transaction_count(self.l2_address(), None)
-                    .await?,
-            )
-            .gas_price(era_provider.get_gas_price().await?)
-            .max_fee_per_gas(era_provider.get_gas_price().await?)
-            .data({
-                let contract_deployer = Abi::load(BufReader::new(
-                    File::open(contract_deployer_path).map_err(|e| {
-                        ZKSWalletError::CustomError(format!(
-                            "failed to open ContractDeployer abi: {e}"
-                        ))
-                    })?,
-                ))
-                .map_err(|e| {
-                    ZKSWalletError::CustomError(format!("failed to load ContractDeployer abi: {e}"))
-                })?;
-                let create = contract_deployer.function("create").map_err(|e| {
-                    ZKSWalletError::CustomError(format!("failed to get create function: {e}"))
-                })?;
-                // TODO: User could provide this instead of defaulting.
-                let salt = [0_u8; 32];
-                let bytecode_hash = hash_bytecode(&contract_bytecode)?;
-                let call_data: Bytes = match (
-                    contract_abi.constructor(),
-                    constructor_parameters.is_empty(),
-                ) {
-                    (None, false) => return Err(ContractError::<M>::ConstructorError.into()),
-                    (None, true) | (Some(_), true) => Bytes::default(),
-                    (Some(constructor), false) => {
-                        zks_utils::encode_constructor_args(constructor, &constructor_parameters)?
-                            .into()
-                    }
-                };
-
-                encode_function_data(create, (salt, bytecode_hash, call_data))?
-            })
-            .custom_data(custom_data.clone());
-
-        let fee = era_provider.estimate_fee(deploy_request.clone()).await?;
-        deploy_request = deploy_request
-            .max_priority_fee_per_gas(fee.max_priority_fee_per_gas)
-            .max_fee_per_gas(fee.max_fee_per_gas)
-            .gas_limit(fee.gas_limit);
-
-        let signable_data: Eip712Transaction = deploy_request.clone().try_into()?;
-        let signature: Signature = self.l2_wallet.sign_typed_data(&signable_data).await?;
-        let encoded_rlp = &*deploy_request.rlp_signed(signature)?;
-        let pending_transaction = era_provider
-            .send_raw_transaction([&[EIP712_TX_TYPE], encoded_rlp].concat().into())
-            .await?;
-
-        pending_transaction
+        let transaction_receipt = era_provider
+            .send_transaction_eip712(&self.l2_wallet, eip712_request)
+            .await?
             .await?
             .ok_or(ZKSWalletError::CustomError(
-                "no transaction receipt".to_owned(),
+                "No transaction receipt".to_owned(),
+            ))?;
+
+        transaction_receipt
+            .contract_address
+            .ok_or(ZKSWalletError::CustomError(
+                "No contract address".to_owned(),
             ))
     }
 
-    pub async fn withdraw(
-        &self,
-        amount: U256,
-        to: Address,
-    ) -> Result<PendingTransaction<<M as ZKSProvider>::ZKProvider>, ZKSWalletError<M, D>>
+    pub async fn withdraw(&self, request: &WithdrawRequest) -> Result<H256, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
     {
-        let era_provider = match &self.era_provider {
-            Some(era_provider) => era_provider,
-            None => return Err(ZKSWalletError::CustomError("no era provider".to_owned())),
-        };
+        let era_provider = self.get_era_provider()?;
+        let transaction_receipt = era_provider
+            .send_transaction_eip712(&self.l2_wallet, request.clone())
+            .await?
+            .await?
+            .ok_or(ZKSWalletError::CustomError(
+                "No transaction receipt".to_owned(),
+            ))?;
 
-        let contract_address =
-            Address::from_str(zks_utils::CONTRACTS_L2_ETH_TOKEN_ADDR).map_err(|error| {
-                ZKSWalletError::CustomError(format!("failed to parse contract address: {error}"))
-            })?;
-        let function_signature = "function withdraw(address _l1Receiver) external payable override";
-        let response = era_provider
-            .send_eip712(
-                &self.l2_wallet,
-                contract_address,
-                function_signature,
-                Some([format!("{to:?}")].into()),
-                Some(Overrides {
-                    value: Some(amount),
-                }),
-            )
-            .await;
-
-        response.map_err(|e| ZKSWalletError::CustomError(format!("Error calling withdraw: {e}")))
+        Ok(transaction_receipt.transaction_hash)
     }
 
-    pub async fn finalize_withdraw(
-        &self,
-        tx_hash: H256,
-    ) -> Result<PendingTransaction<<M as Middleware>::Provider>, ZKSWalletError<M, D>>
+    pub async fn finalize_withdraw(&self, tx_hash: H256) -> Result<H256, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
     {
-        let (era_provider, eth_provider) = match (&self.era_provider, &self.eth_provider) {
-            (Some(era_provider), Some(eth_provider)) => (era_provider, eth_provider),
-            _ => {
-                return Err(ZKSWalletError::CustomError(
-                    "Both era and eth providers are necessary".to_owned(),
-                ))
-            }
-        };
+        let era_provider = self.get_era_provider()?;
+        let eth_provider = self.get_eth_provider()?;
 
         let withdrawal_receipt = era_provider.get_transaction_receipt(tx_hash).await?.ok_or(
             ZKSWalletError::CustomError("Error getting transaction receipt of withdraw".to_owned()),
@@ -630,7 +504,7 @@ where
         ];
 
         let function_signature = "function finalizeEthWithdrawal(uint256 _l2BlockNumber,uint256 _l2MessageIndex,uint16 _l2TxNumberInBlock,bytes calldata _message,bytes32[] calldata _merkleProof) external";
-        let response = eth_provider
+        let transaction_receipt = eth_provider
             .send(
                 &self.l1_wallet,
                 main_contract,
@@ -638,9 +512,12 @@ where
                 Some(parameters.into()),
                 None,
             )
-            .await;
-        response.map_err(|e| {
-            ZKSWalletError::CustomError(format!("Error calling finalizeWithdrawal: {e}"))
-        })
+            .await?
+            .await?
+            .ok_or(ZKSWalletError::CustomError(
+                "No transaction receipt".to_owned(),
+            ))?;
+
+        Ok(transaction_receipt.transaction_hash)
     }
 }

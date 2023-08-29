@@ -1,10 +1,11 @@
+#[cfg(test)]
 mod zks_provider_tests {
     use std::{collections::HashMap, fs::File, path::PathBuf, str::FromStr};
 
     use crate::{
         tests::utils::*,
         zks_provider::{types::TracerConfig, ZKSProvider},
-        zks_wallet::ZKSWallet,
+        zks_wallet::{CallRequest, DeployRequest, TransferRequest, ZKSWallet},
     };
     use ethers::{
         abi::Tokenize,
@@ -356,20 +357,13 @@ mod zks_provider_tests {
     #[tokio::test]
     async fn test_provider_debug_trace_transaction() {
         let era_provider = era_provider();
-        let zk_wallet = ZKSWallet::new(local_wallet(), None, Some(era_signer()), None).unwrap();
+        let zk_wallet =
+            ZKSWallet::new(local_wallet(), None, Some(era_provider.clone()), None).unwrap();
 
-        let transaction_hash = zk_wallet
-            .transfer(
-                Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049").unwrap(),
-                1_u64.into(),
-                None,
-            )
-            .await
-            .unwrap()
-            .await
-            .unwrap()
-            .unwrap()
-            .transaction_hash;
+        let transfer_request = TransferRequest::new(1_u64.into())
+            .to(Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049").unwrap())
+            .from(zk_wallet.l2_address());
+        let transaction_hash = zk_wallet.transfer(&transfer_request, None).await.unwrap();
         let invalid_transaction_hash: H256 =
             "0x84472204e445cb3cd5f3ce5e23abcc2892cda5e61b35855a7f0bb1562a6e30e7"
                 .parse()
@@ -753,18 +747,10 @@ mod zks_provider_tests {
         let zk_wallet =
             ZKSWallet::new(local_wallet(), None, Some(era_signer.clone()), None).unwrap();
 
-        let transaction_hash = zk_wallet
-            .transfer(
-                Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049").unwrap(),
-                1_i32.into(),
-                None,
-            )
-            .await
-            .unwrap()
-            .await
-            .unwrap()
-            .unwrap()
-            .transaction_hash;
+        let transfer_request = TransferRequest::new(1_u64.into())
+            .to(Address::from_str("0x36615Cf349d7F6344891B1e7CA7C72883F5dc049").unwrap())
+            .from(zk_wallet.l2_address());
+        let transaction_hash = zk_wallet.transfer(&transfer_request, None).await.unwrap();
         let invalid_transaction_hash: H256 =
             "0x84472204e445cb3cd5f3ce5e23abcc2892cda5e61b35855a7f0bb1562a6e30e7"
                 .parse()
@@ -807,21 +793,14 @@ mod zks_provider_tests {
         let contract: CompiledContract =
             serde_json::from_reader(File::open(contract_path).unwrap()).unwrap();
 
-        let transaction_receipt = zk_wallet
-            .deploy(
-                contract.abi,
-                contract.bin.to_vec(),
-                vec!["0".to_owned()],
-                None,
-            )
+        let deploy_request =
+            DeployRequest::with(contract.abi, contract.bin.to_vec(), vec!["0".to_owned()])
+                .from(zk_wallet.l2_address());
+        let contract_address = zk_wallet.deploy(&deploy_request).await.unwrap();
+        let call_request = CallRequest::new(contract_address, "getValue()(uint256)".to_owned());
+        let initial_value = ZKSProvider::call(&era_provider, &call_request)
             .await
             .unwrap();
-
-        let contract_address = transaction_receipt.contract_address.unwrap();
-        let initial_value =
-            ZKSProvider::call(&era_provider, contract_address, "getValue()(uint256)", None)
-                .await
-                .unwrap();
 
         assert_eq!(initial_value, U256::from(0_i32).into_tokens());
 
@@ -837,11 +816,11 @@ mod zks_provider_tests {
             .await
             .unwrap()
             .await
+            .unwrap()
             .unwrap();
-        let set_value =
-            ZKSProvider::call(&era_provider, contract_address, "getValue()(uint256)", None)
-                .await
-                .unwrap();
+        let set_value = ZKSProvider::call(&era_provider, &call_request)
+            .await
+            .unwrap();
 
         assert_eq!(
             set_value,
@@ -859,11 +838,11 @@ mod zks_provider_tests {
             .await
             .unwrap()
             .await
+            .unwrap()
             .unwrap();
-        let incremented_value =
-            ZKSProvider::call(&era_provider, contract_address, "getValue()(uint256)", None)
-                .await
-                .unwrap();
+        let incremented_value = ZKSProvider::call(&era_provider, &call_request)
+            .await
+            .unwrap();
 
         assert_eq!(
             incremented_value,
@@ -882,13 +861,10 @@ mod zks_provider_tests {
         let contract: CompiledContract =
             serde_json::from_reader(File::open(contract_path).unwrap()).unwrap();
 
-        let transaction_receipt = zk_wallet
-            .deploy(contract.abi, contract.bin.to_vec(), vec![], None)
-            .await
-            .unwrap();
-
-        let contract_address = transaction_receipt.contract_address.unwrap();
-        let output = ZKSProvider::call(&era_provider, contract_address, "str_out()(string)", None)
+        let deploy_request = DeployRequest::with(contract.abi, contract.bin.to_vec(), vec![]);
+        let contract_address = zk_wallet.deploy(&deploy_request).await.unwrap();
+        let call_request = CallRequest::new(contract_address, "str_out()(string)".to_owned());
+        let output = ZKSProvider::call(&era_provider, &call_request)
             .await
             .unwrap();
 
@@ -907,29 +883,19 @@ mod zks_provider_tests {
         let contract: CompiledContract =
             serde_json::from_reader(File::open(contract_path).unwrap()).unwrap();
 
-        let transaction_receipt = zk_wallet
-            .deploy(contract.abi, contract.bin.to_vec(), vec![], None)
+        let deploy_request = DeployRequest::with(contract.abi, contract.bin.to_vec(), vec![])
+            .from(zk_wallet.l2_address());
+        let contract_address = zk_wallet.deploy(&deploy_request).await.unwrap();
+        let call_request = CallRequest::new(contract_address, "plus_one(uint256)".to_owned())
+            .function_parameters(vec!["1".to_owned()]);
+        let no_return_type_output = ZKSProvider::call(&era_provider, &call_request)
             .await
             .unwrap();
 
-        let contract_address = transaction_receipt.contract_address.unwrap();
-        let no_return_type_output = ZKSProvider::call(
-            &era_provider,
-            contract_address,
-            "plus_one(uint256)",
-            Some(vec!["1".to_owned()]),
-        )
-        .await
-        .unwrap();
-
-        let known_return_type_output = ZKSProvider::call(
-            &era_provider,
-            contract_address,
-            "plus_one(uint256)(uint256)",
-            Some(vec!["1".to_owned()]),
-        )
-        .await
-        .unwrap();
+        let call_request = call_request.function_signature("plus_one(uint256)(uint256)".to_owned());
+        let known_return_type_output = ZKSProvider::call(&era_provider, &call_request)
+            .await
+            .unwrap();
 
         assert_eq!(
             no_return_type_output,
