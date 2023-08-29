@@ -339,12 +339,9 @@ where
         deploy_request =
             deploy_request.custom_data(custom_data.custom_signature(signature.to_vec()));
 
+        let encoded_rlp = &*deploy_request.rlp_signed(signature)?;
         let pending_transaction = era_provider
-            .send_raw_transaction(
-                [&[EIP712_TX_TYPE], &*deploy_request.rlp_unsigned()]
-                    .concat()
-                    .into(),
-            )
+            .send_raw_transaction([&[EIP712_TX_TYPE], encoded_rlp].concat().into())
             .await?;
 
         // TODO: Should we wait here for the transaction to be confirmed on-chain?
