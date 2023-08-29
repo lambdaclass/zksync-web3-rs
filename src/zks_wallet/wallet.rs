@@ -219,12 +219,9 @@ where
         transfer_request =
             transfer_request.custom_data(Eip712Meta::new().custom_signature(signature.to_vec()));
 
+        let encoded_rlp = &*transfer_request.rlp_signed(signature)?;
         let pending_transaction = era_provider
-            .send_raw_transaction(
-                [&[EIP712_TX_TYPE], &*transfer_request.rlp_unsigned()]
-                    .concat()
-                    .into(),
-            )
+            .send_raw_transaction([&[EIP712_TX_TYPE], encoded_rlp].concat().into())
             .await?;
 
         Ok(pending_transaction)
@@ -372,12 +369,9 @@ where
         deploy_request =
             deploy_request.custom_data(custom_data.custom_signature(signature.to_vec()));
 
+        let encoded_rlp = &*deploy_request.rlp_signed(signature)?;
         let pending_transaction = era_provider
-            .send_raw_transaction(
-                [&[EIP712_TX_TYPE], &*deploy_request.rlp_unsigned()]
-                    .concat()
-                    .into(),
-            )
+            .send_raw_transaction([&[EIP712_TX_TYPE], encoded_rlp].concat().into())
             .await?;
 
         // TODO: Should we wait here for the transaction to be confirmed on-chain?
@@ -479,15 +473,9 @@ where
 
         let signable_data: Eip712Transaction = deploy_request.clone().try_into()?;
         let signature: Signature = self.l2_wallet.sign_typed_data(&signable_data).await?;
-        deploy_request =
-            deploy_request.custom_data(custom_data.custom_signature(signature.to_vec()));
-
+        let encoded_rlp = &*deploy_request.rlp_signed(signature)?;
         let pending_transaction = era_provider
-            .send_raw_transaction(
-                [&[EIP712_TX_TYPE], &*deploy_request.rlp_unsigned()]
-                    .concat()
-                    .into(),
-            )
+            .send_raw_transaction([&[EIP712_TX_TYPE], encoded_rlp].concat().into())
             .await?;
 
         pending_transaction
