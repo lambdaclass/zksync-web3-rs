@@ -1,13 +1,18 @@
+use super::ZKSWalletError;
 use super::{
     requests::transfer_request::TransferRequest, DeployRequest, DepositRequest, WithdrawRequest,
-    ZKSWalletError,
+};
+use crate::zks_utils::{
+    DEFAULT_ERC20_DEPOSIT_GAS_LIMIT, DEPOSIT_GAS_PER_PUBDATA_LIMIT, ERA_MAINNET_CHAIN_ID,
 };
 use crate::{
+    abi,
     contracts::main_contract::{MainContract, MainContractInstance},
     eip712::Eip712Transaction,
     eip712::{hash_bytecode, Eip712Meta, Eip712TransactionRequest},
+    types::TransactionReceipt,
     zks_provider::ZKSProvider,
-    zks_utils::{self, CONTRACT_DEPLOYER_ADDR, EIP712_TX_TYPE, ETH_CHAIN_ID},
+    zks_utils::{self, CONTRACT_DEPLOYER_ADDR, EIP712_TX_TYPE, ETHER_L1_ADDRESS, ETH_CHAIN_ID},
 };
 use ethers::{
     abi::{decode, Abi, ParamType, Tokenizable},
@@ -26,8 +31,31 @@ use ethers::{
         Signature, H160, H256, U256,
     },
 };
-use serde_json::Value;
+use lazy_static::lazy_static;
+use serde_json::{Map, Value};
+use std::collections::HashMap;
 use std::{fs::File, io::BufReader, path::PathBuf, str::FromStr, sync::Arc};
+use zksync_web3_rs::core::abi::Tokenize;
+
+const RAW_ERC20_DEPOSIT_GAS_LIMIT: &str = include_str!("DepositERC20GasLimit.json");
+
+lazy_static! {
+    static ref ERC20_DEPOSIT_GAS_LIMITS: HashMap<String, u64> = {
+        #![allow(clippy::expect_used)]
+        let mut m = HashMap::new();
+        let raw: Map<String, Value> = serde_json::from_str(RAW_ERC20_DEPOSIT_GAS_LIMIT)
+            .expect("Failed to parse DepositERC20GasLimit.json");
+        for (address, value) in raw.iter() {
+            m.insert(
+                address.to_owned(),
+                value
+                    .as_u64()
+                    .expect("Failed to ERC20 deposit gas limit for address {address:?}"),
+            );
+        }
+        m
+    };
+}
 
 #[derive(Clone, Debug)]
 pub struct ZKSWallet<M, D>
@@ -224,28 +252,181 @@ where
         let refund_recipient = self.l1_address();
         // FIXME check base cost
 
-        // FIXME request l2 transaction
+        let receipt = if request.token == ETHER_L1_ADDRESS {
+            let main_contract_address = self.get_era_provider()?.get_main_contract().await?;
+            let main_contract =
+                MainContractInstance::new(main_contract_address, self.get_eth_provider()?);
 
-        let main_contract_address = self.get_era_provider()?.get_main_contract().await?;
-        let main_contract =
-            MainContractInstance::new(main_contract_address, self.get_eth_provider()?);
-
-        let receipt = main_contract
-            .request_l2_transaction(
+            main_contract
+                .request_l2_transaction(
+                    to,
+                    l2_value,
+                    call_data,
+                    l2_gas_limit,
+                    gas_per_pubdata_byte,
+                    Default::default(),
+                    refund_recipient,
+                    gas_price,
+                    gas_limit,
+                    l1_value,
+                )
+                .await?
+        } else {
+            self.deposit_erc20_token(
+                request.token,
+                request.amount().to_owned(),
                 to,
-                l2_value,
-                call_data,
+                operator_tip,
+                request.bridge_address,
+                None,
+                Some(gas_price),
+            )
+            .await?
+        };
+
+        Ok(receipt.transaction_hash)
+    }
+
+    async fn deposit_erc20_token(
+        &self,
+        l1_token_address: Address,
+        amount: U256,
+        to: Address,
+        operator_tip: U256,
+        bridge_address: Option<Address>,
+        max_fee_per_gas: Option<U256>,
+        gas_price: Option<U256>,
+    ) -> Result<TransactionReceipt, ZKSWalletError<M, D>>
+    where
+        M: ZKSProvider,
+    {
+        let eth_provider = self.get_eth_provider()?;
+        let era_provider = self.get_era_provider()?;
+
+        let gas_limit: U256 = {
+            let address_str = format!("{l1_token_address:?}");
+            let is_mainnet =
+                self.get_era_provider()?.get_chainid().await? == ERA_MAINNET_CHAIN_ID.into();
+            if is_mainnet {
+                (*ERC20_DEPOSIT_GAS_LIMITS)
+                    .get(&address_str)
+                    .unwrap_or(&DEFAULT_ERC20_DEPOSIT_GAS_LIMIT)
+                    .to_owned()
+            } else {
+                DEFAULT_ERC20_DEPOSIT_GAS_LIMIT
+            }
+        }
+        .into();
+
+        // If the user has already provided max_fee_per_gas or gas_price, we will use
+        // it to calculate the base cost for the transaction
+        let gas_price = if let Some(max_fee_per_gas) = max_fee_per_gas {
+            max_fee_per_gas
+        } else if let Some(gas_price) = gas_price {
+            gas_price
+        } else {
+            era_provider.get_gas_price().await?
+        };
+
+        let l2_gas_limit = U256::from(3_000_000_u32);
+
+        let base_cost: U256 = self
+            .get_base_cost(
                 l2_gas_limit,
-                gas_per_pubdata_byte,
-                Default::default(),
-                refund_recipient,
+                DEPOSIT_GAS_PER_PUBDATA_LIMIT.into(),
                 gas_price,
-                gas_limit,
-                l1_value,
             )
             .await?;
 
-        Ok(receipt.transaction_hash)
+        // ERC20 token, `msg.value` is used only for the fee.
+        let value = base_cost + operator_tip;
+
+        let data: Bytes = {
+            let bridge_contract = abi::l1_bridge_contract();
+
+            #[allow(clippy::expect_used)]
+            let contract_function = bridge_contract
+                .function("deposit")
+                .expect("failed to get deposit function parameters");
+
+            let params = (
+                to,
+                l1_token_address,
+                amount,
+                l2_gas_limit,
+                U256::from(DEPOSIT_GAS_PER_PUBDATA_LIMIT),
+            );
+
+            #[allow(clippy::expect_used)]
+            contract_function
+                .encode_input(&params.into_tokens())
+                .expect("failed to encode deposit function parameters")
+                .into()
+        };
+
+        let chain_id = eth_provider.get_chainid().await?.as_u64();
+
+        let bridge_address: Address = match bridge_address {
+            Some(address) => address,
+            None => {
+                let bridge_contracts = era_provider.get_bridge_contracts().await?;
+                bridge_contracts.l1_erc20_default_bridge
+            }
+        };
+
+        let deposit_transaction = Eip1559TransactionRequest {
+            from: Some(self.get_eth_provider()?.address()),
+            to: Some(bridge_address.into()),
+            gas: Some(gas_limit),
+            value: Some(value),
+            data: Some(data),
+            nonce: None,
+            access_list: Default::default(),
+            max_priority_fee_per_gas: None, // FIXME
+            max_fee_per_gas: None,          // FIXME
+            chain_id: Some(chain_id.into()),
+        };
+
+        let _approve_tx_receipt = self
+            .approve_erc20(bridge_address, amount, l1_token_address)
+            .await?;
+        let pending_transaction = eth_provider
+            .send_transaction(deposit_transaction, None)
+            .await?;
+
+        pending_transaction
+            .await?
+            .ok_or(ZKSWalletError::CustomError(
+                "no transaction receipt".to_owned(),
+            ))
+    }
+
+    async fn approve_erc20(
+        &self,
+        bridge: Address,
+        amount: U256,
+        token: Address,
+    ) -> Result<TransactionReceipt, ZKSWalletError<M, D>>
+    where
+        M: ZKSProvider,
+    {
+        let provider = self.get_eth_provider()?;
+        let function_signature =
+            "function approve(address spender,uint256 amount) public virtual returns (bool)";
+        let parameters = [format!("{bridge:?}"), format!("{amount:?}")];
+        let response = provider
+            .send(
+                &self.l1_wallet,
+                token,
+                function_signature,
+                Some(parameters.into()),
+                None,
+            )
+            .await?;
+
+        response.await?.ok_or(ZKSWalletError::CustomError(
+            "No transaction receipt for erc20 approval".to_owned(),
+        ))
     }
 
     async fn get_base_cost(

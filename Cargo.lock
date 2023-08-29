@@ -3585,6 +3585,7 @@ dependencies = [
  "ethers",
  "ethers-contract",
  "hex",
+ "lazy_static",
  "log",
  "serde",
  "serde_json",

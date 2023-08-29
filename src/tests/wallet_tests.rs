@@ -6,6 +6,7 @@ mod zks_signer_tests {
         CallRequest, DeployRequest, DepositRequest, TransferRequest, WithdrawRequest, ZKSWallet,
     };
     use ethers::abi::Tokenize;
+    use ethers::contract::abigen;
     use ethers::providers::Middleware;
     use ethers::signers::{LocalWallet, Signer};
     use ethers::types::Address;
@@ -14,6 +15,14 @@ mod zks_signer_tests {
     use std::fs::File;
     use std::path::PathBuf;
     use std::str::FromStr;
+    use std::sync::Arc;
+
+    abigen!(
+        ERC20Token,
+        r#"[
+            balanceOf(address)(uint256)
+        ]"#
+    );
 
     #[tokio::test]
     async fn test_transfer() {
@@ -185,6 +194,56 @@ mod zks_signer_tests {
             l2_balance_after >= l2_balance_before + request.amount(),
             "Balance on L2 should be increased"
         );
+    }
+
+    #[ignore = "FIXME Implement a fixture that deploys an ERC20 token"]
+    #[tokio::test]
+    async fn test_deposit_erc20_token() {
+        let amount: U256 = 1_i32.into();
+        let private_key = "0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110";
+        let l1_provider = eth_provider();
+        let l2_provider = era_provider();
+        let wallet = LocalWallet::from_str(private_key).unwrap();
+        let zk_wallet = ZKSWallet::new(
+            wallet,
+            None,
+            Some(l2_provider.clone()),
+            Some(l1_provider.clone()),
+        )
+        .unwrap();
+
+        let token_l1_address: Address = "0xc8F8cE6491227a6a2Ab92e67a64011a4Eba1C6CF"
+            .parse()
+            .unwrap();
+
+        let contract_l1 = ERC20Token::new(token_l1_address, Arc::new(l1_provider.clone()));
+
+        let balance_erc20_l1_before: U256 = contract_l1
+            .balance_of(zk_wallet.l1_address())
+            .call()
+            .await
+            .unwrap();
+
+        let request = DepositRequest::new(amount).token(Some(token_l1_address));
+
+        let l1_tx_hash = zk_wallet.deposit(&request).await.unwrap();
+        let l1_receipt = zk_wallet
+            .get_eth_provider()
+            .unwrap()
+            .get_transaction_receipt(l1_tx_hash)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(l1_receipt.status.unwrap(), 1_i32.into());
+
+        let balance_erc20_l1_after: U256 = contract_l1
+            .balance_of(zk_wallet.l1_address())
+            .call()
+            .await
+            .unwrap();
+
+        assert_eq!(balance_erc20_l1_after, balance_erc20_l1_before - amount);
+        // FIXME check balance on l2.
     }
 
     #[tokio::test]
