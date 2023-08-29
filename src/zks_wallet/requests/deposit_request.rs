@@ -1,8 +1,8 @@
 use crate::types::{Address, U256};
 
 use crate::zks_utils::{
-    DEPOSIT_GAS_PER_PUBDATA_LIMIT, RECOMMENDED_DEPOSIT_L1_GAS_LIMIT,
-    RECOMMENDED_DEPOSIT_L2_GAS_LIMIT, ETHER_L1_ADDRESS,
+    DEPOSIT_GAS_PER_PUBDATA_LIMIT, ETHER_L1_ADDRESS, RECOMMENDED_DEPOSIT_L1_GAS_LIMIT,
+    RECOMMENDED_DEPOSIT_L2_GAS_LIMIT,
 };
 
 fn default_gas_limit() -> U256 {
@@ -16,6 +16,8 @@ fn default_l2_gas_limit() -> U256 {
 fn default_gas_per_pubdata_byte() -> U256 {
     DEPOSIT_GAS_PER_PUBDATA_LIMIT.into()
 }
+
+#[derive(Clone, Debug)]
 pub struct DepositRequest {
     pub amount: U256,
     pub to: Option<Address>,

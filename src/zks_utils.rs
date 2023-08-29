@@ -14,6 +14,7 @@ use std::str::FromStr;
 pub const ETH_CHAIN_ID: u16 = 0x9;
 pub const ERA_CHAIN_ID: u16 = 0x10E;
 pub const ERA_MAINNET_CHAIN_ID: u16 = 324;
+
 pub const EIP712_TX_TYPE: u8 = 0x71;
 // The large L2 gas per pubdata to sign. This gas is enough to ensure that
 // any reasonable limit will be accepted. Note, that the operator is NOT required to
@@ -377,8 +378,8 @@ pub fn mod_exp_function() -> Function {
         ],
         outputs: vec![Param {
             name: "".to_owned(),
-            kind: ParamType::Uint(256),
-            internal_type: Some("uint256".to_owned()),
+            kind: ParamType::Bytes,
+            internal_type: Some("bytes".to_owned()),
         }],
         state_mutability: ethers::abi::StateMutability::Payable,
         constant: None,
