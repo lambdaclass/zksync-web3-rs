@@ -196,7 +196,7 @@ mod zks_signer_tests {
         );
     }
 
-    #[ignore = "Implement a fixture that deploys an ERC20 token"]
+    #[ignore = "FIXME Implement a fixture that deploys an ERC20 token"]
     #[tokio::test]
     async fn test_deposit_erc20_token() {
         let amount: U256 = 1_i32.into();
@@ -228,10 +228,11 @@ mod zks_signer_tests {
 
         let l1_tx_hash = zk_wallet.deposit(&request).await.unwrap();
         let l1_receipt = zk_wallet
-            .get_era_provider()
+            .get_eth_provider()
             .unwrap()
-            .wait_for_finalize(l1_tx_hash, None, None)
+            .get_transaction_receipt(l1_tx_hash)
             .await
+            .unwrap()
             .unwrap();
         assert_eq!(l1_receipt.status.unwrap(), 1_i32.into());
 
