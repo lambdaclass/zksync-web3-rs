@@ -1,0 +1,25 @@
+name: Publish to crates.io
+
+on:
+  push:
+    tags: # Pattern matched against refs/tags
+      - '*' # Push events to every tag not containing /
+
+jobs:
+
+  publish:
+    name: Publish to crates.io
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: Checkout sources
+        uses: actions/checkout@v3
+
+      - name: Rustup toolchain install
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
+      - run: cargo publish --token ${CRATES_IO_TOKEN}
+        env:
+          CRATES_IO_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
