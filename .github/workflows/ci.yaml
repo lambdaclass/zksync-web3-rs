@@ -71,6 +71,27 @@ jobs:
       - name: Run clippy
         run: make clippy
 
+  doctest:
+    name: doctest
+    name: Test docs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v3
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          components: clippy
+
+      - name: Run doc tests
+        run: cargo test --doc
+
   test:
     name: Test
     runs-on: ubuntu-latest
