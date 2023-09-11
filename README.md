@@ -38,10 +38,16 @@ Before you begin, make sure you have the following prerequisites:
 
 ### Adding dependencies
 
-Add the following dependencies to your `Cargo.toml` file:
+This crate is published on crates.io, so you can simply do:
 
 ```bash
-zksync-web3-rs = { git = "https://www.github.com/lambdaclass/zksync-web3-rs" }
+cargo add zksync-web3-rs
+```
+
+Or, if you want to use the latest changes, add this to your `Cargo.toml` file:
+
+```bash
+zksync-web3-rs = { git = "https://www.github.com/lambdaclass/zksync-web3-rs", branch = "main"}
 ```
 
 > Maybe consider adding tokio as dependency since we are using a lot of async/await functions. If this example is meant to be done in the main function the #[tokio::main] annotation is needed.
