@@ -1,3 +1,5 @@
+#![doc = include_str!("../README.md")]
+
 #![forbid(unsafe_code)]
 #![recursion_limit = "256"]
 #![warn(
@@ -57,3 +59,4 @@ pub use zks_wallet::{ZKSWallet, ZKSWalletError};
 extern crate self as zksync_web3_rs;
 #[cfg(test)]
 mod tests;
+
