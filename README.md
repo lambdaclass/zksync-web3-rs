@@ -55,7 +55,7 @@ In the following steps, we will show you how to create a payment transaction usi
 Import the `zksync-web3-rs` library into your project by adding the following line to the top of your `main.rs` file:
 
 ```rust
-use zksync-web3-rs as zksync;
+use zksync_web3_rs as zksync;
 ```
 
 #### Connecting to the zkSync Network
@@ -63,7 +63,7 @@ use zksync-web3-rs as zksync;
 To connect to the zkSync network, you need to provide the URL of the zkSync node. The localnet runs both an *Ethereum* node (L1) on port `8545` and an *Era* node (L2) on port `3050`. You can connect to the zkSync Era network using the following code:
 
 ```rust
-let provider = zksync::Provider::try_from("http://localhost:3050").unwrap();
+let provider = zksync_web3_rs::prelude::Provider::try_from("http://localhost:3050").unwrap();
 ```
 
 #### Creating a ZK-Wallet
@@ -73,13 +73,13 @@ let provider = zksync::Provider::try_from("http://localhost:3050").unwrap();
 > https://era.zksync.io/docs/tools/hardhat/testing.html#connect-wallet-to-local-nodes
 
 ```rust
-use zksync::{Signer, k256::ecdsa::SigningKey};
+use zksync::signers::{Wallet, Signer};
+use zksync::core::k256::ecdsa::Signingkey
 
 let private_key: Wallet<SigningKey> = "0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110".parse().unwrap();
 let zksync_era_chain_id: u64 = 270;
-
 let wallet = zksync::Wallet::with_chain_id(private_key, zksync_era_chain_id);
-let zk_wallet = zksync::ZKSWallet::new(wallet, None, Some(provider), None).unwrap();
+let zk_wallet = zksync::ZKSWallet::new(wallet, None, Some(provider.clone()), None).unwrap();
 ```
 
 #### Creating a Payment Transaction
@@ -87,10 +87,10 @@ let zk_wallet = zksync::ZKSWallet::new(wallet, None, Some(provider), None).unwra
 To create a payment transaction, you need to provide the sender's address, the receiver's address, and the amount to transfer. You can create a payment transaction using the following code:
 
 ```rust
-use zksync::zks_provider::ZKSProvider;
-
-let receiver_address: zksync::Address = "0xa61464658AfeAf65CccaaFD3a512b69A83B77618".parse().unwrap();
-let amount_to_transfer = zksync::U256::from(1);
+use zksync::types::Address;
+use zkysnc::types::U256;
+let receiver_address: Address = "0xa61464658AfeAf65CccaaFD3a512b69A83B77618".parse().unwrap();
+let amount_to_transfer = U256::from(1);
 
 let mut payment_request = zksync::zks_wallet::TransferRequest::new(amount_to_transfer)
         .to(receiver_address)
@@ -105,12 +105,15 @@ To send the payment transaction, you need to use the wallet and the transfer req
 
 ```rust
 let payment_transaction_id =
-        zk_wallet.transfer(payment_request, None).await.unwrap();
+        zk_wallet.transfer(&payment_request, None).await.unwrap();
 ```
 
 This will send the transaction to the node and return its ID (hash). To get more information about the transaction we can ask for the `TransactionReceipt` with the following lines:
 
 ```rust
+# You're going to need to put this inside
+# an async function.
+use zksync::middleware::Middleware;
 let payment_transaction_receipt = provider
         .get_transaction_receipt(payment_transaction_id)
         .await
@@ -119,8 +122,9 @@ let payment_transaction_receipt = provider
 ```
 
 #### Checking zkSync account balance
-
 ```rust
+# You're going to need to put this inside
+# an async function.
 let sender_balance = provider
     .get_balance(sender_address, None)
     .await
