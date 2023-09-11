@@ -7,6 +7,12 @@ on:
 
 jobs:
 
+  # Ensure that this tag passes our automated quality checks before publishing
+  # to `crates.io`.
+  call-build-check-and-test-workflow:
+    name: "Call build, check and test workflow"
+    uses: ".github/workflows/build-check-test.yaml"
+
   publish:
     name: Publish to crates.io
     runs-on: ubuntu-latest
