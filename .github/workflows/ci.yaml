@@ -72,8 +72,7 @@ jobs:
         run: make clippy
 
   doctest:
-    name: doctest
-    name: Test docs
+    name: Doctest
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
