@@ -1,9 +1,10 @@
-name: CI
+name: Build, check and test
 on:
   push:
     branches: [main]
   pull_request:
     branches: ["*"]
+  workflow_call: # Allow other workflows to call this workflow.
 
 concurrency:
   group: ${{ github.head_ref || github.run_id }}
