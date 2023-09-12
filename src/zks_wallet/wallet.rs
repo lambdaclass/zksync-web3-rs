@@ -93,21 +93,44 @@ where
         })
     }
 
+    /// Connect an instance of a wallet to an Ethereum Provider.
+    /// # Arguments
+    /// * `eth_provider`. An ethereum provider implementing [Middleware].
+    /// # Example
+    /// ```no_run
+    ///  # use zksync_web3_rs::prelude::{k256::ecdsa::SigningKey, Wallet};
+    ///  # use zksync_web3_rs::signers::Signer;
+    ///  # let eth_provider = zksync_web3_rs::prelude::Provider::try_from("eth_url_provider").unwrap();
+    ///  # let private_key: Wallet<SigningKey> =
+    ///  #     "0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110"
+    ///  #         .parse()
+    ///  #         .unwrap();
+    ///  # let zksync_era_chain_id: u64 = 270;
+    ///  # let wallet = Wallet::with_chain_id(private_key, zksync_era_chain_id);
+    ///  let mut zk_wallet = zksync_web3_rs::ZKSWallet::new(wallet, None, None, None).unwrap();
+    ///  let ethereum_provider = zksync_web3_rs::prelude::Provider::try_from("url_eth_provider").unwrap();
+    ///  zk_wallet.connect_eth_provider(ethereum_provider);
+    /// ```
     pub fn connect_eth_provider(mut self, eth_provider: M) -> Self {
         self.eth_provider = Some(eth_provider.with_signer(self.l1_wallet.clone()).into());
         self
     }
 
+    /// Connect an instance of a wallet to a zkSync Era.
+    /// # Arguments.
+    /// * `era_provider`. A zkSync provider implementing [Middleware].
     pub fn connect_era_provider(mut self, era_provider: M) -> Self {
         self.era_provider = Some(era_provider.with_signer(self.l2_wallet.clone()).into());
         self
     }
 
+    /// Connect an instance of a wallet to an ethereum.
     pub fn connect_eth_signer(mut self, eth_signer: SignerMiddleware<M, Wallet<D>>) -> Self {
         self.eth_provider = Some(eth_signer.into());
         self
     }
 
+    /// Connect an instance of a wallet to a zksync era signer.
     pub fn connect_era_signer(mut self, era_signer: SignerMiddleware<M, Wallet<D>>) -> Self {
         self.era_provider = Some(era_signer.into());
         self
