@@ -57,6 +57,7 @@ lazy_static! {
     };
 }
 
+/// A zkSync wallet with chain interaction abstracted.
 #[derive(Clone, Debug)]
 pub struct ZKSWallet<M, D>
 where
@@ -65,8 +66,11 @@ where
 {
     /// Eth provider
     pub eth_provider: Option<Arc<SignerMiddleware<M, Wallet<D>>>>,
+    /// zkSync-era provider
     pub era_provider: Option<Arc<SignerMiddleware<M, Wallet<D>>>>,
+    /// L2 wallet 
     pub l2_wallet: Wallet<D>,
+    /// L1 wallet 
     pub l1_wallet: Wallet<D>,
 }
 
@@ -75,6 +79,25 @@ where
     M: Middleware + 'static + Clone,
     D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Sync + Send + Clone,
 {
+    /// Instance a new zk wallet.
+    /// # Arguments
+    /// * `l1_wallet`. An l1 [Wallet].
+    /// * `l2_wallet`. An l2 [Wallet].
+    /// * `era_provider`. An optional era provider, must implement [Middleware].
+    /// * `eth_provider`. An optional ethereum provider, must implement [Middleware].
+    /// # Example
+    /// ```no_run
+    ///  # use zksync_web3_rs::prelude::{k256::ecdsa::SigningKey, Wallet};
+    ///  # use zksync_web3_rs::signers::Signer;
+    ///  let provider = zksync_web3_rs::prelude::Provider::try_from("url_to_provider").unwrap();
+    ///  let private_key: Wallet<SigningKey> =
+    ///       "0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110"
+    ///           .parse()
+    ///           .unwrap();
+    ///   let zksync_era_chain_id: u64 = 270;
+    ///   let wallet = Wallet::with_chain_id(private_key, zksync_era_chain_id);
+    ///   let zk_wallet = zksync_web3_rs::ZKSWallet::new(wallet, None, Some(provider), None).unwrap();
+    /// ```
     pub fn new(
         l2_wallet: Wallet<D>,
         l1_wallet: Option<Wallet<D>>,
@@ -100,31 +123,50 @@ where
     /// ```no_run
     ///  # use zksync_web3_rs::prelude::{k256::ecdsa::SigningKey, Wallet};
     ///  # use zksync_web3_rs::signers::Signer;
-    ///  # let eth_provider = zksync_web3_rs::prelude::Provider::try_from("eth_url_provider").unwrap();
     ///  # let private_key: Wallet<SigningKey> =
     ///  #     "0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110"
     ///  #         .parse()
     ///  #         .unwrap();
     ///  # let zksync_era_chain_id: u64 = 270;
     ///  # let wallet = Wallet::with_chain_id(private_key, zksync_era_chain_id);
-    ///  let mut zk_wallet = zksync_web3_rs::ZKSWallet::new(wallet, None, None, None).unwrap();
-    ///  let ethereum_provider = zksync_web3_rs::prelude::Provider::try_from("url_eth_provider").unwrap();
-    ///  zk_wallet.connect_eth_provider(ethereum_provider);
+    ///  let ethereum_provider = zksync_web3_rs::prelude::Provider::try_from("http://localhost:8545").unwrap();
+    ///  let zk_wallet =
+    ///   zksync_web3_rs::ZKSWallet::new(wallet, None, None, None)
+    ///   .unwrap()
+    ///   .connect_eth_provider(ethereum_provider);
+    ///  assert!(zk_wallet.eth_provider.is_some());
     /// ```
     pub fn connect_eth_provider(mut self, eth_provider: M) -> Self {
         self.eth_provider = Some(eth_provider.with_signer(self.l1_wallet.clone()).into());
         self
     }
 
-    /// Connect an instance of a wallet to a zkSync Era.
+    /// Connect an instance of a wallet to a zkSync Era provider.
     /// # Arguments.
     /// * `era_provider`. A zkSync provider implementing [Middleware].
+    /// # Example 
+    /// ```no_run
+    ///  # use zksync_web3_rs::prelude::{k256::ecdsa::SigningKey, Wallet};
+    ///  # use zksync_web3_rs::signers::Signer;
+    ///  # let private_key: Wallet<SigningKey> =
+    ///  #     "0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110"
+    ///  #         .parse()
+    ///  #         .unwrap();
+    ///  # let zksync_era_chain_id: u64 = 270;
+    ///  # let wallet = Wallet::with_chain_id(private_key, zksync_era_chain_id);
+    ///  let era_provider = zksync_web3_rs::prelude::Provider::try_from("http://localhost:3050").unwrap();
+    ///  let zk_wallet =
+    ///   zksync_web3_rs::ZKSWallet::new(wallet, None, None, None)
+    ///   .unwrap()
+    ///   .connect_eth_provider(era_provider);
+    ///  assert!(zk_wallet.eth_provider.is_some());
+    /// ```
     pub fn connect_era_provider(mut self, era_provider: M) -> Self {
         self.era_provider = Some(era_provider.with_signer(self.l2_wallet.clone()).into());
         self
     }
 
-    /// Connect an instance of a wallet to an ethereum.
+    /// Connect an instance of a wallet to an ethereum signer.
     pub fn connect_eth_signer(mut self, eth_signer: SignerMiddleware<M, Wallet<D>>) -> Self {
         self.eth_provider = Some(eth_signer.into());
         self
@@ -144,22 +186,27 @@ where
     //     self.era_provider = Provider::try_from(format!("http://{host}:{port}")).ok().map(|p| p.with_signer(self.wallet));
     // }
 
+    /// Retrieve the address of the set l2 wallet.
     pub fn l2_address(&self) -> Address {
         self.l2_wallet.address()
     }
 
+    /// Returns the address of the set l2 wallet.
     pub fn l1_address(&self) -> Address {
         self.l1_wallet.address()
     }
 
+    /// Retrieve the set l2 chain id.
     pub fn l2_chain_id(&self) -> u64 {
         self.l2_wallet.chain_id()
     }
 
+    /// Returns the set l1 chain id.
     pub fn l1_chain_id(&self) -> u64 {
         self.l1_wallet.chain_id()
     }
 
+    /// Returns the set ethereum provider.
     pub fn get_eth_provider(
         &self,
     ) -> Result<Arc<SignerMiddleware<M, Wallet<D>>>, ZKSWalletError<M, D>> {
@@ -169,6 +216,7 @@ where
         }
     }
 
+    /// Returns the set zksync era provider.
     pub fn get_era_provider(
         &self,
     ) -> Result<Arc<SignerMiddleware<M, Wallet<D>>>, ZKSWalletError<M, D>> {
@@ -178,6 +226,21 @@ where
         }
     }
 
+    /// Returns the ethereum balance of this wallet, in wei.
+    /// # Example
+    /// ```no_run
+    /// # async fn eth_balance_test() {
+    /// # let private_key: Wallet<SigningKey> =
+    /// # "0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110"
+    /// # .parse()
+    /// # .unwrap();
+    /// # let zksync_era_chain_id: u64 = 270;
+    /// # let wallet = Wallet::with_chain_id(private_key, zksync_era_chain_id);
+    /// let ethereum_provider = zksync_web3_rs::prelude::Provider::try_from("http://localhost:8545").unwrap();
+    /// let zk_wallet = zksync_web3_rs::ZKSWallet::new(wallet, Some(ethereum_provider), None, None).unwrap();
+    /// assert_eq!(zk_wallet.eth_balance(), Ok(1000))
+    /// # }
+    /// ```
     pub async fn eth_balance(&self) -> Result<U256, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
@@ -189,6 +252,8 @@ where
         }
     }
 
+    /// Returns the zksync era balance of this wallet.
+    /// See the [`Self::eth_balance`] example.
     pub async fn era_balance(&self) -> Result<U256, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
@@ -200,6 +265,33 @@ where
         }
     }
 
+    /// Create a payment transaction and send it using this wallet through the Era net.
+    /// # Arguments
+    /// * `request`. A [TransferRequest]
+    /// # Returns
+    /// The transaction's hash.
+    /// # Example 
+    /// ```no_run
+    ///  # use zksync_web3_rs::prelude::{k256::ecdsa::SigningKey, Wallet};
+    ///  # use zksync_web3_rs::signers::Signer;
+    ///  # let eth_provider = zksync_web3_rs::prelude::Provider::try_from("url_to_eth_provider").unwrap();
+    ///  # let zk_provider = zksync_web3_rs::prelude::Provider::try_from("url_to_zksync_provider").unwrap();
+    ///  # let private_key: Wallet<SigningKey> =
+    ///  #    "0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110"
+    ///  #         .parse()
+    ///  #         .unwrap();
+    ///  # let zksync_era_chain_id: u64 = 270;
+    ///  # let wallet = Wallet::with_chain_id(private_key, zksync_era_chain_id);
+    /// let zk_wallet = zksync_web3_rs::ZKSWallet::new(wallet, Some(eth_provider), Some(zk_provider), None).unwrap();
+    /// /// Transfer 1000 wei to myself.
+    /// let req = TransferRequest {
+    ///    amount: U256::from(1000_u64),
+    ///    to: zk_wallet.l2_address(),
+    ///    from: zk_wallet.l2_address(),
+    /// };
+    /// let tx_hash = zk_wallet.transfer(&req, None).await.unwrap();
+    /// assert!(tx_hash.is_ok());
+    ///```
     pub async fn transfer(
         &self,
         request: &TransferRequest,
@@ -231,6 +323,13 @@ where
         Ok(transaction_receipt.transaction_hash)
     }
 
+
+    /// Create a payment transaction and send it using this wallet.
+    /// # Arguments
+    /// * `request`. A [TransferRequest]
+    /// # Returns
+    /// The transaction's hash.
+    /// See [Self::transfer]
     pub async fn transfer_eip712(
         &self,
         request: &TransferRequest,
@@ -253,6 +352,44 @@ where
         Ok(transaction_receipt.transaction_hash)
     }
 
+    /// L1 -> L2
+    /// Deposit from Ethereum Network to the zkSync era network.
+    /// # Arguments:
+    /// *`request`. A [DepositRequest]
+    /// # Returns
+    /// The transaction hash.
+    /// # Example
+    /// ```no_run
+    /// # use zksync_web3_rs::prelude::{k256::ecdsa::SigningKey, Wallet};
+    /// # use zksync_web3_rs::types::Address;
+    /// # use zksync_web3_rs::zks_wallet::DepositRequest;
+    /// # async fn deposit_doc_test() -> () {
+    /// # let ethereum_provider =
+    /// # zksync_web3_rs::prelude::Provider::try_from("http://localhost:8545").unwrap();
+    /// # 
+    /// #   let private_key: Wallet<SigningKey> =
+    /// #       "0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110"
+    /// #           .parse()
+    /// #          .unwrap();
+    /// #  let zksync_era_chain_id: u64 = 270;
+    /// #  let wallet = Wallet::with_chain_id(private_key, zksync_era_chain_id);
+    /// #  let zk_wallet = zksync_web3_rs::ZKSWallet::new(wallet, None, None, None).unwrap();
+    /// # let zk_provider = zksync_web3_rs::prelude::Provider::try_from("http://localhost:3050").unwrap();
+    /// # let zk_wallet = zk_wallet
+    /// #   .connect_eth_provider(ethereum_provider)
+    /// #    .connect_era_provider(zk_provider);
+    /// use zksync_web3_rs::signers::Signer;
+    /// let to: Address = "0xa61464658AfeAf65CccaaFD3a512b69A83B77618"
+    ///     .parse()
+    ///     .unwrap();
+    /// let amount = zksync_web3_rs::utils::parse_units("0.01", "ether").unwrap().into();
+    /// let request = DepositRequest::new(amount).to(to);
+    /// let l1_balance_before = dbg!(zk_wallet.eth_balance().await.unwrap());
+    /// zk_wallet.deposit(&request).await.unwrap();
+    /// let l1_new_balance = dbg!(zk_wallet.eth_balance().await.unwrap());
+    /// assert!(l1_balance_before > l1_new_balance);
+    /// # }
+    /// ```
     pub async fn deposit(&self, request: &DepositRequest) -> Result<H256, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
@@ -589,6 +726,7 @@ where
             ))
     }
 
+    // L2 -> L1
     pub async fn withdraw(&self, request: &WithdrawRequest) -> Result<H256, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
