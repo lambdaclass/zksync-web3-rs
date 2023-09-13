@@ -68,9 +68,9 @@ where
     pub eth_provider: Option<Arc<SignerMiddleware<M, Wallet<D>>>>,
     /// zkSync-era provider
     pub era_provider: Option<Arc<SignerMiddleware<M, Wallet<D>>>>,
-    /// L2 wallet 
+    /// L2 wallet
     pub l2_wallet: Wallet<D>,
-    /// L1 wallet 
+    /// L1 wallet
     pub l1_wallet: Wallet<D>,
 }
 
@@ -144,7 +144,7 @@ where
     /// Connect an instance of a wallet to a zkSync Era provider.
     /// # Arguments.
     /// * `era_provider`. A zkSync provider implementing [Middleware].
-    /// # Example 
+    /// # Example
     /// ```no_run
     ///  # use zksync_web3_rs::prelude::{k256::ecdsa::SigningKey, Wallet};
     ///  # use zksync_web3_rs::signers::Signer;
@@ -276,7 +276,7 @@ where
     /// * `request`. A [TransferRequest]
     /// # Returns
     /// The transaction's hash.
-    /// # Example 
+    /// # Example
     /// ```no_run
     /// # use zksync_web3_rs::prelude::{k256::ecdsa::SigningKey, Wallet};
     /// # use zksync_web3_rs::signers::Signer;
@@ -333,7 +333,6 @@ where
         Ok(transaction_receipt.transaction_hash)
     }
 
-
     /// Create a payment transaction and send it using this wallet.
     /// # Arguments
     /// * `request`. A [TransferRequest]
@@ -375,7 +374,7 @@ where
     /// # async fn deposit_doc_test() -> () {
     /// # let ethereum_provider =
     /// # zksync_web3_rs::prelude::Provider::try_from("http://localhost:8545").unwrap();
-    /// # 
+    /// #
     /// #   let private_key: Wallet<SigningKey> =
     /// #       "0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110"
     /// #           .parse()
@@ -460,14 +459,14 @@ where
     /// using an ERC20 compliant token. This function
     /// will approve the ERC 20 token through [Self::aprove_erc20].
     /// # Arguments
-    ///  `l1_token_address`. The token address.
-    ///  `amount`. The amount of this token.
-    ///  `to`. The receiving address.
-    ///  `operator_tip`. The amount for this token.
-    ///  `bridge_address`. The address of the bridge contract to be used,
+    /// *`l1_token_address`. The token address.
+    /// *`amount`. The amount of this token.
+    /// *`to`. The receiving address.
+    /// *`operator_tip`. The amount for this token.
+    /// *`bridge_address`. The address of the bridge contract to be used,
     ///  if not provided, will default to [zksync_web_3_rs::zks_utils::CONTRACTS_L2_ERC20_BRIDGE_ADDR].
-    ///  `max_fee_per_gas`. Will be used to determine 
-    ///  `gas_price`.  
+    /// *`max_fee_per_gas`. Will be used to determine
+    /// *`gas_price`.  
     async fn deposit_erc20_token(
         &self,
         l1_token_address: Address,
@@ -476,7 +475,7 @@ where
         operator_tip: U256,
         bridge_address: Option<Address>,
         max_fee_per_gas: Option<U256>,
-        gas_price: Option<U256>
+        gas_price: Option<U256>,
     ) -> Result<TransactionReceipt, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
