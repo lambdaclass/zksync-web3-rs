@@ -229,16 +229,22 @@ where
     /// Returns the ethereum balance of this wallet, in wei.
     /// # Example
     /// ```no_run
+    /// # use zksync_web3_rs::prelude::Wallet;
+    /// # use zksync_web3_rs::signers::Signer;
+    /// # use zksync_web3_rs::prelude::{k256::ecdsa::SigningKey};
     /// # async fn eth_balance_test() {
-    /// # let private_key: Wallet<SigningKey> =
-    /// # "0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110"
-    /// # .parse()
-    /// # .unwrap();
-    /// # let zksync_era_chain_id: u64 = 270;
-    /// # let wallet = Wallet::with_chain_id(private_key, zksync_era_chain_id);
-    /// let ethereum_provider = zksync_web3_rs::prelude::Provider::try_from("http://localhost:8545").unwrap();
-    /// let zk_wallet = zksync_web3_rs::ZKSWallet::new(wallet, Some(ethereum_provider), None, None).unwrap();
-    /// assert_eq!(zk_wallet.eth_balance(), Ok(1000))
+    /// #    let private_key: Wallet<SigningKey> =
+    /// #        "0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110"
+    /// #        .parse()
+    /// #        .unwrap();
+    /// #    let eth_chain_id: u64 = 1;
+    /// #    let zksync_chain_id: u64 = 170;
+    /// #    let eth_wallet = Wallet::with_chain_id(private_key.clone(), eth_chain_id);
+    /// #    let l2_wallet = Wallet::with_chain_id(private_key, zksync_chain_id);
+    /// #    let zk_provider = zksync_web3_rs::prelude::Provider::try_from("zk-provider-url").unwrap();
+    /// #    let ethereum_provider = zksync_web3_rs::prelude::Provider::try_from("eth-provider-url").unwrap();
+    /// let zk_wallet = zksync_web3_rs::ZKSWallet::new(l2_wallet, Some(eth_wallet), Some(ethereum_provider), None).unwrap();
+    /// assert_eq!(zk_wallet.eth_balance().await.unwrap(), 1000.into());
     /// # }
     /// ```
     pub async fn eth_balance(&self) -> Result<U256, ZKSWalletError<M, D>>
@@ -272,25 +278,29 @@ where
     /// The transaction's hash.
     /// # Example 
     /// ```no_run
-    ///  # use zksync_web3_rs::prelude::{k256::ecdsa::SigningKey, Wallet};
-    ///  # use zksync_web3_rs::signers::Signer;
-    ///  # let eth_provider = zksync_web3_rs::prelude::Provider::try_from("url_to_eth_provider").unwrap();
-    ///  # let zk_provider = zksync_web3_rs::prelude::Provider::try_from("url_to_zksync_provider").unwrap();
-    ///  # let private_key: Wallet<SigningKey> =
-    ///  #    "0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110"
-    ///  #         .parse()
-    ///  #         .unwrap();
-    ///  # let zksync_era_chain_id: u64 = 270;
-    ///  # let wallet = Wallet::with_chain_id(private_key, zksync_era_chain_id);
-    /// let zk_wallet = zksync_web3_rs::ZKSWallet::new(wallet, Some(eth_provider), Some(zk_provider), None).unwrap();
-    /// /// Transfer 1000 wei to myself.
-    /// let req = TransferRequest {
-    ///    amount: U256::from(1000_u64),
-    ///    to: zk_wallet.l2_address(),
-    ///    from: zk_wallet.l2_address(),
-    /// };
-    /// let tx_hash = zk_wallet.transfer(&req, None).await.unwrap();
-    /// assert!(tx_hash.is_ok());
+    /// # use zksync_web3_rs::prelude::{k256::ecdsa::SigningKey, Wallet};
+    /// # use zksync_web3_rs::signers::Signer;
+    /// # use zksync_web3_rs::types::U256;
+    ///# async fn transfer_doc_test() -> () {
+    ///#   let eth_provider = zksync_web3_rs::prelude::Provider::try_from("url_to_eth_provider").unwrap();
+    ///#   let zk_provider = zksync_web3_rs::prelude::Provider::try_from("url_to_zksync_provider").unwrap();
+    ///#   let private_key: Wallet<SigningKey> =
+    ///#       "0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110"
+    ///#       .parse()
+    ///#       .unwrap();
+    ///#   let zksync_era_chain_id: u64 = 270;
+    ///#   let wallet = Wallet::with_chain_id(private_key, zksync_era_chain_id);
+    ///#   let zk_wallet = zksync_web3_rs::ZKSWallet::new(wallet, None, Some(eth_provider), Some(zk_provider)).unwrap();
+    ///   /// Transfer to myself.
+    ///   use zksync_web3_rs::zks_wallet::TransferRequest;
+    ///   let req = TransferRequest {
+    ///       amount: U256::from(1000_u64),
+    ///       to: zk_wallet.l2_address(),
+    ///       from: zk_wallet.l2_address(),
+    ///   };
+    ///   let tx_hash = zk_wallet.transfer(&req, None).await;
+    ///   assert!(tx_hash.is_ok());
+    ///# }
     ///```
     pub async fn transfer(
         &self,
@@ -352,7 +362,6 @@ where
         Ok(transaction_receipt.transaction_hash)
     }
 
-    /// L1 -> L2
     /// Deposit from Ethereum Network to the zkSync era network.
     /// # Arguments:
     /// *`request`. A [DepositRequest]
@@ -386,8 +395,8 @@ where
     /// let request = DepositRequest::new(amount).to(to);
     /// let l1_balance_before = dbg!(zk_wallet.eth_balance().await.unwrap());
     /// zk_wallet.deposit(&request).await.unwrap();
-    /// let l1_new_balance = dbg!(zk_wallet.eth_balance().await.unwrap());
-    /// assert!(l1_balance_before > l1_new_balance);
+    /// let l1_balance_now = dbg!(zk_wallet.eth_balance().await.unwrap());
+    /// assert!(l1_balance_before > l1_balance_now);
     /// # }
     /// ```
     pub async fn deposit(&self, request: &DepositRequest) -> Result<H256, ZKSWalletError<M, D>>
@@ -447,6 +456,18 @@ where
         Ok(receipt.transaction_hash)
     }
 
+    /// Deposit from Ethereum to the zkSync Era network,
+    /// using an ERC20 compliant token. This function
+    /// will approve the ERC 20 token through [Self::aprove_erc20].
+    /// # Arguments
+    ///  `l1_token_address`. The token address.
+    ///  `amount`. The amount of this token.
+    ///  `to`. The receiving address.
+    ///  `operator_tip`. The amount for this token.
+    ///  `bridge_address`. The address of the bridge contract to be used,
+    ///  if not provided, will default to [zksync_web_3_rs::zks_utils::CONTRACTS_L2_ERC20_BRIDGE_ADDR].
+    ///  `max_fee_per_gas`. Will be used to determine 
+    ///  `gas_price`.  
     async fn deposit_erc20_token(
         &self,
         l1_token_address: Address,
@@ -455,7 +476,7 @@ where
         operator_tip: U256,
         bridge_address: Option<Address>,
         max_fee_per_gas: Option<U256>,
-        gas_price: Option<U256>,
+        gas_price: Option<U256>
     ) -> Result<TransactionReceipt, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
@@ -561,6 +582,14 @@ where
             ))
     }
 
+    /// Approves a certain amount of tokens for the given
+    /// l1 bridge.
+    /// # Arguments
+    /// *`bridge` The L1 bridge address.
+    /// *`amount` How many tokens to approve.
+    /// *`token` The L1 token address.
+    /// # Returns
+    /// A receipt of the L1 approval transaction.
     async fn approve_erc20(
         &self,
         bridge: Address,
@@ -589,6 +618,14 @@ where
         ))
     }
 
+    /// Get the base (i.e. w/out fees) cost of an L2 transaction
+    /// # Arguments
+    /// *`gas_limit. The gas limit for an L2 contract call.
+    /// *`gas_per_pubdata_bye. The L2 gas price for each published L1 calldata byte.
+    /// *`gas_price. The L1 gas price of the L1 transaction that will send the request for
+    /// an execute call
+    /// # Returns.
+    /// The base cost in ETH.
     async fn get_base_cost(
         &self,
         gas_limit: U256,
@@ -608,6 +645,7 @@ where
         Ok(base_cost)
     }
 
+    // TODO: Maybe remove this?
     pub async fn deploy_from_bytecode<T>(
         &self,
         contract_bytecode: &[u8],
@@ -703,6 +741,11 @@ where
         Ok(contract_address)
     }
 
+    /// Deploy a contract through a [DeployRequest].
+    /// # Arguments
+    /// *`request`. A [DeployRequest].
+    /// # Returns
+    /// The address of the deployed contract.
     pub async fn deploy(&self, request: &DeployRequest) -> Result<H160, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
@@ -726,7 +769,16 @@ where
             ))
     }
 
-    // L2 -> L1
+    /// This function is in charge of performing a withdrawal transaction,
+    /// that is, the first step of an L2 -> L1 "transfer".
+    /// Keep in mind that you or anyone will then have to
+    /// call [Self::finalize_withdraw], you can read more about it (here)[https://era.zksync.io/docs/reference/concepts/bridging-asset.html#withdrawals-to-l1],
+    /// although it's not currently needed on the testnet.
+    /// # Arguments
+    /// *`request`. A [WithdrawRequest], the [from] field should be an L2 and the
+    /// [to] field should be an L1 address.
+    /// # Returns
+    /// The hash of the withdraw transaction, which can then be used to finalize it, if needed.
     pub async fn withdraw(&self, request: &WithdrawRequest) -> Result<H256, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
@@ -743,6 +795,12 @@ where
         Ok(transaction_receipt.transaction_hash)
     }
 
+    /// Finalize a withdraw, the second (and final) step to send funds from L2 -> L1.
+    /// Read the [Self::withdraw] doc for more.
+    /// # Arguments
+    /// *`tx_hash`. The transaction hash resulting from a [Self::withdraw] call.
+    /// # Returns
+    /// The hash of the finalize withdraw transaction.
     pub async fn finalize_withdraw(&self, tx_hash: H256) -> Result<H256, ZKSWalletError<M, D>>
     where
         M: ZKSProvider,
