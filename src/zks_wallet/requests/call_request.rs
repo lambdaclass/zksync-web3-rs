@@ -1,3 +1,16 @@
+/// Parameters to call a contract's view function i.e.
+/// functions which do not alter the net's state.
+/// # Example
+/// ```compile_fail
+/// # let contract_address: zksync_web3_rs::types::Address = Default::default();
+/// /// Call request for the greet contract from the [getting started](https://docs.zksync.io/api/sdk/rust/tutorial/) tutorial
+/// /// that returns a String.
+/// let call_request = CallRequest::new(contract_address, "greet()(string)".to_owned());
+/// let greet = ZKSProvider::call(era_provider.as_ref(), &call_request)
+///            .await
+///            .unwrap();
+/// println!("greet: {}", greet[0]);
+/// ```
 use ethers::{
     abi::{encode, Function, HumanReadableParser, ParseError},
     types::{Address, Eip1559TransactionRequest},
@@ -9,14 +22,27 @@ use crate::{
     zks_wallet::errors::ZKRequestError,
 };
 
+/// Parameters to call a contract's view function i.e.
+/// functions which do not alter the net's state.
 #[derive(Clone, Debug)]
 pub struct CallRequest {
+    /// The contract's address.
     pub to: Address,
+    /// The function to call, with its signature.
     pub function_signature: String,
+    /// The parameters for the function.
     pub function_parameters: Option<Vec<String>>,
 }
 
 impl CallRequest {
+    /// Create a new instance.
+    /// # Example
+    /// ```
+    /// # let contract_address: zksync_web3_rs::types::Address = Default::default();
+    /// /// Call request for the greet contract from the getting started tutorial
+    /// /// that returns a String.
+    /// let call_request = CallRequest::new(contract_address, "greet()(string)".to_owned());
+    /// ```
     pub fn new(to: Address, function_signature: String) -> Self {
         Self {
             to,
