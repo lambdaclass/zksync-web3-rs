@@ -35,14 +35,6 @@ pub struct CallRequest {
 }
 
 impl CallRequest {
-    /// Create a new instance.
-    /// # Example
-    /// ```
-    /// # let contract_address: zksync_web3_rs::types::Address = Default::default();
-    /// /// Call request for the greet contract from the getting started tutorial
-    /// /// that returns a String.
-    /// let call_request = CallRequest::new(contract_address, "greet()(string)".to_owned());
-    /// ```
     pub fn new(to: Address, function_signature: String) -> Self {
         Self {
             to,
