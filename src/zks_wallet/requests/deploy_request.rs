@@ -3,9 +3,9 @@ use std::fmt::Debug;
 
 /// Parameters for a contract deployment.
 /// *`contract_abi` The contract's interface.
-/// *`contract_bytecode` 
+/// *`contract_bytecode`
 /// *`constructor_parameters` The parameters for the contract's constructor.
-/// *`from` 
+/// *`from`
 /// *`factory_deps`
 #[derive(Clone, Debug)]
 pub struct DeployRequest {
