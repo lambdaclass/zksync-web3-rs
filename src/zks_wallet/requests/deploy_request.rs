@@ -1,12 +1,24 @@
 use ethers::{abi::Abi, types::Address};
 use std::fmt::Debug;
 
+/// Parameters for a contract deployment.
+/// *`contract_abi` The contract's interface.
+/// *`contract_bytecode` 
+/// *`constructor_parameters` The parameters for the contract's constructor.
+/// *`from` 
+/// *`factory_deps`
 #[derive(Clone, Debug)]
 pub struct DeployRequest {
+    /// The contract's interface.
     pub contract_abi: Abi,
+    /// The compiled contract, as vec of bytes.
     pub contract_bytecode: Vec<u8>,
+    /// The parameters for the contract's constructor
     pub constructor_parameters: Vec<String>,
+    /// The requester of the deploy.
     pub from: Address,
+    /// The list of bytecode hashes that the contract should know
+    /// in advance, read more about it [here](https://era.zksync.io/docs/reference/architecture/contract-deployment.html#note-on-factory-deps)
     pub factory_deps: Option<Vec<Vec<u8>>>,
 }
 
