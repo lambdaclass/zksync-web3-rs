@@ -363,7 +363,7 @@ where
 
     /// Deposit from Ethereum Network to the zkSync era network.
     /// # Arguments:
-    /// *`request`. A [DepositRequest]
+    /// * `request`. A [DepositRequest]
     /// # Returns
     /// The transaction hash.
     /// # Example
@@ -459,14 +459,14 @@ where
     /// using an ERC20 compliant token. This function
     /// will approve the ERC 20 token through [Self::aprove_erc20].
     /// # Arguments
-    /// *`l1_token_address`. The token address.
-    /// *`amount`. The amount of this token.
-    /// *`to`. The receiving address.
-    /// *`operator_tip`. The amount for this token.
-    /// *`bridge_address`. The address of the bridge contract to be used,
+    /// * `l1_token_address`. The token address.
+    /// * `amount`. The amount of this token.
+    /// * `to`. The receiving address.
+    /// * `operator_tip`. The amount for this token.
+    /// * `bridge_address`. The address of the bridge contract to be used,
     ///  if not provided, will default to [zksync_web_3_rs::zks_utils::CONTRACTS_L2_ERC20_BRIDGE_ADDR].
-    /// *`max_fee_per_gas`. Will be used to determine
-    /// *`gas_price`.  
+    /// * `max_fee_per_gas`. Will be used to determine
+    /// * `gas_price`.  
     async fn deposit_erc20_token(
         &self,
         l1_token_address: Address,
@@ -584,9 +584,9 @@ where
     /// Approves a certain amount of tokens for the given
     /// l1 bridge.
     /// # Arguments
-    /// *`bridge` The L1 bridge address.
-    /// *`amount` How many tokens to approve.
-    /// *`token` The L1 token address.
+    /// * `bridge` The L1 bridge address.
+    /// * `amount` How many tokens to approve.
+    /// * `token` The L1 token address.
     /// # Returns
     /// A receipt of the L1 approval transaction.
     async fn approve_erc20(
@@ -619,9 +619,9 @@ where
 
     /// Get the base (i.e. w/out fees) cost of an L2 transaction
     /// # Arguments
-    /// *`gas_limit. The gas limit for an L2 contract call.
-    /// *`gas_per_pubdata_bye. The L2 gas price for each published L1 calldata byte.
-    /// *`gas_price. The L1 gas price of the L1 transaction that will send the request for
+    /// * `gas_limit. The gas limit for an L2 contract call.
+    /// * `gas_per_pubdata_bye. The L2 gas price for each published L1 calldata byte.
+    /// * `gas_price. The L1 gas price of the L1 transaction that will send the request for
     /// an execute call
     /// # Returns.
     /// The base cost in ETH.
@@ -742,7 +742,7 @@ where
 
     /// Deploy a contract through a [DeployRequest].
     /// # Arguments
-    /// *`request`. A [DeployRequest].
+    /// * `request`. A [DeployRequest].
     /// # Returns
     /// The address of the deployed contract.
     pub async fn deploy(&self, request: &DeployRequest) -> Result<H160, ZKSWalletError<M, D>>
@@ -771,11 +771,11 @@ where
     /// This function is in charge of performing a withdrawal transaction,
     /// that is, the first step of an L2 -> L1 "transfer".
     /// Keep in mind that you or anyone will then have to
-    /// call [Self::finalize_withdraw], you can read more about it (here)[https://era.zksync.io/docs/reference/concepts/bridging-asset.html#withdrawals-to-l1],
+    /// call [Self::finalize_withdraw], you can read more about it [here](https://era.zksync.io/docs/reference/concepts/bridging-asset.html#withdrawals-to-l1),
     /// although it's not currently needed on the testnet.
     /// # Arguments
-    /// *`request`. A [WithdrawRequest], the [from] field should be an L2 and the
-    /// [to] field should be an L1 address.
+    /// * `request`. A [WithdrawRequest], the from field should be an L2 and the
+    ///  to field should be an L1 address.
     /// # Returns
     /// The hash of the withdraw transaction, which can then be used to finalize it, if needed.
     pub async fn withdraw(&self, request: &WithdrawRequest) -> Result<H256, ZKSWalletError<M, D>>
@@ -797,7 +797,7 @@ where
     /// Finalize a withdraw, the second (and final) step to send funds from L2 -> L1.
     /// Read the [Self::withdraw] doc for more.
     /// # Arguments
-    /// *`tx_hash`. The transaction hash resulting from a [Self::withdraw] call.
+    /// * `tx_hash`. The transaction hash resulting from a [Self::withdraw] call.
     /// # Returns
     /// The hash of the finalize withdraw transaction.
     pub async fn finalize_withdraw(&self, tx_hash: H256) -> Result<H256, ZKSWalletError<M, D>>
