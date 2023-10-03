@@ -93,7 +93,7 @@ let zk_wallet = zksync::ZKSWallet::new(wallet, None, Some(provider.clone()), Non
 #### Creating a Payment Transaction
 To create a payment transaction, you need to provide the sender's address, the receiver's address, and the amount to transfer. You can create a payment transaction using the following code:
 Notice the await, this code should run inside an async function.
-```rust,should_panic
+```rust,no_run
 use zksync_web3_rs as zksync;
 use zksync::types::Address;
 // Use actual addresses here
