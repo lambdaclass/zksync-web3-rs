@@ -1,10 +1,14 @@
 use ethers::types::{Address, Eip1559TransactionRequest, U256};
 use std::fmt::Debug;
 
+/// Parameters for a transaction.
 #[derive(Clone, Debug)]
 pub struct TransferRequest {
+    /// The amount to transfer
     pub amount: U256,
+    /// The account that sends the funds.
     pub to: Address,
+    /// The receipient of the funds.
     pub from: Address,
 }
 
