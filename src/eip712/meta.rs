@@ -15,6 +15,8 @@ pub struct Eip712Meta {
     pub custom_signature: Option<Bytes>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub paymaster_params: Option<PaymasterParams>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub salt: Option<Bytes>,
 }
 
 impl Eip712Meta {
@@ -50,6 +52,11 @@ impl Eip712Meta {
         self.paymaster_params = Some(paymaster_params);
         self
     }
+
+    pub fn salt(mut self, salt: Bytes) -> Self {
+        self.salt = Some(salt);
+        self
+    }
 }
 
 impl Default for Eip712Meta {
@@ -59,6 +66,7 @@ impl Default for Eip712Meta {
             factory_deps: Default::default(),
             custom_signature: Default::default(),
             paymaster_params: Default::default(),
+            salt: Default::default(),
         }
     }
 }
