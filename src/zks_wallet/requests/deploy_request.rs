@@ -8,6 +8,7 @@ pub struct DeployRequest {
     pub constructor_parameters: Vec<String>,
     pub from: Address,
     pub factory_deps: Option<Vec<Vec<u8>>>,
+    pub deploy_type: String,
 }
 
 impl DeployRequest {
@@ -22,6 +23,7 @@ impl DeployRequest {
             constructor_parameters,
             from: Default::default(),
             factory_deps: None,
+            deploy_type: "create".to_string(),
         }
     }
 
@@ -32,6 +34,11 @@ impl DeployRequest {
 
     pub fn factory_deps(mut self, factory_deps: Vec<Vec<u8>>) -> Self {
         self.factory_deps = Some(factory_deps);
+        self
+    }
+
+    pub fn deploy_type(mut self, deploy_type: &str) -> Self {
+        self.deploy_type = deploy_type.to_string();
         self
     }
 }
