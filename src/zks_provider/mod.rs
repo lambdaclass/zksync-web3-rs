@@ -703,7 +703,6 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
         let mut request: Eip712TransactionRequest = transaction.try_into().map_err(|_e| {
             ProviderError::CustomError("error on send_transaction_eip712".to_owned())
         })?;
-
         request = request
             .from(wallet.address())
             .chain_id(wallet.chain_id())
@@ -726,6 +725,7 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
             .await
             .map_err(|e| ProviderError::CustomError(format!("error signing transaction: {e}")))?;
         request = request.custom_data(custom_data.custom_signature(signature.to_vec()));
+
         let encoded_rlp = &*request
             .rlp_signed(signature)
             .map_err(|e| ProviderError::CustomError(format!("Error in the rlp encoding {e}")))?;

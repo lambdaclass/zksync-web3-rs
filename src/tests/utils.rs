@@ -12,6 +12,9 @@ use serde::Deserialize;
 
 use crate::zks_utils::ERA_CHAIN_ID;
 
+pub const TEST_PRIVATE_KEY: &str =
+    "0xe131bc3f481277a8f73d680d9ba404cc6f959e64296e0914dded403030d4f705";
+
 #[derive(Deserialize)]
 pub(crate) struct CompiledContract {
     pub abi: Abi,
@@ -29,7 +32,7 @@ pub fn era_provider() -> Provider<Http> {
 }
 
 pub fn local_wallet() -> LocalWallet {
-    "0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110"
+    TEST_PRIVATE_KEY
         .parse::<LocalWallet>()
         .unwrap()
         .with_chain_id(ERA_CHAIN_ID)
@@ -37,9 +40,7 @@ pub fn local_wallet() -> LocalWallet {
 
 pub fn era_signer() -> SignerMiddleware<Provider<ethers::providers::Http>, Wallet<SigningKey>> {
     let signer = Wallet::with_chain_id(
-        "0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110"
-            .parse::<Wallet<SigningKey>>()
-            .unwrap(),
+        TEST_PRIVATE_KEY.parse::<Wallet<SigningKey>>().unwrap(),
         ERA_CHAIN_ID,
     );
     era_provider().with_signer(signer)
