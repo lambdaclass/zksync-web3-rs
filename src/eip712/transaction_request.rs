@@ -282,15 +282,19 @@ impl TryFrom<DeployRequest> for Eip712TransactionRequest {
     fn try_from(request: DeployRequest) -> Result<Self, Self::Error> {
         let mut contract_deployer_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         contract_deployer_path.push("src/abi/ContractDeployer.json");
+        // TODO: User could provide this instead of defaulting.
+        let salt = [1_u8; 32];
 
-        let custom_data = Eip712Meta::new().factory_deps({
-            let mut factory_deps = Vec::new();
-            if let Some(factory_dependencies) = request.factory_deps {
-                factory_deps.extend(factory_dependencies);
-            }
-            factory_deps.push(request.contract_bytecode.clone());
-            factory_deps
-        });
+        let custom_data = Eip712Meta::new()
+            .factory_deps({
+                let mut factory_deps = Vec::new();
+                if let Some(factory_dependencies) = request.factory_deps {
+                    factory_deps.extend(factory_dependencies);
+                }
+                factory_deps.push(request.contract_bytecode.clone());
+                factory_deps
+            })
+            .salt(Bytes::from(salt));
 
         let contract_deployer = Abi::load(BufReader::new(
             File::open(contract_deployer_path).map_err(|e| {
@@ -299,10 +303,8 @@ impl TryFrom<DeployRequest> for Eip712TransactionRequest {
                 ))
             })?,
         ))?;
-        let create = contract_deployer.function("create")?;
+        let create_function = contract_deployer.function(&request.deploy_type)?;
 
-        // TODO: User could provide this instead of defaulting.
-        let salt = [0_u8; 32];
         let bytecode_hash = hash_bytecode(&request.contract_bytecode).map_err(|e| {
             ZKRequestError::CustomError(format!("Error hashing contract bytecode {e:?}"))
         })?;
@@ -322,7 +324,7 @@ impl TryFrom<DeployRequest> for Eip712TransactionRequest {
             }
         };
 
-        let data = encode_function_data(create, (salt, bytecode_hash, call_data))?;
+        let data = encode_function_data(create_function, (salt, bytecode_hash, call_data))?;
 
         let contract_deployer_address = Address::from_str(CONTRACT_DEPLOYER_ADDR).map_err(|e| {
             ZKRequestError::CustomError(format!("Error getting contract deployer address {e:?}"))
