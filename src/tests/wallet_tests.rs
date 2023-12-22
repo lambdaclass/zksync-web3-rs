@@ -459,14 +459,11 @@ mod zks_signer_tests {
             tx_finalize_receipt.transaction_hash
         );
 
-        // let tx = zk_wallet.get_eth_provider().unwrap().get_transaction(tx_finalize_hash).await.unwrap().unwrap();
-        // println!("Finalize Transaction: {:?}", tx);
-
-        // assert_eq!(
-        //     1,
-        //     tx_finalize_receipt.status.unwrap().as_u64(),
-        //     "Check that transaction in L1 is successful"
-        // );
+        assert_eq!(
+            1,
+            tx_finalize_receipt.status.unwrap().as_u64(),
+            "Check that transaction in L1 is successful"
+        );
 
         // See balances after withdraw
         let l1_balance_after_finalize = zk_wallet.eth_balance().await.unwrap();
