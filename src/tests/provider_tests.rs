@@ -462,7 +462,7 @@ mod zks_provider_tests {
     // TODO: This test is flacky. It could fail in the future.
     async fn test_signer_get_all_account_balances() {
         let provider = era_signer();
-        let address: Address = "0xbd29a1b981925b94eec5c4f1125af02a2ec4d1ca"
+        let address: Address = "0x52312AD6f01657413b2eaE9287f6B9ADaD93D5FE"
             .parse()
             .unwrap();
         let balance = provider.get_balance(address, None).await.unwrap();
