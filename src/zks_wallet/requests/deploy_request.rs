@@ -9,6 +9,7 @@ pub struct DeployRequest {
     pub from: Address,
     pub factory_deps: Option<Vec<Vec<u8>>>,
     pub deploy_type: String,
+    pub salt: Option<[u8; 32]>,
 }
 
 impl DeployRequest {
@@ -24,6 +25,7 @@ impl DeployRequest {
             from: Default::default(),
             factory_deps: None,
             deploy_type: "create".to_string(),
+            salt: None,
         }
     }
 
@@ -39,6 +41,11 @@ impl DeployRequest {
 
     pub fn deploy_type(mut self, deploy_type: &str) -> Self {
         self.deploy_type = deploy_type.to_string();
+        self
+    }
+
+    pub fn salt(mut self, salt: [u8; 32]) -> Self {
+        self.salt = Some(salt);
         self
     }
 }
