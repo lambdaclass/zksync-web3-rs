@@ -299,7 +299,7 @@ impl TryFrom<DeployRequest> for Eip712TransactionRequest {
                 ))
             })?,
         ))?;
-        let create_function = contract_deployer.function(&request.deploy_type)?;
+        let create_function = contract_deployer.function(&request.deploy_type.to_string())?;
 
         let bytecode_hash = hash_bytecode(&request.contract_bytecode).map_err(|e| {
             ZKRequestError::CustomError(format!("Error hashing contract bytecode {e:?}"))
@@ -319,7 +319,8 @@ impl TryFrom<DeployRequest> for Eip712TransactionRequest {
                     .into()
             }
         };
-        let salt = request.salt.unwrap_or_else(|| [0_u8; 32]);
+
+        let salt = request.salt.unwrap_or([0_u8; 32]);
         let data = encode_function_data(create_function, (salt, bytecode_hash, call_data))?;
 
         let contract_deployer_address = Address::from_str(CONTRACT_DEPLOYER_ADDR).map_err(|e| {

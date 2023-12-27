@@ -3,7 +3,8 @@ mod zks_signer_tests {
     use crate::zks_provider::ZKSProvider;
     use crate::zks_utils::{ERA_CHAIN_ID, ETH_CHAIN_ID};
     use crate::zks_wallet::{
-        CallRequest, DeployRequest, DepositRequest, TransferRequest, WithdrawRequest, ZKSWallet,
+        CallRequest, DepositRequest, TransferRequest, WithdrawRequest, ZKSWallet,
+        {DeployRequest, DeployType},
     };
     use ethers::abi::Tokenize;
     use ethers::contract::abigen;
@@ -332,7 +333,7 @@ mod zks_signer_tests {
         rand::thread_rng().fill_bytes(&mut salt[..]);
         let deploy_request = DeployRequest::with(contract.abi, contract.bin.to_vec(), vec![])
             .from(zk_wallet.l2_address())
-            .deploy_type("create2")
+            .deploy_type(DeployType::Create2)
             .salt(salt);
         let first_deploy_contract_address = zk_wallet.deploy(&deploy_request).await.unwrap();
         let deploy_result = era_provider

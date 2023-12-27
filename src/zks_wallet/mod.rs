@@ -3,8 +3,11 @@ pub use errors::{ZKRequestError, ZKSWalletError};
 
 mod requests;
 pub use requests::{
-    call_request::CallRequest, deploy_request::DeployRequest, deposit_request::DepositRequest,
-    transfer_request::TransferRequest, withdraw_request::WithdrawRequest,
+    call_request::CallRequest,
+    deploy_request::{DeployRequest, DeployType},
+    deposit_request::DepositRequest,
+    transfer_request::TransferRequest,
+    withdraw_request::WithdrawRequest,
 };
 
 mod wallet;
