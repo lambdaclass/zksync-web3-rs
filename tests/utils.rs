@@ -9,11 +9,10 @@ use ethers::{
 };
 use ethers_contract::core::k256::ecdsa::SigningKey;
 use serde::Deserialize;
-
-use crate::zks_utils::ERA_CHAIN_ID;
+use zksync_types::DEFAULT_ERA_CHAIN_ID;
 
 #[derive(Deserialize)]
-pub(crate) struct CompiledContract {
+pub struct CompiledContract {
     pub abi: Abi,
     pub bin: Bytes,
 }
@@ -32,7 +31,7 @@ pub fn local_wallet() -> LocalWallet {
     "0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110"
         .parse::<LocalWallet>()
         .unwrap()
-        .with_chain_id(ERA_CHAIN_ID)
+        .with_chain_id(DEFAULT_ERA_CHAIN_ID)
 }
 
 pub fn era_signer() -> SignerMiddleware<Provider<ethers::providers::Http>, Wallet<SigningKey>> {
@@ -40,7 +39,7 @@ pub fn era_signer() -> SignerMiddleware<Provider<ethers::providers::Http>, Walle
         "0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110"
             .parse::<Wallet<SigningKey>>()
             .unwrap(),
-        ERA_CHAIN_ID,
+        DEFAULT_ERA_CHAIN_ID,
     );
     era_provider().with_signer(signer)
 }
