@@ -1,22 +1,14 @@
-use std::{fs::File, io::BufReader, path::PathBuf, str::FromStr};
-
-use super::{hash_bytecode, rlp_append_option, Eip712Meta};
-use crate::{
-    zks_utils::{
-        self, CONTRACT_DEPLOYER_ADDR, EIP712_TX_TYPE, ERA_CHAIN_ID, MAX_PRIORITY_FEE_PER_GAS,
-    },
-    zks_wallet::{DeployRequest, Overrides, TransferRequest, WithdrawRequest, ZKRequestError},
-};
+use super::{rlp_append_option, Eip712Meta};
+use crate::{types::L1TxOverrides, utils::MAX_PRIORITY_FEE_PER_GAS};
 use ethers::{
-    abi::{Abi, HumanReadableParser, ParseError},
     types::{
         transaction::{eip2930::AccessList, eip712::Eip712Error},
         Address, Bytes, Signature, U256,
     },
     utils::rlp::{Encodable, RlpStream},
 };
-use ethers_contract::encode_function_data;
 use serde::{Deserialize, Serialize};
+use zksync_types::{DEFAULT_ERA_CHAIN_ID, EIP_712_TX_TYPE};
 
 // TODO: Not all the fields are optional. This was copied from the JS implementation.
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -53,7 +45,7 @@ impl Eip712TransactionRequest {
         Self::default()
     }
 
-    pub fn from_overrides(overrides: Overrides) -> Self {
+    pub fn from_overrides(overrides: L1TxOverrides) -> Self {
         let mut tx = Self::default();
         if let Some(value) = overrides.value {
             tx.value = value;
@@ -229,8 +221,8 @@ impl Default for Eip712TransactionRequest {
             gas_price: Default::default(),
             data: Default::default(),
             value: Default::default(),
-            chain_id: ERA_CHAIN_ID.into(),
-            r#type: EIP712_TX_TYPE.into(),
+            chain_id: DEFAULT_ERA_CHAIN_ID.into(),
+            r#type: EIP_712_TX_TYPE.into(),
             access_list: Default::default(),
             max_priority_fee_per_gas: MAX_PRIORITY_FEE_PER_GAS.into(),
             max_fee_per_gas: Default::default(),
@@ -240,97 +232,89 @@ impl Default for Eip712TransactionRequest {
     }
 }
 
-impl TryFrom<WithdrawRequest> for Eip712TransactionRequest {
-    type Error = ZKRequestError;
+// impl TryFrom<WithdrawRequest> for Eip712TransactionRequest {
+//     type Error = ZKRequestError;
 
-    fn try_from(request: WithdrawRequest) -> Result<Self, Self::Error> {
-        let contract_address =
-            Address::from_str(zks_utils::CONTRACTS_L2_ETH_TOKEN_ADDR).map_err(|e| {
-                ZKRequestError::CustomError(format!("Error getting L2 ETH token address {e:?}"))
-            })?;
-        let function_signature = "function withdraw(address _l1Receiver) external payable override";
-        let function = HumanReadableParser::parse_function(function_signature)
-            .map_err(ParseError::LexerError)?;
-        let function_args = function.decode_input(&zks_utils::encode_args(
-            &function,
-            &[format!("{:?}", request.to)],
-        )?)?;
-        let data: Bytes = function.encode_input(&function_args)?.into();
+//     fn try_from(request: WithdrawRequest) -> Result<Self, Self::Error> {
+//         let function_signature = "function withdraw(address _l1Receiver) external payable override";
+//         let function = HumanReadableParser::parse_function(function_signature)
+//             .map_err(ParseError::LexerError)?;
+//         let function_args = function.decode_input(&zks_utils::encode_args(
+//             &function,
+//             &[format!("{:?}", request.to)],
+//         )?)?;
+//         let data: Bytes = function.encode_input(&function_args)?.into();
 
-        Ok(Eip712TransactionRequest::new()
-            .r#type(EIP712_TX_TYPE)
-            .to(contract_address)
-            .value(request.amount)
-            .from(request.from)
-            .data(data))
-    }
-}
+//         Ok(Eip712TransactionRequest::new()
+//             .r#type(EIP_712_TX_TYPE)
+//             .to(utils::L2_ETH_TOKEN_ADDRESS)
+//             .value(request.amount)
+//             .from(request.from)
+//             .data(data))
+//     }
+// }
 
-impl From<TransferRequest> for Eip712TransactionRequest {
-    fn from(request: TransferRequest) -> Self {
-        Eip712TransactionRequest::new()
-            .r#type(EIP712_TX_TYPE)
-            .to(request.to)
-            .value(request.amount)
-            .from(request.from)
-    }
-}
+// impl From<TransferRequest> for Eip712TransactionRequest {
+//     fn from(request: TransferRequest) -> Self {
+//         Eip712TransactionRequest::new()
+//             .r#type(EIP712_TX_TYPE)
+//             .to(request.to)
+//             .value(request.amount)
+//             .from(request.from)
+//     }
+// }
 
-impl TryFrom<DeployRequest> for Eip712TransactionRequest {
-    type Error = ZKRequestError;
+// impl TryFrom<DeployRequest> for Eip712TransactionRequest {
+//     type Error = ZKRequestError;
 
-    fn try_from(request: DeployRequest) -> Result<Self, Self::Error> {
-        let mut contract_deployer_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        contract_deployer_path.push("src/abi/ContractDeployer.json");
+//     fn try_from(request: DeployRequest) -> Result<Self, Self::Error> {
+//         let mut contract_deployer_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+//         contract_deployer_path.push("src/abi/ContractDeployer.json");
 
-        let custom_data = Eip712Meta::new().factory_deps({
-            let mut factory_deps = Vec::new();
-            if let Some(factory_dependencies) = request.factory_deps {
-                factory_deps.extend(factory_dependencies);
-            }
-            factory_deps.push(request.contract_bytecode.clone());
-            factory_deps
-        });
+//         let custom_data = Eip712Meta::new().factory_deps({
+//             let mut factory_deps = Vec::new();
+//             if let Some(factory_dependencies) = request.factory_deps {
+//                 factory_deps.extend(factory_dependencies);
+//             }
+//             factory_deps.push(request.contract_bytecode.clone());
+//             factory_deps
+//         });
 
-        let contract_deployer = Abi::load(BufReader::new(
-            File::open(contract_deployer_path).map_err(|e| {
-                ZKRequestError::CustomError(format!(
-                    "Error opening contract deployer abi file {e:?}"
-                ))
-            })?,
-        ))?;
-        let create = contract_deployer.function("create")?;
+//         let contract_deployer = Abi::load(BufReader::new(
+//             File::open(contract_deployer_path).map_err(|e| {
+//                 ZKRequestError::CustomError(format!(
+//                     "Error opening contract deployer abi file {e:?}"
+//                 ))
+//             })?,
+//         ))?;
+//         let create = contract_deployer.function("create")?;
 
-        // TODO: User could provide this instead of defaulting.
-        let salt = [0_u8; 32];
-        let bytecode_hash = hash_bytecode(&request.contract_bytecode).map_err(|e| {
-            ZKRequestError::CustomError(format!("Error hashing contract bytecode {e:?}"))
-        })?;
-        let call_data: Bytes = match (
-            request.contract_abi.constructor(),
-            request.constructor_parameters.is_empty(),
-        ) {
-            (None, false) => {
-                return Err(ZKRequestError::CustomError(
-                    "Constructor not present".to_owned(),
-                ))
-            }
-            (None, true) | (Some(_), true) => Bytes::default(),
-            (Some(constructor), false) => {
-                zks_utils::encode_constructor_args(constructor, &request.constructor_parameters)?
-                    .into()
-            }
-        };
+//         // TODO: User could provide this instead of defaulting.
+//         let salt = [0_u8; 32];
+//         let bytecode_hash = hash_bytecode(&request.contract_bytecode).map_err(|e| {
+//             ZKRequestError::CustomError(format!("Error hashing contract bytecode {e:?}"))
+//         })?;
+//         let call_data: Bytes = match (
+//             request.contract_abi.constructor(),
+//             request.constructor_parameters.is_empty(),
+//         ) {
+//             (None, false) => {
+//                 return Err(ZKRequestError::CustomError(
+//                     "Constructor not present".to_owned(),
+//                 ))
+//             }
+//             (None, true) | (Some(_), true) => Bytes::default(),
+//             (Some(constructor), false) => {
+//                 utils::encode_constructor_args(constructor, &request.constructor_parameters)?.into()
+//             }
+//         };
 
-        let data = encode_function_data(create, (salt, bytecode_hash, call_data))?;
+//         let data = encode_function_data(create, (salt, bytecode_hash, call_data))?;
 
-        let contract_deployer_address = Address::from_str(CONTRACT_DEPLOYER_ADDR).map_err(|e| {
-            ZKRequestError::CustomError(format!("Error getting contract deployer address {e:?}"))
-        })?;
-        Ok(Eip712TransactionRequest::new()
-            .r#type(EIP712_TX_TYPE)
-            .to(contract_deployer_address)
-            .custom_data(custom_data)
-            .data(data))
-    }
-}
+//         Ok(Eip712TransactionRequest::new()
+//             .r#type(EIP_712_TX_TYPE)
+//             .to(CONTRACT_DEPLOYER_ADDRESS)
+//             .custom_data(custom_data)
+//             .data(data))
+//     }
+// }
