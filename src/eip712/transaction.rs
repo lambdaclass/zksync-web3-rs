@@ -1,5 +1,5 @@
 use super::{hash_bytecode, Eip712TransactionRequest};
-use crate::zks_utils::{DEFAULT_GAS_PER_PUBDATA_LIMIT, EIP712_TX_TYPE};
+use crate::utils::DEFAULT_GAS_PER_PUBDATA_LIMIT;
 use ethers::{
     abi::encode,
     types::{
@@ -12,6 +12,7 @@ use ethers::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use zksync_types::EIP_712_TX_TYPE;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all(serialize = "camelCase", deserialize = "camelCase"))]
@@ -154,7 +155,7 @@ impl Eip712Transaction {
 impl Default for Eip712Transaction {
     fn default() -> Self {
         Self {
-            tx_type: EIP712_TX_TYPE.into(),
+            tx_type: EIP_712_TX_TYPE.into(),
             from: Default::default(),
             to: Default::default(),
             gas_limit: Default::default(),
