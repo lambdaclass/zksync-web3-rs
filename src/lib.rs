@@ -45,6 +45,7 @@ pub mod abi;
 
 pub use ethers::*;
 
+pub mod types;
 pub mod utils;
 
 pub mod contracts;

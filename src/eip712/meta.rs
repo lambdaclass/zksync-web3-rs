@@ -1,5 +1,5 @@
 use super::{rlp_append_option, PaymasterParams};
-use crate::zks_utils::DEFAULT_GAS_PER_PUBDATA_LIMIT;
+use crate::utils::REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT;
 use ethers::{
     types::{Bytes, U256},
     utils::rlp::Encodable,
@@ -55,7 +55,7 @@ impl Eip712Meta {
 impl Default for Eip712Meta {
     fn default() -> Self {
         Self {
-            gas_per_pubdata: DEFAULT_GAS_PER_PUBDATA_LIMIT.into(),
+            gas_per_pubdata: REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT.into(),
             factory_deps: Default::default(),
             custom_signature: Default::default(),
             paymaster_params: Default::default(),
