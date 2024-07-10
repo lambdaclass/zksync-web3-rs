@@ -48,12 +48,13 @@ pub mod utils;
 
 pub mod contracts;
 pub mod eip712;
-pub mod zks_wallet;
 
-pub use zks_wallet::{ZKSWallet, ZKSWalletError};
+pub mod deposit;
+
+pub mod zk_middleware;
+pub mod zk_wallet;
+pub use zk_middleware::ZKMiddleware;
 
 // For macro expansions only, not public API.
 #[allow(unused_extern_crates)]
-extern crate self as zksync_web3_rs;
-#[cfg(test)]
-mod tests;
+extern crate self as zksync_ethers_rs;
