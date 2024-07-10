@@ -22,18 +22,20 @@ use ethers::{
 
 use crate::{
     eip712::{Eip712Meta, Eip712Transaction, Eip712TransactionRequest},
-    types::zksync::{
-        api::{
-            BlockDetails, BridgeAddresses, DebugCall, L1BatchDetails, L2ToL1LogProof,
-            ResultDebugCall, TracerConfig, Transaction, TransactionDetailedResult,
-            TransactionDetails,
+    types::{
+        zksync::{
+            api::{
+                BlockDetails, BridgeAddresses, DebugCall, L1BatchDetails, L2ToL1LogProof,
+                ResultDebugCall, TracerConfig, Transaction, TransactionDetailedResult,
+                TransactionDetails,
+            },
+            fee::Fee,
+            web3_decl::Token,
+            EIP_712_TX_TYPE,
         },
-        fee::Fee,
-        web3_decl::Token,
-        EIP_712_TX_TYPE,
+        L1TxOverrides,
     },
     utils,
-    zks_wallet::Overrides,
 };
 
 /// This trait wraps every JSON-RPC call specified in zkSync Era's documentation
@@ -214,7 +216,7 @@ pub trait ZKMiddleware {
         contract_address: Address,
         function_signature: &str,
         function_parameters: Option<Vec<String>>,
-        overrides: Option<Overrides>,
+        overrides: Option<L1TxOverrides>,
     ) -> Result<PendingTransaction<Self::Provider>, Self::Error>
     where
         D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Send + Sync;
@@ -225,7 +227,7 @@ pub trait ZKMiddleware {
         contract_address: Address,
         function_signature: &str,
         function_parameters: Option<Vec<String>>,
-        overrides: Option<Overrides>,
+        overrides: Option<L1TxOverrides>,
     ) -> Result<PendingTransaction<Self::Provider>, Self::Error>
     where
         D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Send + Sync;
@@ -600,7 +602,7 @@ where
         contract_address: Address,
         function_signature: &str,
         function_parameters: Option<Vec<String>>,
-        overrides: Option<Overrides>,
+        overrides: Option<L1TxOverrides>,
     ) -> Result<PendingTransaction<Self::Provider>, Self::Error>
     where
         D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Send + Sync,
@@ -680,7 +682,7 @@ where
         contract_address: Address,
         function_signature: &str,
         function_parameters: Option<Vec<String>>,
-        _overrides: Option<Overrides>,
+        _overrides: Option<L1TxOverrides>,
     ) -> Result<PendingTransaction<Self::Provider>, Self::Error>
     where
         D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Send + Sync,
@@ -750,7 +752,7 @@ async fn build_send_tx<D>(
     contract_address: Address,
     function_signature: &str,
     function_parameters: Option<Vec<String>>,
-    _overrides: Option<Overrides>,
+    _overrides: Option<L1TxOverrides>,
 ) -> Result<TypedTransaction, ProviderError>
 where
     D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Send + Sync,
