@@ -45,10 +45,10 @@ pub mod abi;
 
 pub use ethers::*;
 
+pub mod utils;
+
 pub mod contracts;
 pub mod eip712;
-pub mod zks_provider;
-pub mod zks_utils;
 pub mod zks_wallet;
 
 pub use zks_wallet::{ZKSWallet, ZKSWalletError};
