@@ -41,8 +41,6 @@
     clippy::single_char_lifetime_names
 )]
 
-pub mod abi;
-
 pub use ethers::*;
 
 pub mod types;
