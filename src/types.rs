@@ -20,6 +20,10 @@ pub struct L1TxOverrides {
 }
 
 impl L1TxOverrides {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
     pub fn from(mut self, from: Address) -> Self {
         self.from = Some(from);
         self

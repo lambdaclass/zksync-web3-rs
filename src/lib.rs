@@ -50,6 +50,7 @@ pub mod contracts;
 pub mod eip712;
 
 pub mod deposit;
+pub mod withdraw;
 
 pub mod zk_middleware;
 pub mod zk_wallet;

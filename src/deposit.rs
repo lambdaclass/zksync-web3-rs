@@ -230,12 +230,7 @@ where
     .await;
     let l2_costs = base_cost + operator_tip;
 
-    let l1_shared_bridge_address = l2_provider
-        .get_bridge_contracts()
-        .await
-        .unwrap()
-        .l1_shared_default_bridge
-        .unwrap();
+    let l1_shared_bridge_address: Address = bridgehub.shared_bridge().call().await.unwrap();
 
     let calldata = ethers::abi::encode(&[token.into_token(), amount.into_token(), to.into_token()]);
 
@@ -354,7 +349,7 @@ mod deposit_tests {
     use std::{str::FromStr, sync::Arc};
 
     #[tokio::test]
-    async fn deposit_eth_to_eth_based_zk_chain() {
+    async fn can_deposit_eth_to_eth_based_zk_chain() {
         let l1_provider = Provider::<Http>::connect("http://eth-sepolia").await;
         let l1_chain_id = l1_provider.get_chainid().await.unwrap().as_u64();
         let from = Arc::new(SignerMiddleware::<Provider<Http>, LocalWallet>::new(
@@ -369,7 +364,7 @@ mod deposit_tests {
         let refund_recipient = from.address();
         let l2_provider =
             Provider::<Http>::connect("https://dev.rpc.sepolia.shyft.lambdaclass.com").await;
-        let amount: U256 = ethers::utils::parse_units("0.01", "ether").unwrap().into();
+        let amount: U256 = ethers::utils::parse_units("0.1", "ether").unwrap().into();
 
         let receipt = deposit(
             amount,
