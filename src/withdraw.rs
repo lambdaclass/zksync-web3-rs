@@ -2,19 +2,85 @@
 #![allow(clippy::unwrap_used)]
 
 use ethers::{
-    abi::{Hash, ParamType, Token},
+    abi::{Address, Hash, ParamType, Token},
     middleware::SignerMiddleware,
-    providers::{Http, Middleware, Provider, ProviderExt},
-    signers::{LocalWallet, Signer},
+    providers::Middleware,
+    signers::Signer,
     types::{Bytes, U256},
 };
 use std::{str::FromStr, sync::Arc};
-use zksync_types::{api::L2ToL1Log, L1_MESSENGER_ADDRESS};
+use zksync_types::{api::L2ToL1Log, L1_MESSENGER_ADDRESS, L2_BASE_TOKEN_ADDRESS};
 
 use crate::{
-    contracts::{bridgehub::Bridgehub, l1_shared_bridge::L1SharedBridge},
+    contracts::{bridgehub::Bridgehub, l1_shared_bridge::L1SharedBridge, l2_eth::BaseToken},
+    utils::L2_ETH_TOKEN_ADDRESS,
     ZKMiddleware,
 };
+
+pub async fn withdraw<M, S>(
+    amount: U256,
+    token: impl Into<Address>,
+    from: Arc<SignerMiddleware<M, S>>,
+    l1_provider: Arc<M>,
+) -> Hash
+where
+    M: Middleware,
+    S: Signer,
+{
+    // The type is converted to avoid adding Copy as a constraint bound (Address is Copy).
+    let token: Address = token.into();
+
+    let bridgehub_address = from.get_bridgehub_contract().await.unwrap();
+    let bridgehub = Bridgehub::new(bridgehub_address, l1_provider);
+
+    let zk_chain_id = from.get_chainid().await.unwrap();
+    let zk_chain_base_token: Address = bridgehub.base_token(zk_chain_id).call().await.unwrap();
+
+    let token_to_withdraw_is_eth = token == L2_ETH_TOKEN_ADDRESS;
+    let token_to_withdraw_is_zk_chain_base_token = token == zk_chain_base_token;
+
+    match (
+        token_to_withdraw_is_eth,
+        token_to_withdraw_is_zk_chain_base_token,
+    ) {
+        // Withdrawing ETH from an ETH-based ZKchain to the L1.
+        (true, true) => withdraw_eth_from_an_eth_based_chain(amount, from).await,
+        // Withdrawing ETH from an ERC20-based ZKchain to the L1.
+        (true, false) => unimplemented!(
+            "Withdrawing ETH from an ERC20-based ZKchain to the L1 is not supported."
+        ),
+        // Withdrawing an ERC20 from an ETH-based ZKchain to the L1.
+        (false, true) => unimplemented!(
+            "Withdrawing an ERC20 from an ETH-based ZKchain to the L1 is not supported."
+        ),
+        // Withdrawing an ERC20 where either ETH is the base token, or an ERC20
+        // different than the withdrawn is the base token.
+        (false, false) => unimplemented!(
+            "Withdrawing an ERC20 where ETH is the base token or where a different ERC20 is the base token is not supported."
+        ),
+    }
+}
+
+pub async fn withdraw_eth_from_an_eth_based_chain<M, S>(
+    amount: U256,
+    from: Arc<SignerMiddleware<M, S>>,
+) -> Hash
+where
+    M: Middleware,
+    S: Signer,
+{
+    let withdrawal_tx_receipt = BaseToken::new(L2_BASE_TOKEN_ADDRESS, Arc::clone(&from))
+        .withdraw(from.address())
+        .value(amount)
+        .send()
+        .await
+        .unwrap()
+        .await
+        .unwrap()
+        .unwrap();
+
+    withdrawal_tx_receipt.transaction_hash
+}
 
 pub async fn wait_for_finalize_withdrawal<L2Provider>(
     l2_withdrawal_tx_hash: Hash,
@@ -38,32 +104,27 @@ pub async fn wait_for_finalize_withdrawal<L2Provider>(
     }
 }
 
-pub async fn finalize_withdrawal(l2_withdrawal_tx_hash: Hash) -> Hash {
-    let l1_provider = Provider::<Http>::connect("http://eth-sepolia").await;
-    let l1_chain_id = l1_provider.get_chainid().await.unwrap().as_u64();
-    let to = Arc::new(SignerMiddleware::<Provider<Http>, LocalWallet>::new(
-        l1_provider,
-        LocalWallet::from_str("0x385c546456b6a603a1cfcaa9ec9494ba4832da08dd6bcf4de9a71e4a01b74924")
-            .unwrap()
-            .with_chain_id(l1_chain_id),
-    ));
-
-    let l2_provider =
-        Provider::<Http>::connect("https://dev.rpc.sepolia.shyft.lambdaclass.com").await;
-
+pub async fn finalize_withdrawal<M, S, L2Provider>(
+    to: Arc<SignerMiddleware<M, S>>,
+    l2_withdrawal_tx_hash: Hash,
+    l2_provider: &L2Provider,
+) -> Hash
+where
+    M: Middleware,
+    S: Signer,
+    L2Provider: ZKMiddleware + Middleware,
+{
     let bridgehub_address = l2_provider.get_bridgehub_contract().await.unwrap();
     let bridgehub = Bridgehub::new(bridgehub_address, Arc::clone(&to));
     let l1_shared_bridge_address = bridgehub.shared_bridge().call().await.unwrap();
     let l1_shared_bridge = L1SharedBridge::new(l1_shared_bridge_address, Arc::clone(&to));
 
-    // This is an L2 transaction hash.
-    let withdrawal_tx_receipt = l2_provider
+    let withdrawal_initialization_tx_receipt = l2_provider
         .get_transaction_receipt(l2_withdrawal_tx_hash)
         .await
         .unwrap()
         .unwrap();
-    let zk_chain_id = l2_provider.get_chainid().await.unwrap().as_u64();
-    let withdrawal_log = withdrawal_tx_receipt
+    let withdrawal_initialization_log = withdrawal_initialization_tx_receipt
         .logs
         .iter()
         .filter(|log| {
@@ -72,9 +133,9 @@ pub async fn finalize_withdrawal(l2_withdrawal_tx_hash: Hash) -> Hash {
                     == ethers::utils::keccak256("L1MessageSent(address,bytes32,bytes)").into()
         })
         .collect::<Vec<_>>()[0];
-    let l2_tx_number_in_batch: u16 = U256::from_str(
+    let withdrawal_initialization_tx_number_in_batch: u16 = U256::from_str(
         &serde_json::from_value::<String>(
-            withdrawal_tx_receipt
+            withdrawal_initialization_tx_receipt
                 .other
                 .get("l1BatchTxIndex")
                 .unwrap()
@@ -86,22 +147,18 @@ pub async fn finalize_withdrawal(l2_withdrawal_tx_hash: Hash) -> Hash {
     .as_u64()
     .try_into()
     .unwrap();
-    let l2_to_l1_logs = withdrawal_tx_receipt
+    let withdrawal_initialization_tx_l2_to_l1_logs = withdrawal_initialization_tx_receipt
         .other
         .get_deserialized::<Vec<L2ToL1Log>>("l2ToL1Logs")
         .unwrap()
         .unwrap();
-    let withdraw_l2_to_l1_logs = l2_to_l1_logs
-        .into_iter()
-        .filter(|log| log.sender == L1_MESSENGER_ADDRESS)
-        .collect::<Vec<_>>();
-    let l1_messenger_l2_to_l1_log_index = withdraw_l2_to_l1_logs
-        .first()
-        .map(|log| &log.log_index)
-        .map(U256::as_u64);
-
-    let message = Bytes::from(
-        ethers::abi::decode(&[ParamType::Bytes], &withdrawal_log.data)
+    let withdrawal_initialization_l1_messenger_log_index =
+        withdrawal_initialization_tx_l2_to_l1_logs
+            .iter()
+            .find(|log| log.sender == L1_MESSENGER_ADDRESS)
+            .map(|log| U256::as_u64(&log.log_index));
+    let withdrawal_initialization_message = Bytes::from(
+        ethers::abi::decode(&[ParamType::Bytes], &withdrawal_initialization_log.data)
             .unwrap()
             .first()
             .cloned()
@@ -109,8 +166,11 @@ pub async fn finalize_withdrawal(l2_withdrawal_tx_hash: Hash) -> Hash {
             .unwrap()
             .unwrap(),
     );
-    let proof = l2_provider
-        .get_l2_to_l1_log_proof(l2_withdrawal_tx_hash, l1_messenger_l2_to_l1_log_index)
+    let withdrawal_initialization_log_merkle_proof = l2_provider
+        .get_l2_to_l1_log_proof(
+            l2_withdrawal_tx_hash,
+            withdrawal_initialization_l1_messenger_log_index,
+        )
         .await
         .unwrap()
         .unwrap()
@@ -118,20 +178,23 @@ pub async fn finalize_withdrawal(l2_withdrawal_tx_hash: Hash) -> Hash {
         .into_iter()
         .map(Into::into)
         .collect::<Vec<_>>();
-    let l2_batch_number = withdraw_l2_to_l1_logs
-        .first()
+    let l2_batch_number = withdrawal_initialization_tx_l2_to_l1_logs
+        .iter()
+        .find(|log| log.sender == L1_MESSENGER_ADDRESS)
         .map(|log| log.l1_batch_number)
         .unwrap()
         .unwrap();
+
+    let zk_chain_id = l2_provider.get_chainid().await.unwrap().as_u64();
 
     let finalize_withdrawal_tx_receipt = l1_shared_bridge
         .finalize_withdrawal(
             zk_chain_id.into(),
             l2_batch_number.as_u64().into(),
             U256::zero(),
-            l2_tx_number_in_batch,
-            message,
-            proof,
+            withdrawal_initialization_tx_number_in_batch,
+            withdrawal_initialization_message,
+            withdrawal_initialization_log_merkle_proof,
         )
         .send()
         .await
@@ -151,18 +214,16 @@ pub async fn finalize_withdrawal(l2_withdrawal_tx_hash: Hash) -> Hash {
 #[cfg(test)]
 mod withdraw_tests {
     use crate::{
-        contracts::l2_eth::BaseToken,
-        withdraw::{finalize_withdrawal, wait_for_finalize_withdrawal},
+        utils::L2_ETH_TOKEN_ADDRESS,
+        withdraw::{finalize_withdrawal, wait_for_finalize_withdrawal, withdraw},
     };
     use ethers::{
-        abi::Hash,
         middleware::SignerMiddleware,
         providers::{Http, Middleware, Provider, ProviderExt},
         signers::{LocalWallet, Signer},
         types::U256,
     };
     use std::{str::FromStr, sync::Arc};
-    use zksync_types::L2_BASE_TOKEN_ADDRESS;
 
     #[tokio::test]
     async fn can_withdraw_eth_from_eth_based_chain() {
@@ -177,26 +238,35 @@ mod withdraw_tests {
             .unwrap()
             .with_chain_id(zk_chain_id),
         ));
+
+        let l1_provider = Provider::<Http>::connect("http://eth-sepolia").await;
+        let l1_chain_id = l1_provider.get_chainid().await.unwrap().as_u64();
+        let to = Arc::new(SignerMiddleware::<Provider<Http>, LocalWallet>::new(
+            l1_provider,
+            LocalWallet::from_str(
+                "0x385c546456b6a603a1cfcaa9ec9494ba4832da08dd6bcf4de9a71e4a01b74924",
+            )
+            .unwrap()
+            .with_chain_id(l1_chain_id),
+        ));
+
         let amount: U256 = ethers::utils::parse_units("0.01", "ether").unwrap().into();
 
-        let withdrawal_tx_receipt = BaseToken::new(L2_BASE_TOKEN_ADDRESS, Arc::clone(&from))
-            .withdraw(from.address())
-            .value(amount)
-            .send()
-            .await
-            .unwrap()
-            .await
-            .unwrap()
-            .unwrap();
-
-        let withdrawal_tx_hash = withdrawal_tx_receipt.transaction_hash;
+        let withdrawal_tx_hash = withdraw(
+            amount,
+            L2_ETH_TOKEN_ADDRESS,
+            Arc::clone(&from),
+            Arc::new(to.provider().clone()),
+        )
+        .await;
 
         println!("https://dev.explorer.sepolia.shyft.lambdaclass.com/tx/{withdrawal_tx_hash:?}");
 
         wait_for_finalize_withdrawal(withdrawal_tx_hash, from.provider()).await;
 
-        let finalize_withdrawal_l1_tx_hash = finalize_withdrawal(withdrawal_tx_hash).await;
+        let finalize_withdrawal_l1_tx_hash =
+            finalize_withdrawal(to, withdrawal_tx_hash, from.provider()).await;
 
-        println!("https://sepolia.etherscan.io/tx/{finalize_withdrawal_l1_tx_hash:?}",);
+        println!("https://sepolia.etherscan.io/tx/{finalize_withdrawal_l1_tx_hash:?}");
     }
 }
