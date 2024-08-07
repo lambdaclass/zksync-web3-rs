@@ -17,6 +17,7 @@ pub struct L1TxOverrides {
     pub gas_price: Option<U256>,
     pub gas: Option<U256>,
     pub nonce: Option<U256>,
+    pub gas_limit: Option<U256>,
 }
 
 impl L1TxOverrides {
