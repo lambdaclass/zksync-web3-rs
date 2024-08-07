@@ -5899,6 +5899,7 @@ dependencies = [
  "sha2 0.10.8",
  "thiserror",
  "tokio",
+ "zksync_contracts",
  "zksync_system_constants",
  "zksync_types",
  "zksync_web3_decl",
