@@ -19,15 +19,16 @@ use crate::{
     ZKMiddleware,
 };
 
-pub async fn withdraw<M, S>(
+pub async fn withdraw<M, S, L1Provider>(
     amount: U256,
     token: impl Into<Address>,
     from: Arc<SignerMiddleware<M, S>>,
-    l1_provider: M,
+    l1_provider: &L1Provider,
 ) -> Hash
 where
     M: Middleware,
     S: Signer,
+    L1Provider: Middleware,
 {
     // The type is converted to avoid adding Copy as a constraint bound (Address is Copy).
     let token: Address = token.into();
