@@ -70,7 +70,21 @@ where
             .await
         }
         // Depositing ETH to a ZKChain whose base token is not ETH.
-        (true, false) => todo!(),
+        (true, false) => {
+            let erc20 = ERC20::new(token, Arc::<SignerMiddleware<M, S>>::clone(&from));
+            deposit_non_base_erc20_token(
+                amount,
+                token,
+                from,
+                to,
+                refund_recipient,
+                l2_provider,
+                bridgehub,
+                erc20,
+                false,
+            )
+            .await
+        }
         // We are depositing an ERC20 to a ZKChain where:
         // 1. ETH is the base token.
         // 2. An ERC20 different than the deposited is the base token.
@@ -406,4 +420,26 @@ pub fn scale_gas_limit(gas_limit: U256) -> U256 {
         .unwrap()
         .checked_div(U256::from(L1_FEE_ESTIMATION_COEF_DENOMINATOR))
         .unwrap()
+}
+
+pub async fn wait_for_finalize_deposit<L2Provider>(
+    finalize_deposit_tx_hash: Hash,
+    l2_provider: &L2Provider,
+) where
+    L2Provider: ZKMiddleware + Middleware,
+{
+    loop {
+        if l2_provider
+            .get_transaction_details(finalize_deposit_tx_hash)
+            .await
+            .unwrap()
+            .unwrap()
+            .eth_execute_tx_hash
+            .is_some()
+        {
+            break;
+        }
+        println!("Finalize deposit request not executed on L1 yet. Retrying in 5 seconds...");
+        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+    }
 }
