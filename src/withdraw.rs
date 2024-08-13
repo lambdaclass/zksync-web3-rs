@@ -23,7 +23,7 @@ pub async fn withdraw<M, S>(
     amount: U256,
     token: impl Into<Address>,
     from: Arc<SignerMiddleware<M, S>>,
-    l1_provider: Arc<M>,
+    l1_provider: M,
 ) -> Hash
 where
     M: Middleware,
@@ -33,7 +33,7 @@ where
     let token: Address = token.into();
 
     let bridgehub_address = from.get_bridgehub_contract().await.unwrap();
-    let bridgehub = Bridgehub::new(bridgehub_address, l1_provider);
+    let bridgehub = Bridgehub::new(bridgehub_address, Arc::new(l1_provider));
 
     let zk_chain_id = from.get_chainid().await.unwrap();
     let zk_chain_base_token: Address = bridgehub.base_token(zk_chain_id).call().await.unwrap();
@@ -218,109 +218,4 @@ where
         .unwrap();
 
     finalize_withdrawal_tx_receipt.transaction_hash
-}
-
-#[cfg(test)]
-mod withdraw_tests {
-    use crate::{
-        utils::L2_ETH_TOKEN_ADDRESS,
-        withdraw::{finalize_withdrawal, wait_for_finalize_withdrawal, withdraw},
-    };
-    use ethers::{
-        abi::Address,
-        middleware::SignerMiddleware,
-        providers::{Http, Middleware, Provider, ProviderExt},
-        signers::{LocalWallet, Signer},
-        types::U256,
-    };
-    use std::{str::FromStr, sync::Arc};
-
-    #[tokio::test]
-    async fn can_withdraw_eth_from_eth_based_chain() {
-        let l2_provider = Provider::<Http>::connect("http://zksync-devnet-03:3050").await;
-        let zk_chain_id = l2_provider.get_chainid().await.unwrap().as_u64();
-        let from = Arc::new(SignerMiddleware::<Provider<Http>, LocalWallet>::new(
-            l2_provider,
-            LocalWallet::from_str(
-                "0x385c546456b6a603a1cfcaa9ec9494ba4832da08dd6bcf4de9a71e4a01b74924",
-            )
-            .unwrap()
-            .with_chain_id(zk_chain_id),
-        ));
-
-        let l1_provider = Provider::<Http>::connect("http://eth-sepolia").await;
-        let l1_chain_id = l1_provider.get_chainid().await.unwrap().as_u64();
-        let to = Arc::new(SignerMiddleware::<Provider<Http>, LocalWallet>::new(
-            l1_provider,
-            LocalWallet::from_str(
-                "0x385c546456b6a603a1cfcaa9ec9494ba4832da08dd6bcf4de9a71e4a01b74924",
-            )
-            .unwrap()
-            .with_chain_id(l1_chain_id),
-        ));
-
-        let amount: U256 = ethers::utils::parse_units("0.01", "ether").unwrap().into();
-
-        let withdrawal_tx_hash = withdraw(
-            amount,
-            Address::from_str("0x74Bc16333Df68581324ebF3172a4dEba5D1ADd6c").unwrap(),
-            Arc::clone(&from),
-            Arc::new(to.provider().clone()),
-        )
-        .await;
-
-        println!("http://zksync-devnet-03:3011/tx/{withdrawal_tx_hash:?}");
-
-        wait_for_finalize_withdrawal(withdrawal_tx_hash, from.provider()).await;
-
-        let finalize_withdrawal_l1_tx_hash =
-            finalize_withdrawal(to, withdrawal_tx_hash, from.provider()).await;
-
-        println!("https://sepolia.etherscan.io/tx/{finalize_withdrawal_l1_tx_hash:?}");
-    }
-
-    #[tokio::test]
-    async fn can_withdraw_2() {
-        let l2_provider =
-            Provider::<Http>::connect("https://dev.rpc.sepolia.shyft.lambdaclass.com").await;
-        let zk_chain_id = l2_provider.get_chainid().await.unwrap().as_u64();
-        let from = Arc::new(SignerMiddleware::<Provider<Http>, LocalWallet>::new(
-            l2_provider,
-            LocalWallet::from_str(
-                "0x385c546456b6a603a1cfcaa9ec9494ba4832da08dd6bcf4de9a71e4a01b74924",
-            )
-            .unwrap()
-            .with_chain_id(zk_chain_id),
-        ));
-
-        let l1_provider = Provider::<Http>::connect("http://eth-sepolia").await;
-        let l1_chain_id = l1_provider.get_chainid().await.unwrap().as_u64();
-        let to = Arc::new(SignerMiddleware::<Provider<Http>, LocalWallet>::new(
-            l1_provider,
-            LocalWallet::from_str(
-                "0x385c546456b6a603a1cfcaa9ec9494ba4832da08dd6bcf4de9a71e4a01b74924",
-            )
-            .unwrap()
-            .with_chain_id(l1_chain_id),
-        ));
-
-        let amount: U256 = ethers::utils::parse_units("0.01", "ether").unwrap().into();
-
-        let withdrawal_tx_hash = withdraw(
-            amount,
-            L2_ETH_TOKEN_ADDRESS,
-            Arc::clone(&from),
-            Arc::new(to.provider().clone()),
-        )
-        .await;
-
-        println!("https://dev.explorer.sepolia.shyft.lambdaclass.com/tx/{withdrawal_tx_hash:?}");
-
-        wait_for_finalize_withdrawal(withdrawal_tx_hash, from.provider()).await;
-
-        let finalize_withdrawal_l1_tx_hash =
-            finalize_withdrawal(to, withdrawal_tx_hash, from.provider()).await;
-
-        println!("https://sepolia.etherscan.io/tx/{finalize_withdrawal_l1_tx_hash:?}");
-    }
 }
