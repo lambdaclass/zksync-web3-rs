@@ -65,7 +65,6 @@ where
                 zk_chain_id,
                 l2_provider,
                 bridgehub,
-                token_to_deposit_is_eth,
             )
             .await
         }
@@ -81,7 +80,6 @@ where
                 l2_provider,
                 bridgehub,
                 erc20,
-                false,
             )
             .await
         }
@@ -99,14 +97,12 @@ where
                 l2_provider,
                 bridgehub,
                 erc20,
-                false,
             )
             .await
         }
     }
 }
 
-/// Deposit ETH to a ZKChain whose base token is ETH.
 pub async fn deposit_base_token<M, S, L2Provider>(
     amount: U256,
     token: Address,
@@ -116,7 +112,6 @@ pub async fn deposit_base_token<M, S, L2Provider>(
     zk_chain_id: U256,
     l2_provider: &L2Provider,
     bridgehub: Bridgehub<SignerMiddleware<M, S>>,
-    token_is_eth: bool,
 ) -> Hash
 where
     M: Middleware,
@@ -246,7 +241,6 @@ pub async fn deposit_non_base_erc20_token<M, S, L2Provider>(
     l2_provider: &L2Provider,
     bridgehub: Bridgehub<SignerMiddleware<M, S>>,
     erc20: ERC20<SignerMiddleware<M, S>>,
-    token_to_deposit_is_zk_chain_base_token: bool,
 ) -> Hash
 where
     M: Middleware,
