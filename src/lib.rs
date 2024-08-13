@@ -50,8 +50,10 @@ pub mod contracts;
 pub mod eip712;
 
 pub mod deposit;
+pub use deposit::*;
 pub mod withdraw;
-pub use withdraw::{finalize_withdrawal, wait_for_finalize_withdrawal, withdraw};
+pub use withdraw::*;
+pub mod transfer;
 
 pub mod zk_middleware;
 pub mod zk_wallet;
