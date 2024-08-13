@@ -87,6 +87,30 @@ where
         self._deposit(amount, token, self.l2_address()).await
     }
 
+    /// Deposits an ERC20 token to a specified address.
+    ///
+    /// # Arguments
+    ///
+    /// * `amount` - The amount of the ERC20 token to deposit.
+    /// * `token` - The address of the ERC20 token to deposit.
+    /// * `to` - The address to deposit the ERC20 token to.
+    ///
+    /// # Returns
+    ///
+    /// The hash of the L1 deposit transaction.
+    ///
+    /// # Errors
+    ///
+    /// If the deposit transaction fails.
+    pub async fn deposit_erc20_to(
+        &self,
+        amount: U256,
+        token: Address,
+        to: Address,
+    ) -> Result<Hash, ZKWalletError> {
+        self._deposit(amount, token, to).await
+    }
+
     /// Deposits the L2's base token from the L1 account.
     ///
     /// # Arguments
@@ -110,13 +134,12 @@ where
         .await
     }
 
-    /// Deposits an ERC20 token to a specified address.
+    /// Deposits the L2's base token to a specified address.
     ///
     /// # Arguments
     ///
-    /// * `amount` - The amount of the ERC20 token to deposit.
-    /// * `token` - The address of the ERC20 token to deposit.
-    /// * `to` - The address to deposit the ERC20 token to.
+    /// * `amount` - The amount of the base token to deposit.
+    /// * `to` - The address to deposit the base token to.
     ///
     /// # Returns
     ///
@@ -124,14 +147,15 @@ where
     ///
     /// # Errors
     ///
-    /// If the deposit transaction fails.
-    pub async fn deposit_erc20_to(
+    /// * If the deposit transaction fails.
+    /// * If the base token L1 address cannot be retrieved.
+    pub async fn deposit_base_token_to(
         &self,
         amount: U256,
-        token: Address,
         to: Address,
     ) -> Result<Hash, ZKWalletError> {
-        self._deposit(amount, token, to).await
+        self._deposit(amount, self._l1_base_token_address().await?, to)
+            .await
     }
 
     /// Withdraws ETH from the wallet's L2 address.
