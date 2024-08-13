@@ -1,7 +1,4 @@
-use common::{
-    assert_tx_succeeded, balance_of, l1_explorer_url, l1_signer, l2_explorer_url, l2_signer,
-    L1_EXPLORER_URL, L2_EXPLORER_URL,
-};
+use common::{assert_tx_succeeded, l1_explorer_url, l1_signer, l2_explorer_url, l2_signer};
 use ethers::{
     abi::Address,
     middleware::SignerMiddleware,

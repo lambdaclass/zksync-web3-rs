@@ -1,5 +1,3 @@
-use ::ethers::{abi::Address, types::U256};
-
 pub mod zksync {
     pub use zksync_system_constants::*;
     pub use zksync_types::*;
@@ -9,6 +7,7 @@ pub mod zksync {
 pub mod ethers {
     pub use ethers::types::*;
 }
+pub use ethers::*;
 
 #[derive(Debug, Clone, Default)]
 pub struct L1TxOverrides {

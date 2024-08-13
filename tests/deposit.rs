@@ -1,10 +1,7 @@
 use common::{
-    assert_tx_succeeded, balance_of, l1_explorer_url, l1_provider, l1_signer, l2_explorer_url,
-    l2_provider, L1_EXPLORER_URL, L2_EXPLORER_URL,
+    assert_tx_succeeded, balance_of, l1_explorer_url, l1_signer, l2_explorer_url, l2_provider,
 };
-use ethers::{
-    abi::Address, middleware::SignerMiddleware, providers::Middleware, signers::Signer, types::U256,
-};
+use ethers::{abi::Address, middleware::SignerMiddleware, providers::Middleware, signers::Signer};
 use std::{str::FromStr, sync::Arc};
 use zksync_ethers_rs::{
     deposit::{deposit, l2_deposit_tx_hash, wait_for_finalize_deposit},
