@@ -7,7 +7,7 @@ use ethers::{
 };
 use std::sync::Arc;
 
-use crate::{deposit, transfer, utils::L2_ETH_TOKEN_ADDRESS, withdraw};
+use crate::{deposit, transfer, utils::L2_ETH_TOKEN_ADDRESS, withdraw, ZKMiddleware};
 
 #[derive(thiserror::Error, Debug)]
 pub enum ZKWalletError {
@@ -87,6 +87,29 @@ where
         self._deposit(amount, token, self.l2_address()).await
     }
 
+    /// Deposits the L2's base token from the L1 account.
+    ///
+    /// # Arguments
+    ///
+    /// * `amount` - The amount of the base token to deposit.
+    ///
+    /// # Returns
+    ///
+    /// The hash of the L1 deposit transaction.
+    ///
+    /// # Errors
+    ///
+    /// * If the deposit transaction fails.
+    /// * If the base token L1 address cannot be retrieved.
+    pub async fn deposit_base_token(&self, amount: U256) -> Result<Hash, ZKWalletError> {
+        self._deposit(
+            amount,
+            self._l1_base_token_address().await?,
+            self.l2_address(),
+        )
+        .await
+    }
+
     /// Deposits an ERC20 token to a specified address.
     ///
     /// # Arguments
@@ -158,6 +181,25 @@ where
         token: Address,
     ) -> Result<Hash, ZKWalletError> {
         self._withdraw(amount, token).await
+    }
+
+    /// Withdraws the L2's base token to the L1 account.
+    ///
+    /// # Arguments
+    ///
+    /// * `amount` - The amount of the base token to withdraw.
+    ///
+    /// # Returns
+    ///
+    /// The hash of the L2 withdrawal transaction.
+    ///
+    /// # Errors
+    ///
+    /// * If the withdrawal transaction fails.
+    /// * If the base token L1 address cannot be retrieved.
+    pub async fn withdraw_base_token(&self, amount: U256) -> Result<Hash, ZKWalletError> {
+        self._withdraw(amount, self._l1_base_token_address().await?)
+            .await
     }
 
     /// Finalizes a withdrawal.
@@ -235,6 +277,30 @@ where
         to: Address,
     ) -> Result<Hash, ZKWalletError> {
         self._transfer(amount, token, to).await
+    }
+
+    /// Transfers the L2's base token to a specified address.
+    ///
+    /// # Arguments
+    ///
+    /// * `amount` - The amount of the base token to transfer.
+    /// * `to` - The address to transfer the base token to.
+    ///
+    /// # Returns
+    ///
+    /// The hash of the transfer transaction.
+    ///
+    /// # Errors
+    ///
+    /// * If the transfer transaction fails.
+    /// * If the base token L1 address cannot be retrieved.
+    pub async fn transfer_base_token(
+        &self,
+        amount: U256,
+        to: Address,
+    ) -> Result<Hash, ZKWalletError> {
+        self._transfer(amount, self._l1_base_token_address().await?, to)
+            .await
     }
 
     /* L1 Signer Getters */
@@ -393,5 +459,12 @@ where
     ) -> Result<Hash, ZKWalletError> {
         let transfer_hash = transfer::transfer(amount, token, self.l2_signer(), to).await;
         Ok(transfer_hash)
+    }
+
+    pub async fn _l1_base_token_address(&self) -> Result<Address, ZKWalletError> {
+        self.l2_provider()
+            .get_base_token_l1_address()
+            .await
+            .map_err(Into::into)
     }
 }
