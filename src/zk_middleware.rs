@@ -4,6 +4,7 @@ use serde::Serialize;
 use serde_json::json;
 use std::{collections::HashMap, fmt::Debug, time::Duration};
 use tokio::time::Instant;
+use zksync_types::{api::ProtocolVersion, fee_model::FeeParams};
 
 use ethers::{
     abi::HumanReadableParser,
@@ -112,7 +113,7 @@ pub trait ZKMiddleware {
     /// Returns data pertaining to a given batch.
     async fn get_l1_batch_details<T>(&self, batch: T) -> Result<L1BatchDetails, Self::Error>
     where
-        T: Into<U64> + Send + Sync + Serialize + Debug;
+        T: Into<u32> + Send + Sync + Serialize + Debug;
 
     /// Given a transaction hash, and an index of the L2 to L1 log produced within the
     /// transaction, it returns the proof for the corresponding L2 to L1 log.
@@ -170,6 +171,18 @@ pub trait ZKMiddleware {
 
     /// Retrieves the L1 base token address.
     async fn get_base_token_l1_address(&self) -> Result<Address, Self::Error>;
+
+    /// Returns the current L1 gas price in hexadecimal format, representing the amount of wei per unit of gas.
+    async fn get_l1_gas_price(&self) -> Result<U64, Self::Error>;
+
+    /// Retrieves the current fee parameters.
+    async fn get_fee_params(&self) -> Result<FeeParams, Self::Error>;
+
+    /// Gets the protocol version.
+    async fn get_protocol_version(
+        &self,
+        id: Option<u16>,
+    ) -> Result<Option<ProtocolVersion>, Self::Error>;
 
     /// Returns debug trace of all executed calls contained in a block given by its L2 hash.
     async fn debug_trace_block_by_hash(
@@ -348,7 +361,7 @@ where
 
     async fn get_l1_batch_details<T>(&self, batch: T) -> Result<L1BatchDetails, Self::Error>
     where
-        T: Into<U64> + Send + Sync + Serialize + Debug,
+        T: Into<u32> + Send + Sync + Serialize + Debug,
     {
         self.provider()
             .request("zks_getL1BatchDetails", [batch])
@@ -447,6 +460,30 @@ where
     async fn get_base_token_l1_address(&self) -> Result<Address, Self::Error> {
         self.provider()
             .request("zks_getBaseTokenL1Address", ())
+            .await
+            .map_err(M::convert_err)
+    }
+
+    async fn get_l1_gas_price(&self) -> Result<U64, Self::Error> {
+        self.provider()
+            .request("zks_getL1GasPrice", ())
+            .await
+            .map_err(M::convert_err)
+    }
+
+    async fn get_fee_params(&self) -> Result<FeeParams, Self::Error> {
+        self.provider()
+            .request("zks_getFeeParams", ())
+            .await
+            .map_err(M::convert_err)
+    }
+
+    async fn get_protocol_version(
+        &self,
+        id: Option<u16>,
+    ) -> Result<Option<ProtocolVersion>, Self::Error> {
+        self.provider()
+            .request("zks_getProtocolVersion", [id])
             .await
             .map_err(M::convert_err)
     }
