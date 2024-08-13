@@ -1,46 +1,397 @@
 use ethers::{
     abi::{Address, Hash},
-    providers::{Middleware, MiddlewareError},
+    middleware::SignerMiddleware,
+    providers::{Middleware, Provider},
     signers::Signer,
     types::U256,
 };
+use std::sync::Arc;
 
-use crate::ZKMiddleware;
+use crate::{deposit, transfer, utils::L2_ETH_TOKEN_ADDRESS, withdraw};
 
-#[async_trait::async_trait]
-pub trait ZKWallet {
-    type L1Error: MiddlewareError<
-        Inner = <<Self::L1Signer as Middleware>::Inner as Middleware>::Error,
-    >;
-    type L2Error: MiddlewareError<
-        Inner = <<Self::L2Signer as ZKMiddleware>::Inner as ZKMiddleware>::Error,
-    >;
-    type L1Signer: Middleware + Signer;
-    type L2Signer: ZKMiddleware + Signer;
+#[derive(thiserror::Error, Debug)]
+pub enum ZKWalletError {
+    #[error("Provider error: {0}")]
+    ProviderError(#[from] ethers::providers::ProviderError),
+}
 
-    async fn deposit(&self, amount: U256) -> Result<Hash, Self::L1Error>;
+/// A ZKsync wallet
+pub struct ZKWallet<M, S> {
+    l1_signer: Arc<SignerMiddleware<M, S>>,
+    l2_signer: Arc<SignerMiddleware<M, S>>,
+}
 
-    async fn finalize_deposit(&self) -> Result<Hash, Self::L2Error>;
+impl<M, S> ZKWallet<M, S>
+where
+    M: Middleware,
+    S: Signer,
+{
+    pub fn new(l1_signer: SignerMiddleware<M, S>, l2_signer: SignerMiddleware<M, S>) -> Self {
+        Self {
+            l1_signer: Arc::new(l1_signer),
+            l2_signer: Arc::new(l2_signer),
+        }
+    }
 
-    async fn withdraw(&self, amount: U256) -> Result<(), Self::L2Error>;
+    /// Deposits ETH to the wallet's L2 address.
+    ///
+    /// # Arguments
+    ///
+    /// * `amount` - The amount of ETH to deposit.
+    ///
+    /// # Returns
+    ///
+    /// The hash of the L1 deposit transaction.
+    ///
+    /// # Errors
+    ///
+    /// If the deposit transaction fails.
+    pub async fn deposit_eth(&self, amount: U256) -> Result<Hash, ZKWalletError> {
+        self._deposit(amount, L2_ETH_TOKEN_ADDRESS, self.l2_address())
+            .await
+    }
 
-    async fn finalize_withdraw(&self) -> Result<Hash, Self::L1Error>;
+    /// Deposits ETH to a specified address.
+    ///
+    /// # Arguments
+    ///
+    /// * `amount` - The amount of ETH to deposit.
+    /// * `to` - The address to deposit the ETH to.
+    ///
+    /// # Returns
+    ///
+    /// The hash of the L1 deposit transaction.
+    ///
+    /// # Errors
+    ///
+    /// If the deposit transaction fails.
+    pub async fn deposit_eth_to(&self, amount: U256, to: Address) -> Result<Hash, ZKWalletError> {
+        self._deposit(amount, L2_ETH_TOKEN_ADDRESS, to).await
+    }
 
-    async fn transfer(&self, to: Address, amount: U256) -> Result<Hash, Self::L2Error>;
+    /// Deposits an ERC20 token to the wallet's L2 address.
+    ///
+    /// # Arguments
+    ///
+    /// * `amount` - The amount of the ERC20 token to deposit.
+    /// * `token` - The address of the ERC20 token to deposit.
+    ///
+    /// # Returns
+    ///
+    /// The hash of the L1 deposit transaction.
+    ///
+    /// # Errors
+    ///
+    /// If the deposit transaction fails.
+    pub async fn deposit_erc20(&self, amount: U256, token: Address) -> Result<Hash, ZKWalletError> {
+        self._deposit(amount, token, self.l2_address()).await
+    }
+
+    /// Deposits an ERC20 token to a specified address.
+    ///
+    /// # Arguments
+    ///
+    /// * `amount` - The amount of the ERC20 token to deposit.
+    /// * `token` - The address of the ERC20 token to deposit.
+    /// * `to` - The address to deposit the ERC20 token to.
+    ///
+    /// # Returns
+    ///
+    /// The hash of the L1 deposit transaction.
+    ///
+    /// # Errors
+    ///
+    /// If the deposit transaction fails.
+    pub async fn deposit_erc20_to(
+        &self,
+        amount: U256,
+        token: Address,
+        to: Address,
+    ) -> Result<Hash, ZKWalletError> {
+        self._deposit(amount, token, to).await
+    }
+
+    /// Withdraws ETH from the wallet's L2 address.
+    ///
+    /// # Arguments
+    ///
+    /// * `amount` - The amount of ETH to withdraw.
+    ///
+    /// # Returns
+    ///
+    /// The hash of the L2 withdrawal transaction.
+    ///
+    /// # Errors
+    ///
+    /// If the withdrawal transaction fails.
+    ///
+    /// # Note
+    ///
+    /// The withdrawal must be finalized before the funds are available on L1.
+    /// Use `finalize_withdraw` to finalize the withdrawal.
+    pub async fn withdraw_eth(&self, amount: U256) -> Result<Hash, ZKWalletError> {
+        self._withdraw(amount, L2_ETH_TOKEN_ADDRESS).await
+    }
+
+    /// Withdraws an ERC20 token from the wallet's L2 address.
+    ///
+    /// # Arguments
+    ///
+    /// * `amount` - The amount of the ERC20 token to withdraw.
+    /// * `token` - The address of the ERC20 token to withdraw.
+    ///
+    /// # Returns
+    ///
+    /// The hash of the L2 withdrawal transaction.
+    ///
+    /// # Errors
+    ///
+    /// If the withdrawal transaction fails.
+    ///
+    /// # Note
+    ///
+    /// The withdrawal must be finalized before the funds are available on L1.
+    /// Use `finalize_withdraw` to finalize the withdrawal.
+    pub async fn withdraw_erc20(
+        &self,
+        amount: U256,
+        token: Address,
+    ) -> Result<Hash, ZKWalletError> {
+        self._withdraw(amount, token).await
+    }
+
+    /// Finalizes a withdrawal.
+    ///
+    /// # Arguments
+    ///
+    /// * `l2_withdrawal_tx_hash` - The hash of the L2 withdrawal transaction.
+    ///
+    /// # Returns
+    ///
+    /// The hash of the L1 withdrawal transaction.
+    ///
+    /// # Errors
+    ///
+    /// If the finalization transaction fails.
+    ///
+    /// # Note
+    ///
+    /// The withdrawal must be initiated before finalization.
+    /// Use any of the available withdraw methods to initiate the withdrawal.
+    pub async fn finalize_withdraw(
+        &self,
+        l2_withdrawal_tx_hash: Hash,
+    ) -> Result<Hash, ZKWalletError> {
+        let l1_withdrawal_hash = withdraw::finalize_withdrawal(
+            self.l1_signer(),
+            l2_withdrawal_tx_hash,
+            self.l2_provider(),
+        )
+        .await;
+        Ok(l1_withdrawal_hash)
+    }
+
+    /// Transfers ETH to a specified address.
+    /// The ETH is transferred from the wallet's L2 address.
+    /// The transfer is done using the wallet's L2 signer.
+    ///
+    /// # Arguments
+    ///
+    /// * `amount` - The amount of ETH to transfer.
+    /// * `to` - The address to transfer the ETH to.
+    ///
+    /// # Returns
+    ///
+    /// The hash of the transfer transaction.
+    ///
+    /// # Errors
+    ///
+    /// If the transfer transaction fails.
+    pub async fn transfer_eth(&self, amount: U256, to: Address) -> Result<Hash, ZKWalletError> {
+        self._transfer(amount, L2_ETH_TOKEN_ADDRESS, to).await
+    }
+
+    /// Transfers an ERC20 token to a specified address.
+    /// The ERC20 token is transferred from the wallet's L2 address.
+    /// The transfer is done using the wallet's L2 signer.
+    ///
+    /// # Arguments
+    ///
+    /// * `amount` - The amount of the ERC20 token to transfer.
+    /// * `token` - The address of the ERC20 token to transfer.
+    /// * `to` - The address to transfer the ERC20 token to.
+    ///
+    /// # Returns
+    ///
+    /// The hash of the transfer transaction.
+    ///
+    /// # Errors
+    ///
+    /// If the transfer transaction fails.
+    pub async fn transfer_erc20(
+        &self,
+        amount: U256,
+        token: Address,
+        to: Address,
+    ) -> Result<Hash, ZKWalletError> {
+        self._transfer(amount, token, to).await
+    }
 
     /* L1 Signer Getters */
 
-    async fn l1_nonce(&self) -> Result<U256, Self::L1Error>;
+    /// Gets the nonce of the wallet's L1 address.
+    ///
+    /// # Returns
+    ///
+    /// The nonce of the wallet's L1 address.
+    ///
+    /// # Errors
+    ///
+    /// If the nonce cannot be retrieved.
+    pub async fn l1_nonce(&self) -> Result<U256, ZKWalletError> {
+        let nonce = self
+            .l1_provider()
+            .get_transaction_count(self.l1_address(), None)
+            .await?;
+        Ok(nonce)
+    }
 
-    async fn l1_balance(&self) -> Result<U256, Self::L1Error>;
+    /// Gets the balance of the wallet's L1 address.
+    ///
+    /// # Returns
+    ///
+    /// The balance of the wallet's L1 address.
+    ///
+    /// # Errors
+    ///
+    /// If the balance cannot be retrieved.
+    pub async fn l1_balance(&self) -> Result<U256, ZKWalletError> {
+        unimplemented!()
+    }
 
-    async fn l1_address(&self) -> Result<Address, Self::L1Error>;
+    /// Gets the wallet's L1 address.
+    ///
+    /// # Returns
+    ///
+    /// The wallet's L1 address.
+    pub fn l1_address(&self) -> Address {
+        self.l1_signer.address()
+    }
 
     /* L2 Signer Getters */
 
-    async fn l2_nonce(&self) -> Result<U256, Self::L2Error>;
+    /// Gets the nonce of the wallet's L2 address.
+    ///
+    /// # Returns
+    ///
+    /// The nonce of the wallet's L2 address.
+    ///
+    /// # Errors
+    ///
+    /// If the nonce cannot be retrieved.
+    pub async fn l2_nonce(&self) -> Result<U256, ZKWalletError> {
+        let nonce = self
+            .l2_provider()
+            .get_transaction_count(self.l2_address(), None)
+            .await?;
+        Ok(nonce)
+    }
 
-    async fn l2_balance(&self) -> Result<U256, Self::L2Error>;
+    /// Gets the balance of the wallet's L2 address.
+    ///
+    /// # Returns
+    ///
+    /// The balance of the wallet's L2 address.
+    ///
+    /// # Errors
+    ///
+    /// If the balance cannot be retrieved.
+    pub async fn l2_balance(&self) -> Result<U256, ZKWalletError> {
+        unimplemented!()
+    }
 
-    async fn l2_address(&self) -> Result<Address, Self::L2Error>;
+    /// Gets the wallet's L2 address.
+    ///
+    /// # Returns
+    ///
+    /// The wallet's L2 address.
+    pub fn l2_address(&self) -> Address {
+        self.l2_signer.address()
+    }
+
+    /* Providers */
+
+    /// Gets the wallet's L1 provider.
+    ///
+    /// # Returns
+    ///
+    /// A reference to the wallet's L1 provider.
+    pub fn l1_provider(&self) -> &Provider<<M as Middleware>::Provider> {
+        self.l1_signer.provider()
+    }
+
+    /// Gets the wallet's L2 provider.
+    ///
+    /// # Returns
+    ///
+    /// A reference to the wallet's L2 provider.
+    pub fn l2_provider(&self) -> &Provider<<M as Middleware>::Provider> {
+        self.l2_signer.provider()
+    }
+
+    /* Signers */
+
+    /// Gets the wallet's L1 signer.
+    ///
+    /// # Returns
+    ///
+    /// An ARC reference to the wallet's L1 signer.
+    pub fn l1_signer(&self) -> Arc<SignerMiddleware<M, S>> {
+        self.l1_signer.clone()
+    }
+
+    /// Gets the wallet's L2 signer.
+    ///
+    /// # Returns
+    ///
+    /// An ARC reference to the wallet's L2 signer.
+    pub fn l2_signer(&self) -> Arc<SignerMiddleware<M, S>> {
+        self.l2_signer.clone()
+    }
+
+    /* Internals */
+
+    async fn _deposit(
+        &self,
+        amount: U256,
+        token: Address,
+        to: Address,
+    ) -> Result<Hash, ZKWalletError> {
+        let l1_deposit_hash = deposit::deposit(
+            amount,
+            token,
+            self.l1_signer(),
+            to,
+            self.l1_address(),
+            self.l2_provider(),
+        )
+        .await;
+        Ok(l1_deposit_hash)
+    }
+
+    async fn _withdraw(&self, amount: U256, token: Address) -> Result<Hash, ZKWalletError> {
+        let l2_withdraw_hash =
+            withdraw::withdraw(amount, token, self.l2_signer(), self.l1_provider()).await;
+        Ok(l2_withdraw_hash)
+    }
+
+    pub async fn _transfer(
+        &self,
+        amount: U256,
+        token: Address,
+        to: Address,
+    ) -> Result<Hash, ZKWalletError> {
+        let transfer_hash = transfer::transfer(amount, token, self.l2_signer(), to).await;
+        Ok(transfer_hash)
+    }
 }
