@@ -23,7 +23,7 @@ async fn can_withdraw(
 
     let receiver_l1_balance_before = to.provider().get_balance(to.address(), None).await.unwrap();
 
-    let l2_tx_hash = withdraw(amount, token, Arc::clone(&from), to.provider().clone()).await;
+    let l2_tx_hash = withdraw(amount, token, Arc::clone(&from), to.provider()).await;
 
     println!("{}/tx/{l2_tx_hash:?}", l2_explorer_url());
 
