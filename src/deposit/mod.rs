@@ -131,20 +131,18 @@ where
         .await
         .unwrap();
     let l2_gas_per_pubdata_byte_limit = U256::from(utils::REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT);
-    let l2_costs = {
-        let operator_tip = U256::zero();
-        let base_cost: U256 = bridgehub
-            .l_2_transaction_base_cost(
-                zk_chain_id,
-                from.get_gas_price().await.unwrap(),
-                estimate_l1_to_l2_gas,
-                l2_gas_per_pubdata_byte_limit,
-            )
-            .call()
-            .await
-            .unwrap();
-        base_cost + operator_tip + amount
-    };
+    let operator_tip = U256::zero();
+    let base_cost: U256 = bridgehub
+        .l_2_transaction_base_cost(
+            zk_chain_id,
+            from.get_gas_price().await.unwrap(),
+            estimate_l1_to_l2_gas,
+            l2_gas_per_pubdata_byte_limit,
+        )
+        .call()
+        .await
+        .unwrap();
+    let l2_costs = base_cost + operator_tip + amount;
 
     // There's no need to override l2_calldata for depositing ETH into an
     // ETH based chain.
@@ -180,7 +178,7 @@ where
         // overrides.
         if allowance < amount {
             erc20
-                .approve(l1_shared_bridge_address, amount)
+                .approve(l1_shared_bridge_address, amount * 2)
                 .send()
                 .await
                 .unwrap()
@@ -357,7 +355,7 @@ where
 pub async fn l2_deposit_tx_hash<L1Provider>(
     l1_deposit_tx_hash: Hash,
     l1_provider: &L1Provider,
-) -> Hash
+) -> Option<Hash>
 where
     L1Provider: Middleware,
 {
@@ -378,7 +376,6 @@ where
                 .into())
         })
         .map(|new_priority_request_event| Hash::from_slice(&new_priority_request_event.data.0[32..64]))
-        .unwrap()
 }
 
 pub async fn l2_tx_base_cost<M, S>(
