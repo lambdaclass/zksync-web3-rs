@@ -36,7 +36,9 @@ where
 
     assert_tx_succeeded(l1_tx_hash, from.provider(), "L1 transaction failed").await;
 
-    let l2_tx_hash = l2_deposit_tx_hash(l1_tx_hash, from.provider()).await;
+    let l2_tx_hash = l2_deposit_tx_hash(l1_tx_hash, from.provider())
+        .await
+        .unwrap();
 
     println!("{}/tx/{l2_tx_hash:?}", l2_explorer_url());
 
