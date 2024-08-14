@@ -6,6 +6,7 @@ use ethers::{
     types::U256,
 };
 use std::sync::Arc;
+use zksync_types::L2_BASE_TOKEN_ADDRESS;
 
 use crate::{deposit, transfer, utils::L2_ETH_TOKEN_ADDRESS, withdraw, ZKMiddleware};
 
@@ -323,8 +324,7 @@ where
         amount: U256,
         to: Address,
     ) -> Result<Hash, ZKWalletError> {
-        self._transfer(amount, self._l1_base_token_address().await?, to)
-            .await
+        self._transfer(amount, L2_BASE_TOKEN_ADDRESS, to).await
     }
 
     /* L1 Signer Getters */
