@@ -8,7 +8,7 @@ use ethers::{
     signers::Signer,
     types::{transaction::eip2718::TypedTransaction, Eip1559TransactionRequest, U256},
 };
-use std::sync::Arc;
+use std::{ops::Mul, sync::Arc};
 use zksync_types::{L2_BASE_TOKEN_ADDRESS, MAX_L2_TX_GAS_LIMIT};
 
 use crate::{
@@ -58,9 +58,9 @@ where
         );
     // let fee = from.estimate_fee(transfer_tx.clone()).await.unwrap();
     transfer_tx = transfer_tx
-        .max_fee_per_gas(MAX_FEE_PER_GAS)
-        .max_priority_fee_per_gas(MAX_PRIORITY_FEE_PER_GAS)
-        .gas(MAX_L2_TX_GAS_LIMIT);
+        .max_fee_per_gas(MAX_FEE_PER_GAS.mul(100))
+        .max_priority_fee_per_gas(MAX_PRIORITY_FEE_PER_GAS.mul(100))
+        .gas(MAX_L2_TX_GAS_LIMIT.mul(10));
 
     let tx: TypedTransaction = transfer_tx.into();
 
