@@ -1,5 +1,6 @@
 pub mod bridgehub;
 pub mod erc20;
+pub mod governance;
 pub mod l1_shared_bridge;
 pub mod main_contract;
 
