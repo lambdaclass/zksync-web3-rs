@@ -14,6 +14,7 @@ use zksync_types::{L2_BASE_TOKEN_ADDRESS, MAX_L2_TX_GAS_LIMIT};
 use crate::{
     contracts::erc20::ERC20,
     utils::{MAX_FEE_PER_GAS, MAX_PRIORITY_FEE_PER_GAS},
+    ZKMiddleware,
 };
 
 pub async fn transfer<M, S>(
@@ -57,10 +58,11 @@ where
                 .unwrap(),
         );
     // let fee = from.estimate_fee(transfer_tx.clone()).await.unwrap();
+    let gas = from.provider().estimate_fee(&transfer_tx).await.unwrap();
     transfer_tx = transfer_tx
-        .max_fee_per_gas(MAX_FEE_PER_GAS.mul(100))
-        .max_priority_fee_per_gas(MAX_PRIORITY_FEE_PER_GAS.mul(100))
-        .gas(MAX_L2_TX_GAS_LIMIT.mul(10));
+        .max_fee_per_gas(gas.max_fee_per_gas)
+        .max_priority_fee_per_gas(gas.max_priority_fee_per_gas)
+        .gas(gas.gas_limit);
 
     let tx: TypedTransaction = transfer_tx.into();
 
