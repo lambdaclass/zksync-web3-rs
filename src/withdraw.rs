@@ -183,11 +183,16 @@ where
         )
         .await
         .unwrap()
-        .unwrap()
+        .unwrap();
+
+    let withdrawal_msg_index = withdrawal_initialization_log_merkle_proof.id;
+
+    let withdrawal_initialization_log_merkle_proof = withdrawal_initialization_log_merkle_proof
         .proof
         .into_iter()
         .map(Into::into)
         .collect::<Vec<_>>();
+
     let l2_batch_number = withdrawal_initialization_tx_l2_to_l1_logs
         .iter()
         .find(|log| log.sender == L1_MESSENGER_ADDRESS)
@@ -201,7 +206,7 @@ where
         .finalize_withdrawal(
             zk_chain_id.into(),
             l2_batch_number.as_u64().into(),
-            U256::zero(),
+            withdrawal_msg_index.into(),
             withdrawal_initialization_tx_number_in_batch,
             withdrawal_initialization_message,
             withdrawal_initialization_log_merkle_proof,
