@@ -8,7 +8,12 @@ use ethers::{
 use std::sync::Arc;
 use zksync_types::L2_BASE_TOKEN_ADDRESS;
 
-use crate::{deposit, transfer, utils::L2_ETH_TOKEN_ADDRESS, withdraw, ZKMiddleware};
+use crate::{
+    deposit,
+    transfer::{self, Overrides},
+    utils::L2_ETH_TOKEN_ADDRESS,
+    withdraw, ZKMiddleware,
+};
 
 #[derive(thiserror::Error, Debug)]
 pub enum ZKWalletError {
@@ -262,10 +267,13 @@ where
     /// The ETH is transferred from the wallet's L2 address.
     /// The transfer is done using the wallet's L2 signer.
     ///
+    /// The fee has to be deducted manually, amount is the exact amount that has to be transferred.
+    ///
     /// # Arguments
     ///
     /// * `amount` - The amount of ETH to transfer.
     /// * `to` - The address to transfer the ETH to.
+    /// * `overrides` - Override parameters, such as nonce and gas
     ///
     /// # Returns
     ///
@@ -274,8 +282,14 @@ where
     /// # Errors
     ///
     /// If the transfer transaction fails.
-    pub async fn transfer_eth(&self, amount: U256, to: Address) -> Result<Hash, ZKWalletError> {
-        self._transfer(amount, L2_ETH_TOKEN_ADDRESS, to).await
+    pub async fn transfer_eth(
+        &self,
+        amount: U256,
+        to: Address,
+        overrides: Option<Overrides>,
+    ) -> Result<Hash, ZKWalletError> {
+        self._transfer(amount, L2_ETH_TOKEN_ADDRESS, to, overrides)
+            .await
     }
 
     /// Transfers an ERC20 token to a specified address.
@@ -287,6 +301,7 @@ where
     /// * `amount` - The amount of the ERC20 token to transfer.
     /// * `token` - The address of the ERC20 token to transfer.
     /// * `to` - The address to transfer the ERC20 token to.
+    /// * `overrides` - Override parameters, such as nonce and gas
     ///
     /// # Returns
     ///
@@ -300,12 +315,14 @@ where
         amount: U256,
         token: Address,
         to: Address,
+        overrides: Option<Overrides>,
     ) -> Result<Hash, ZKWalletError> {
-        self._transfer(amount, token, to).await
+        self._transfer(amount, token, to, overrides).await
     }
 
     /// Transfers the L2's base token to a specified address.
     ///
+    /// The fee has to be deducted manually, amount is the exact amount that has to be transferred.
     /// # Arguments
     ///
     /// * `amount` - The amount of the base token to transfer.
@@ -323,8 +340,10 @@ where
         &self,
         amount: U256,
         to: Address,
+        overrides: Option<Overrides>,
     ) -> Result<Hash, ZKWalletError> {
-        self._transfer(amount, L2_BASE_TOKEN_ADDRESS, to).await
+        self._transfer(amount, L2_BASE_TOKEN_ADDRESS, to, overrides)
+            .await
     }
 
     /* L1 Signer Getters */
@@ -480,8 +499,10 @@ where
         amount: U256,
         token: Address,
         to: Address,
+        overrides: Option<Overrides>,
     ) -> Result<Hash, ZKWalletError> {
-        let transfer_hash = transfer::transfer(amount, token, self.l2_signer(), to).await;
+        let transfer_hash =
+            transfer::transfer(amount, token, self.l2_signer(), to, overrides).await;
         Ok(transfer_hash)
     }
 
