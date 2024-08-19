@@ -9,18 +9,16 @@ use ethers::{
     types::{transaction::eip2718::TypedTransaction, Eip1559TransactionRequest, U256},
 };
 use std::sync::Arc;
-use zksync_types::{L2_BASE_TOKEN_ADDRESS, MAX_L2_TX_GAS_LIMIT};
+use zksync_types::L2_BASE_TOKEN_ADDRESS;
 
-use crate::{
-    contracts::erc20::ERC20,
-    utils::{MAX_FEE_PER_GAS, MAX_PRIORITY_FEE_PER_GAS},
-};
+use crate::{contracts::erc20::ERC20, types::L2TxOverrides, ZKMiddleware};
 
 pub async fn transfer<M, S>(
     amount: U256,
     token: impl Into<Address>,
     from: Arc<SignerMiddleware<M, S>>,
     to: Address,
+    overrides: Option<L2TxOverrides>,
 ) -> Hash
 where
     M: Middleware,
@@ -32,35 +30,44 @@ where
     let token_to_transfer_is_zk_chain_base_token = token == L2_BASE_TOKEN_ADDRESS;
 
     if token_to_transfer_is_zk_chain_base_token {
-        transfer_base_token(amount, from, to).await
+        transfer_base_token(amount, from, to, overrides).await
     } else {
         transfer_non_base_token(amount, token, from, to).await
     }
 }
 
+///  The fee has to be deducted manually, amount is the exact amount that has to be transferred
 pub async fn transfer_base_token<M, S>(
     amount: U256,
     from: Arc<SignerMiddleware<M, S>>,
     to: Address,
+    overrides: Option<L2TxOverrides>,
 ) -> Hash
 where
     M: Middleware,
     S: Signer,
 {
+    let transaction_count = from
+        .get_transaction_count(from.address(), None)
+        .await
+        .unwrap();
+
+    let nonce = if let Some(overrides) = overrides {
+        overrides.nonce.unwrap_or(transaction_count)
+    } else {
+        transaction_count
+    };
+
     let mut transfer_tx = Eip1559TransactionRequest::new()
         .from(from.address())
         .to(to)
         .value(amount)
-        .nonce(
-            from.get_transaction_count(from.address(), None)
-                .await
-                .unwrap(),
-        );
-    // let fee = from.estimate_fee(transfer_tx.clone()).await.unwrap();
+        .nonce(nonce);
+    let fees = from.provider().estimate_fee(&transfer_tx).await.unwrap();
     transfer_tx = transfer_tx
-        .max_fee_per_gas(MAX_FEE_PER_GAS)
-        .max_priority_fee_per_gas(MAX_PRIORITY_FEE_PER_GAS)
-        .gas(MAX_L2_TX_GAS_LIMIT);
+        .max_fee_per_gas(fees.max_fee_per_gas)
+        .max_priority_fee_per_gas(fees.max_priority_fee_per_gas)
+        .gas(fees.gas_limit);
 
     let tx: TypedTransaction = transfer_tx.into();
 

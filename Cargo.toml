@@ -16,10 +16,10 @@ clap = { version = "4.2.7", features = ["derive"] }
 lazy_static = "1.4.0"
 
 # ZKsync
-zksync_types = { git = "https://github.com/matter-labs/zksync-era.git", tag = "core-v24.7.0", package = "zksync_types"}
-zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era.git", tag = "core-v24.7.0", package = "zksync_web3_decl"}
-zksync_system_constants = { git = "https://github.com/matter-labs/zksync-era.git", tag = "core-v24.7.0", package = "zksync_system_constants"}
-zksync_contracts = { git = "https://github.com/matter-labs/zksync-era.git", tag = "core-v24.7.0", package = "zksync_contracts"}
+zksync_types = { git = "https://github.com/matter-labs/zksync-era.git", tag = "core-v24.7.0", package = "zksync_types" }
+zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era.git", tag = "core-v24.7.0", package = "zksync_web3_decl" }
+zksync_system_constants = { git = "https://github.com/matter-labs/zksync-era.git", tag = "core-v24.7.0", package = "zksync_system_constants" }
+zksync_contracts = { git = "https://github.com/matter-labs/zksync-era.git", tag = "core-v24.7.0", package = "zksync_contracts" }
 
 # Async
 tokio = { version = "1", features = ["macros", "process"] }
@@ -48,9 +48,9 @@ colored = "2.1.0"
 
 # Examples
 
-[[example]]
-name = "simple_payment"
-path = "examples/simple_payment/main.rs"
+#[[example]]
+#name = "simple_payment"
+#path = "examples/simple_payment/main.rs"
 
 [profile.test]
 opt-level = 3

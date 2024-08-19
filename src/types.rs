@@ -49,3 +49,44 @@ impl L1TxOverrides {
         self
     }
 }
+
+#[derive(Debug, Clone, Default)]
+pub struct L2TxOverrides {
+    pub from: Option<Address>,
+    pub value: Option<U256>,
+    pub gas_price: Option<U256>,
+    pub gas: Option<U256>,
+    pub nonce: Option<U256>,
+    pub gas_limit: Option<U256>,
+}
+
+impl L2TxOverrides {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn from(mut self, from: Address) -> Self {
+        self.from = Some(from);
+        self
+    }
+
+    pub fn value(mut self, value: U256) -> Self {
+        self.value = Some(value);
+        self
+    }
+
+    pub fn gas_price(mut self, gas_price: U256) -> Self {
+        self.gas_price = Some(gas_price);
+        self
+    }
+
+    pub fn gas(mut self, gas: U256) -> Self {
+        self.gas = Some(gas);
+        self
+    }
+
+    pub fn nonce(mut self, nonce: U256) -> Self {
+        self.nonce = Some(nonce);
+        self
+    }
+}
