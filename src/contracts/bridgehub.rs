@@ -1,7 +1,7 @@
 use ethers::types::{Address, Bytes, U256};
 use ethers_contract::abigen;
 
-abigen!(Bridgehub, "abi/IBridgehub.json");
+abigen!(Bridgehub, "abi/Bridgehub.json");
 
 /// struct L2TransactionRequestDirect {
 ///     uint256 chainId;
