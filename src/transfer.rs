@@ -11,14 +11,14 @@ use ethers::{
 use std::sync::Arc;
 use zksync_types::L2_BASE_TOKEN_ADDRESS;
 
-use crate::{contracts::erc20::ERC20, ZKMiddleware};
+use crate::{contracts::erc20::ERC20, types::L2TxOverrides, ZKMiddleware};
 
 pub async fn transfer<M, S>(
     amount: U256,
     token: impl Into<Address>,
     from: Arc<SignerMiddleware<M, S>>,
     to: Address,
-    overrides: Option<Overrides>,
+    overrides: Option<L2TxOverrides>,
 ) -> Hash
 where
     M: Middleware,
@@ -36,32 +36,12 @@ where
     }
 }
 
-pub struct Overrides {
-    pub nonce: Option<U256>,
-}
-
-impl Overrides {
-    pub fn new() -> Self {
-        Overrides { nonce: None }
-    }
-    pub fn with_nonce(mut self, nonce: U256) -> Self {
-        self.nonce = Some(nonce);
-        self
-    }
-}
-
-impl Default for Overrides {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 ///  The fee has to be deducted manually, amount is the exact amount that has to be transferred
 pub async fn transfer_base_token<M, S>(
     amount: U256,
     from: Arc<SignerMiddleware<M, S>>,
     to: Address,
-    overrides: Option<Overrides>,
+    overrides: Option<L2TxOverrides>,
 ) -> Hash
 where
     M: Middleware,

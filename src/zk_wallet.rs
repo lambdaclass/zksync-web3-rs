@@ -9,10 +9,7 @@ use std::sync::Arc;
 use zksync_types::L2_BASE_TOKEN_ADDRESS;
 
 use crate::{
-    deposit,
-    transfer::{self, Overrides},
-    utils::L2_ETH_TOKEN_ADDRESS,
-    withdraw, ZKMiddleware,
+    deposit, transfer, types::L2TxOverrides, utils::L2_ETH_TOKEN_ADDRESS, withdraw, ZKMiddleware,
 };
 
 #[derive(thiserror::Error, Debug)]
@@ -286,7 +283,7 @@ where
         &self,
         amount: U256,
         to: Address,
-        overrides: Option<Overrides>,
+        overrides: Option<L2TxOverrides>,
     ) -> Result<Hash, ZKWalletError> {
         self._transfer(amount, L2_ETH_TOKEN_ADDRESS, to, overrides)
             .await
@@ -315,7 +312,7 @@ where
         amount: U256,
         token: Address,
         to: Address,
-        overrides: Option<Overrides>,
+        overrides: Option<L2TxOverrides>,
     ) -> Result<Hash, ZKWalletError> {
         self._transfer(amount, token, to, overrides).await
     }
@@ -340,7 +337,7 @@ where
         &self,
         amount: U256,
         to: Address,
-        overrides: Option<Overrides>,
+        overrides: Option<L2TxOverrides>,
     ) -> Result<Hash, ZKWalletError> {
         self._transfer(amount, L2_BASE_TOKEN_ADDRESS, to, overrides)
             .await
@@ -499,7 +496,7 @@ where
         amount: U256,
         token: Address,
         to: Address,
-        overrides: Option<Overrides>,
+        overrides: Option<L2TxOverrides>,
     ) -> Result<Hash, ZKWalletError> {
         let transfer_hash =
             transfer::transfer(amount, token, self.l2_signer(), to, overrides).await;
