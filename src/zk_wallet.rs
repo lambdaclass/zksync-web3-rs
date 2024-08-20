@@ -453,7 +453,7 @@ where
     ///
     /// An ARC reference to the wallet's L1 signer.
     pub fn l1_signer(&self) -> Arc<SignerMiddleware<M, S>> {
-        self.l1_signer.clone()
+        Arc::clone(&self.l1_signer)
     }
 
     /// Gets the wallet's L2 signer.
@@ -462,7 +462,7 @@ where
     ///
     /// An ARC reference to the wallet's L2 signer.
     pub fn l2_signer(&self) -> Arc<SignerMiddleware<M, S>> {
-        self.l2_signer.clone()
+        Arc::clone(&self.l2_signer)
     }
 
     /* Internals */
