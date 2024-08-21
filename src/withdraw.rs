@@ -109,7 +109,6 @@ pub async fn wait_for_finalize_withdrawal<L2Provider>(
         {
             break;
         }
-        println!("Withdraw request not executed on L1 yet. Retrying in 5 seconds...");
         tokio::time::sleep(std::time::Duration::from_secs(5)).await;
     }
 }
