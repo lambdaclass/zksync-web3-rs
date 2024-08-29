@@ -4,7 +4,16 @@ use serde::Serialize;
 use serde_json::json;
 use std::{collections::HashMap, fmt::Debug, time::Duration};
 use tokio::time::Instant;
-use zksync_types::{api::ProtocolVersion, fee_model::FeeParams};
+use zksync_types::{
+    api::{
+        BlockDetails, BridgeAddresses, DebugCall, L1BatchDetails, L2ToL1LogProof, ProtocolVersion,
+        ResultDebugCall, TracerConfig, Transaction, TransactionDetailedResult, TransactionDetails,
+    },
+    fee::Fee,
+    fee_model::FeeParams,
+    EIP_712_TX_TYPE,
+};
+use zksync_web3_decl::types::Token;
 
 use ethers::{
     abi::HumanReadableParser,
@@ -23,19 +32,7 @@ use ethers::{
 
 use crate::{
     eip712::{Eip712Meta, Eip712Transaction, Eip712TransactionRequest},
-    types::{
-        zksync::{
-            api::{
-                BlockDetails, BridgeAddresses, DebugCall, L1BatchDetails, L2ToL1LogProof,
-                ResultDebugCall, TracerConfig, Transaction, TransactionDetailedResult,
-                TransactionDetails,
-            },
-            fee::Fee,
-            web3_decl::Token,
-            EIP_712_TX_TYPE,
-        },
-        L1TxOverrides,
-    },
+    types::L1TxOverrides,
     utils,
 };
 

@@ -16,10 +16,11 @@ clap = { version = "4.2.7", features = ["derive"] }
 lazy_static = "1.4.0"
 
 # ZKsync
-zksync_types = { git = "https://github.com/matter-labs/zksync-era.git", tag = "core-v24.7.0", package = "zksync_types" }
-zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era.git", tag = "core-v24.7.0", package = "zksync_web3_decl" }
-zksync_system_constants = { git = "https://github.com/matter-labs/zksync-era.git", tag = "core-v24.7.0", package = "zksync_system_constants" }
-zksync_contracts = { git = "https://github.com/matter-labs/zksync-era.git", tag = "core-v24.7.0", package = "zksync_contracts" }
+zksync_types = { git = "https://github.com/matter-labs/zksync-era.git", package = "zksync_types" }
+zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era.git", package = "zksync_web3_decl" }
+zksync_system_constants = { git = "https://github.com/matter-labs/zksync-era.git", package = "zksync_system_constants" }
+zksync_contracts = { git = "https://github.com/matter-labs/zksync-era.git", package = "zksync_contracts" }
+zksync_prover_interface = { git = "https://github.com/matter-labs/zksync-era.git", package = "zksync_prover_interface" }
 
 # Async
 tokio = { version = "1", features = ["macros", "process"] }
