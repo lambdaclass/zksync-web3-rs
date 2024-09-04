@@ -1,5 +1,34 @@
 [
   {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_bridgehub",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_maxNumberOfHyperchains",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint8",
+        "name": "version",
+        "type": "uint8"
+      }
+    ],
+    "name": "Initialized",
+    "type": "event"
+  },
+  {
     "anonymous": false,
     "inputs": [
       {
@@ -138,6 +167,44 @@
       {
         "indexed": true,
         "internalType": "address",
+        "name": "previousOwner",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "OwnershipTransferStarted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "previousOwner",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "OwnershipTransferred",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
         "name": "_hyperchain",
         "type": "address"
       },
@@ -254,9 +321,42 @@
   },
   {
     "inputs": [],
+    "name": "MAX_NUMBER_OF_HYPERCHAINS",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "acceptAdmin",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "acceptOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "admin",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -444,7 +544,7 @@
     "outputs": [
       {
         "internalType": "address[]",
-        "name": "",
+        "name": "chainAddresses",
         "type": "address[]"
       }
     ],
@@ -482,7 +582,7 @@
     "outputs": [
       {
         "internalType": "address",
-        "name": "",
+        "name": "chainAddress",
         "type": "address"
       }
     ],
@@ -621,6 +721,32 @@
   },
   {
     "inputs": [],
+    "name": "owner",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "pendingOwner",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "protocolVersion",
     "outputs": [
       {
@@ -684,6 +810,31 @@
       }
     ],
     "name": "registerAlreadyDeployedHyperchain",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "renounceOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_chainId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_newLastBatch",
+        "type": "uint256"
+      }
+    ],
+    "name": "revertBatches",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -793,7 +944,7 @@
       },
       {
         "internalType": "uint256",
-        "name": "_oldprotocolVersionDeadline",
+        "name": "_oldProtocolVersionDeadline",
         "type": "uint256"
       },
       {
@@ -852,6 +1003,24 @@
       }
     ],
     "name": "setPriorityTxMaxGasLimit",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_protocolVersion",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_timestamp",
+        "type": "uint256"
+      }
+    ],
+    "name": "setProtocolVersionDeadline",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -988,6 +1157,19 @@
   {
     "inputs": [
       {
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "transferOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "uint256",
         "name": "_chainId",
         "type": "uint256"
@@ -1064,7 +1246,7 @@
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "_protocolVersion",
+        "name": "protocolVersion",
         "type": "uint256"
       }
     ],
@@ -1072,8 +1254,21 @@
     "outputs": [
       {
         "internalType": "bytes32",
-        "name": "",
+        "name": "cutHash",
         "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "validatorTimelock",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
       }
     ],
     "stateMutability": "view",

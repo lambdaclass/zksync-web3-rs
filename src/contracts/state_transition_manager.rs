@@ -1,3 +1,3 @@
 use ethers_contract::abigen;
 
-abigen!(StateTransitionManager, "abi/IStateTransitionManager.json");
+abigen!(StateTransitionManager, "abi/StateTransitionManager.json");
