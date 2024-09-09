@@ -290,12 +290,9 @@ impl TryFrom<Eip712TransactionRequest> for Eip712Transaction {
             .chain_id(tx.chain_id);
 
         if let Some(paymaster_params) = tx.custom_data.paymaster_params {
-            if let Some(paymaster) = paymaster_params.paymaster {
-                eip712_transaction = eip712_transaction.paymaster(paymaster)
-            }
-            if let Some(paymaster_input) = paymaster_params.paymaster_input {
-                eip712_transaction = eip712_transaction.paymaster_input(paymaster_input)
-            }
+            eip712_transaction = eip712_transaction
+                .paymaster(paymaster_params.paymaster)
+                .paymaster_input(paymaster_params.paymaster_input);
         }
 
         if let Some(gas_limit) = tx.gas_limit {
