@@ -1,5 +1,6 @@
 pub mod zksync {
-    pub use zksync_prover_interface::*;
+    pub use zksync_prover_interface::api as prover_interface_api;
+    pub use zksync_prover_interface::{inputs, outputs};
     pub use zksync_system_constants::*;
     pub use zksync_types::*;
     pub use zksync_web3_decl::types as web3_decl;
