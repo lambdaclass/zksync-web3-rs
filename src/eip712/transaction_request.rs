@@ -173,48 +173,29 @@ impl Eip712TransactionRequest {
     }
 
     pub fn rlp(&self, signature: Option<Signature>) -> Result<Bytes, Eip712Error> {
-        let mut stream = RlpStream::new();
-        stream.begin_unbounded_list();
-
-        // 0
-        stream.append(&self.nonce);
-        // 1
-        stream.append(&self.max_priority_fee_per_gas);
-        // 2
-        rlp_append_option(&mut stream, self.max_fee_per_gas);
-        // 3 (supped to be gas)
-        rlp_append_option(&mut stream, self.gas_limit);
-        // 4
-        stream.append(&self.to);
-        // 5
-        stream.append(&self.value);
-        // 6
-        stream.append(&self.data.0);
-        // 7
-        stream.append(&self.chain_id);
-        // 8
-        stream.append(&"");
-        // 9
-        stream.append(&"");
-        // 10
-        stream.append(&self.chain_id);
-        // 11
-        stream.append(&self.from);
-        // 12, 13, 14, 15
-        if self.custom_data.custom_signature.clone().is_some() {
-            self.custom_data.rlp_append(&mut stream);
-        } else if let Some(signature) = signature {
-            let tx = self.clone().custom_data(
-                self.clone()
-                    .custom_data
-                    .custom_signature(signature.to_vec()),
-            );
-            tx.custom_data.rlp_append(&mut stream);
-        } else {
-            return Err(Eip712Error::Message("No signature provided".to_owned()));
+        let mut rlp = RlpStream::new();
+        rlp.begin_unbounded_list();
+        rlp.append(&self.nonce);
+        rlp.append(&self.max_priority_fee_per_gas);
+        rlp.append(&self.gas_price);
+        rlp_append_option(&mut rlp, self.gas_limit);
+        rlp.append(&self.to);
+        rlp.append(&self.value);
+        rlp.append(&self.data.0);
+        if let Some(sig) = signature {
+            rlp.append(&sig.v);
+            // Convert to big-endian bytes (32 bytes in total)
+            let mut bytes = [0_u8; 32]; // U256 is 32 bytes
+            sig.r.to_big_endian(&mut bytes);
+            rlp.append(&bytes.as_slice());
+            sig.s.to_big_endian(&mut bytes);
+            rlp.append(&bytes.as_slice());
         }
-        stream.finalize_unbounded_list();
-        Ok(stream.out().freeze().into())
+        rlp.append(&self.chain_id);
+        rlp.append(&self.from);
+        self.custom_data.rlp_append(&mut rlp);
+        rlp.finalize_unbounded_list();
+        Ok(rlp.out().freeze().into())
     }
 }
 
