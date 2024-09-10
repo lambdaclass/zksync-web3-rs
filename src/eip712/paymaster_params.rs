@@ -1,6 +1,5 @@
-use super::rlp_append_option;
 use ethers::{
-    types::{Address, Bytes},
+    types::Address,
     utils::rlp::Encodable,
 };
 use serde::Serialize;

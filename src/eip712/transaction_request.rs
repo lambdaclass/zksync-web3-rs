@@ -185,7 +185,7 @@ impl Eip712TransactionRequest {
         if let Some(sig) = signature {
             rlp.append(&sig.v);
             // Convert to big-endian bytes (32 bytes in total)
-            let mut bytes = [0u8; 32];  // U256 is 32 bytes
+            let mut bytes = [0_u8; 32]; // U256 is 32 bytes
             sig.r.to_big_endian(&mut bytes);
             rlp.append(&bytes.as_slice());
             sig.s.to_big_endian(&mut bytes);
