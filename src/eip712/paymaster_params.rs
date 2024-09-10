@@ -1,7 +1,4 @@
-use ethers::{
-    types::Address,
-    utils::rlp::Encodable,
-};
+use ethers::{types::Address, utils::rlp::Encodable};
 use serde::Serialize;
 
 #[derive(Serialize, serde::Deserialize, Clone, Debug, Default)]
