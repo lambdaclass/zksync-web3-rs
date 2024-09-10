@@ -634,7 +634,7 @@ where
         ))?;
 
         let filtered_log = logs
-            .get(0)
+            .first()
             .ok_or(ZKSWalletError::CustomError(
                 "Error getting log in receipt".to_owned(),
             ))?
@@ -663,7 +663,7 @@ where
 
         let message: Bytes = decode(&[ParamType::Bytes], &filtered_log.data)
             .map_err(|e| ZKSWalletError::CustomError(format!("failed to decode log data: {e}")))?
-            .get(0)
+            .first()
             .ok_or(ZKSWalletError::CustomError(
                 "Message not found in decoded data".to_owned(),
             ))?
