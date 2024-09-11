@@ -597,12 +597,13 @@ where
             .map_err(|_e| ProviderError::CustomError("error on send_transaction_eip712".to_owned()))
             .map_err(M::convert_err)?;
 
+        let gas_price = self.get_gas_price().await?;
         request = request
             .from(wallet.address())
             .chain_id(wallet.chain_id())
             .nonce(self.get_transaction_count(wallet.address(), None).await?)
-            .gas_price(self.get_gas_price().await?)
-            .max_fee_per_gas(self.get_gas_price().await?);
+            .gas_price(gas_price)
+            .max_fee_per_gas(gas_price);
 
         let custom_data = request.clone().custom_data;
         let fee = self.estimate_fee(request.clone()).await?;
