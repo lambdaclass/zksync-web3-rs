@@ -1,14 +1,19 @@
-use super::{rlp_append_option, Eip712Meta};
-use crate::{types::L1TxOverrides, utils::MAX_PRIORITY_FEE_PER_GAS};
+use super::{hash_bytecode, rlp_append_option, Eip712Meta};
+use crate::{
+    types::L1TxOverrides,
+    utils::{self, MAX_PRIORITY_FEE_PER_GAS},
+};
 use ethers::{
+    abi::{Abi, Error, ParseError},
     types::{
         transaction::{eip2930::AccessList, eip712::Eip712Error},
         Address, Bytes, Signature, U256,
     },
     utils::rlp::{Encodable, RlpStream},
 };
+use ethers_contract::{abigen, encode_function_data, AbiError};
 use serde::{Deserialize, Serialize};
-use zksync_types::{DEFAULT_ERA_CHAIN_ID, EIP_712_TX_TYPE};
+use zksync_types::{CONTRACT_DEPLOYER_ADDRESS, DEFAULT_ERA_CHAIN_ID, EIP_712_TX_TYPE};
 
 // TODO: Not all the fields are optional. This was copied from the JS implementation.
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -245,57 +250,108 @@ impl Default for Eip712TransactionRequest {
 //     }
 // }
 
-// impl TryFrom<DeployRequest> for Eip712TransactionRequest {
-//     type Error = ZKRequestError;
+use std::{fmt::Debug, fs::File, io::BufReader, path::PathBuf};
 
-//     fn try_from(request: DeployRequest) -> Result<Self, Self::Error> {
-//         let mut contract_deployer_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-//         contract_deployer_path.push("src/abi/ContractDeployer.json");
+#[derive(Clone, Debug)]
+pub struct DeployRequest {
+    pub contract_abi: Abi,
+    pub contract_bytecode: Vec<u8>,
+    pub constructor_parameters: Vec<String>,
+    pub from: Address,
+    pub factory_deps: Option<Vec<Vec<u8>>>,
+}
 
-//         let custom_data = Eip712Meta::new().factory_deps({
-//             let mut factory_deps = Vec::new();
-//             if let Some(factory_dependencies) = request.factory_deps {
-//                 factory_deps.extend(factory_dependencies);
-//             }
-//             factory_deps.push(request.contract_bytecode.clone());
-//             factory_deps
-//         });
+impl DeployRequest {
+    pub fn with(
+        contract_abi: Abi,
+        contract_bytecode: Vec<u8>,
+        constructor_parameters: Vec<String>,
+    ) -> Self {
+        Self {
+            contract_abi,
+            contract_bytecode,
+            constructor_parameters,
+            from: Default::default(),
+            factory_deps: None,
+        }
+    }
 
-//         let contract_deployer = Abi::load(BufReader::new(
-//             File::open(contract_deployer_path).map_err(|e| {
-//                 ZKRequestError::CustomError(format!(
-//                     "Error opening contract deployer abi file {e:?}"
-//                 ))
-//             })?,
-//         ))?;
-//         let create = contract_deployer.function("create")?;
+    pub fn from(mut self, from: Address) -> Self {
+        self.from = from;
+        self
+    }
 
-//         // TODO: User could provide this instead of defaulting.
-//         let salt = [0_u8; 32];
-//         let bytecode_hash = hash_bytecode(&request.contract_bytecode).map_err(|e| {
-//             ZKRequestError::CustomError(format!("Error hashing contract bytecode {e:?}"))
-//         })?;
-//         let call_data: Bytes = match (
-//             request.contract_abi.constructor(),
-//             request.constructor_parameters.is_empty(),
-//         ) {
-//             (None, false) => {
-//                 return Err(ZKRequestError::CustomError(
-//                     "Constructor not present".to_owned(),
-//                 ))
-//             }
-//             (None, true) | (Some(_), true) => Bytes::default(),
-//             (Some(constructor), false) => {
-//                 utils::encode_constructor_args(constructor, &request.constructor_parameters)?.into()
-//             }
-//         };
+    pub fn factory_deps(mut self, factory_deps: Vec<Vec<u8>>) -> Self {
+        self.factory_deps = Some(factory_deps);
+        self
+    }
+}
 
-//         let data = encode_function_data(create, (salt, bytecode_hash, call_data))?;
+#[derive(thiserror::Error, Debug)]
+pub enum ZKRequestError {
+    #[error("Error parsing function: {0}")]
+    ParseFunctionError(#[from] ParseError),
+    #[error("ABI error: {0}")]
+    AbiError(#[from] AbiError),
+    #[error("Encoding or decoding error: {0}")]
+    Error(#[from] Error),
+    #[error("{0}")]
+    CustomError(String),
+}
 
-//         Ok(Eip712TransactionRequest::new()
-//             .r#type(EIP_712_TX_TYPE)
-//             .to(CONTRACT_DEPLOYER_ADDRESS)
-//             .custom_data(custom_data)
-//             .data(data))
-//     }
-// }
+abigen!(ContractDeployer, "abi/ContractDeployer.json");
+
+impl TryFrom<DeployRequest> for Eip712TransactionRequest {
+    type Error = ZKRequestError;
+
+    fn try_from(request: DeployRequest) -> Result<Self, Self::Error> {
+        let mut contract_deployer_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        contract_deployer_path.push("abi/ContractDeployer.json");
+
+        let custom_data = Eip712Meta::new().factory_deps({
+            let mut factory_deps = Vec::new();
+            if let Some(factory_dependencies) = request.factory_deps {
+                factory_deps.extend(factory_dependencies);
+            }
+            factory_deps.push(request.contract_bytecode.clone());
+            factory_deps
+        });
+
+        let contract_deployer = Abi::load(BufReader::new(
+            File::open(contract_deployer_path).map_err(|e| {
+                ZKRequestError::CustomError(format!(
+                    "Error opening contract deployer abi file {e:?}"
+                ))
+            })?,
+        ))?;
+        let create = contract_deployer.function("create")?;
+
+        // TODO: User could provide this instead of defaulting.
+        let salt = [0_u8; 32];
+        let bytecode_hash = hash_bytecode(&request.contract_bytecode).map_err(|e| {
+            ZKRequestError::CustomError(format!("Error hashing contract bytecode {e:?}"))
+        })?;
+        let call_data: Bytes = match (
+            request.contract_abi.constructor(),
+            request.constructor_parameters.is_empty(),
+        ) {
+            (None, false) => {
+                return Err(ZKRequestError::CustomError(
+                    "Constructor not present".to_owned(),
+                ))
+            }
+            (None, true) | (Some(_), true) => Bytes::default(),
+            (Some(constructor), false) => {
+                utils::encode_constructor_args(constructor, &request.constructor_parameters)?.into()
+            }
+        };
+
+        let data = encode_function_data(create, (salt, bytecode_hash, call_data))?;
+
+        Ok(Eip712TransactionRequest::new()
+            .r#type(EIP_712_TX_TYPE)
+            .to(CONTRACT_DEPLOYER_ADDRESS)
+            .custom_data(custom_data)
+            .data(data))
+    }
+}

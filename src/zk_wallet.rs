@@ -1,15 +1,23 @@
+// FIXME: Remove this after finishing the implementation.
+#![allow(clippy::unwrap_used)]
+
 use ethers::{
     abi::{Address, Hash},
     middleware::SignerMiddleware,
     providers::{Middleware, Provider},
     signers::Signer,
-    types::U256,
+    types::{Signature, TransactionReceipt, U256},
 };
 use std::sync::Arc;
-use zksync_types::L2_BASE_TOKEN_ADDRESS;
+use zksync_types::{fee::Fee, EIP_712_TX_TYPE, L2_BASE_TOKEN_ADDRESS};
 
 use crate::{
-    deposit, transfer, types::L2TxOverrides, utils::L2_ETH_TOKEN_ADDRESS, withdraw, ZKMiddleware,
+    deposit,
+    eip712::{Eip712Transaction, Eip712TransactionRequest},
+    transfer,
+    types::L2TxOverrides,
+    utils::L2_ETH_TOKEN_ADDRESS,
+    withdraw, ZKMiddleware,
 };
 
 #[derive(thiserror::Error, Debug)]
@@ -508,5 +516,66 @@ where
             .get_base_token_l1_address()
             .await
             .map_err(Into::into)
+    }
+
+    //value: MiddlewareError(JsonRpcClientError(JsonRpcError(JsonRpcError { code: -32000, message: "transaction type not supported", data: None })))
+    pub async fn send_transaction_eip712(
+        &self,
+        transaction: Eip712TransactionRequest,
+    ) -> TransactionReceipt {
+        let mut request: Eip712TransactionRequest = transaction;
+        let gas_price = self.l2_provider().get_gas_price().await.unwrap();
+        let l1_signer = self.l1_signer();
+        request = request
+            .from(self.l2_address())
+            .chain_id(self.l2_provider().get_chainid().await.unwrap())
+            .nonce(
+                self.l2_provider()
+                    .get_transaction_count(self.l2_address(), None)
+                    .await
+                    .unwrap(),
+            )
+            .gas_price(gas_price)
+            .max_fee_per_gas(gas_price);
+
+        let custom_data = request.clone().custom_data;
+        // TODO: estimate_fee is not working
+        //let fee = self
+        //    .l2_provider()
+        //    .estimate_fee(request.clone())
+        //    .await
+        //    .unwrap();
+        let fee = Fee {
+            max_fee_per_gas: U256::from(2000000),
+            max_priority_fee_per_gas: U256::from(2000000),
+            gas_limit: U256::from(2000000),
+            gas_per_pubdata_limit: U256::from(3000000),
+        };
+        request = request
+            .max_priority_fee_per_gas(fee.max_priority_fee_per_gas)
+            .max_fee_per_gas(fee.max_fee_per_gas)
+            .gas_limit(fee.gas_limit);
+        let signable_data: Eip712Transaction = request.clone().try_into().unwrap();
+        //.map_err(|e: Eip712Error| ProviderError::CustomError(e.to_string()))
+        //.map_err(M::convert_err)?;
+        let signature: Signature = self
+            .l1_signer()
+            .signer()
+            .sign_typed_data(&signable_data)
+            .await
+            .unwrap();
+        //.map_err(|e| ProviderError::CustomError(format!("error signing transaction: {e}")))
+        //.map_err(M::convert_err)?;
+        request = request.custom_data(custom_data.custom_signature(signature.to_vec()));
+        let encoded_rlp = &*request.rlp_signed(signature).unwrap();
+        //.map_err(|e| ProviderError::CustomError(format!("Error in the rlp encoding {e}")))
+        //.map_err(M::convert_err)?;
+        l1_signer
+            .send_raw_transaction([&[EIP_712_TX_TYPE], encoded_rlp].concat().into())
+            .await
+            .unwrap()
+            .await
+            .unwrap()
+            .unwrap()
     }
 }

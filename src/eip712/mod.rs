@@ -17,6 +17,8 @@ pub use transaction::Eip712Transaction;
 mod paymaster_params;
 pub use paymaster_params::PaymasterParams;
 
+pub use transaction_request::DeployRequest;
+
 /// The 32-byte hash of the bytecode of a zkSync contract is calculated in the following way:
 ///
 /// * The first 2 bytes denote the version of bytecode hash format and are currently equal to [1,0].
