@@ -33,6 +33,7 @@ env_logger = "0.10"
 
 # Hash
 sha2 = "0.9.5"
+anyhow = "1.0.88"
 
 [features]
 ethers-solc = ["ethers/ethers-solc"]
