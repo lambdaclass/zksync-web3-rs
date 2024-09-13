@@ -726,7 +726,6 @@ impl<P: JsonRpcClient> ZKSProvider for Provider<P> {
             .sign_typed_data(&signable_data)
             .await
             .map_err(|e| ProviderError::CustomError(format!("error signing transaction: {e}")))?;
-        println!("signature: {:#?}", signature);
         request = request.custom_data(custom_data.custom_signature(signature.to_vec()));
         let encoded_rlp = &*request
             .rlp_signed(signature)
