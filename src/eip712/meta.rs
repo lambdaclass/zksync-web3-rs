@@ -68,17 +68,13 @@ impl Encodable for Eip712Meta {
         // 12
         stream.append(&self.gas_per_pubdata);
         // 13
-        if !self.factory_deps.is_empty() {
-            stream.begin_list(self.factory_deps.len());
-            for dep in self.factory_deps.iter() {
-                stream.append(dep);
-            }
-        } else {
-            stream.begin_list(0);
+        stream.begin_list(self.factory_deps.len());
+        for dep in self.factory_deps.iter() {
+            stream.append(dep);
         }
         // 14
         rlp_append_option(stream, self.custom_signature.clone().map(|v| v.to_vec()));
         // 15
-        self.paymaster_params.rlp_append(stream);
+        rlp_append_option(stream, self.paymaster_params.clone());
     }
 }

@@ -2,7 +2,6 @@
 #![forbid(unsafe_code)]
 #![recursion_limit = "256"]
 #![warn(
-    clippy::allow_attributes_without_reason,
     clippy::as_conversions,
     clippy::as_ptr_cast_mut,
     clippy::unnecessary_cast,
