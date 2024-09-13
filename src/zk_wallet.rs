@@ -3,13 +3,14 @@
 
 use ethers::{
     abi::{Address, Hash},
+    core::k256::ecdsa::signature::hazmat::PrehashSigner,
     middleware::SignerMiddleware,
     providers::{Middleware, Provider},
     signers::Signer,
     types::{Signature, TransactionReceipt, U256},
 };
 use std::sync::Arc;
-use zksync_types::{fee::Fee, EIP_712_TX_TYPE, L2_BASE_TOKEN_ADDRESS};
+use zksync_types::{EIP_712_TX_TYPE, L2_BASE_TOKEN_ADDRESS};
 
 use crate::{
     deposit,
@@ -525,7 +526,6 @@ where
     ) -> TransactionReceipt {
         let mut request: Eip712TransactionRequest = transaction;
         let gas_price = self.l2_provider().get_gas_price().await.unwrap();
-        let l1_signer = self.l1_signer();
         request = request
             .from(self.l2_address())
             .chain_id(self.l2_provider().get_chainid().await.unwrap())
@@ -539,27 +539,28 @@ where
             .max_fee_per_gas(gas_price);
 
         let custom_data = request.clone().custom_data;
-        // TODO: estimate_fee is not working
-        //let fee = self
-        //    .l2_provider()
-        //    .estimate_fee(request.clone())
-        //    .await
-        //    .unwrap();
-        let fee = Fee {
-            max_fee_per_gas: U256::from(2000000),
-            max_priority_fee_per_gas: U256::from(2000000),
-            gas_limit: U256::from(2000000),
-            gas_per_pubdata_limit: U256::from(3000000),
-        };
+        let fee = self
+            .l2_provider()
+            .estimate_fee(request.clone())
+            .await
+            .unwrap();
         request = request
             .max_priority_fee_per_gas(fee.max_priority_fee_per_gas)
-            .max_fee_per_gas(fee.max_fee_per_gas)
             .gas_limit(fee.gas_limit);
         let signable_data: Eip712Transaction = request.clone().try_into().unwrap();
         //.map_err(|e: Eip712Error| ProviderError::CustomError(e.to_string()))
         //.map_err(M::convert_err)?;
+
+        //Before:
+        //
+        // pub struct Wallet<D: PrehashSigner<(RecoverableSignature, RecoveryId)>>
+        // RecoverableSignature == pub type Signature = ecdsa_core::Signature<Secp256k1>
+        //
+        //let encoded = signable_data.encode_eip712().unwrap();
+        //let signature = PrehashSigner::sign_prehash(&self.l2_signer.signer(), encoded).unwrap();
+
         let signature: Signature = self
-            .l1_signer()
+            .l2_signer()
             .signer()
             .sign_typed_data(&signable_data)
             .await
@@ -570,7 +571,7 @@ where
         let encoded_rlp = &*request.rlp_signed(signature).unwrap();
         //.map_err(|e| ProviderError::CustomError(format!("Error in the rlp encoding {e}")))
         //.map_err(M::convert_err)?;
-        l1_signer
+        self.l2_provider()
             .send_raw_transaction([&[EIP_712_TX_TYPE], encoded_rlp].concat().into())
             .await
             .unwrap()
