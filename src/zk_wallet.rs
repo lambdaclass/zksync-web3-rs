@@ -1,6 +1,3 @@
-// FIXME: Remove this after finishing the implementation.
-#![allow(clippy::unwrap_used)]
-
 use ethers::{
     abi::{Address, Hash},
     middleware::SignerMiddleware,
@@ -531,7 +528,7 @@ where
         let gas_price = self.l2_provider().get_gas_price().await?;
         request = request
             .from(self.l2_address())
-            .chain_id(self.l2_provider().get_chainid().await.unwrap())
+            .chain_id(self.l2_provider().get_chainid().await?)
             .nonce(
                 self.l2_provider()
                     .get_transaction_count(self.l2_address(), None)
