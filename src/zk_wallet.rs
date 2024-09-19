@@ -22,7 +22,7 @@ pub enum ZKWalletError {
     #[error("Provider error: {0}")]
     ProviderError(#[from] ethers::providers::ProviderError),
     #[error("Deploy error: {0}")]
-    DeployError(String),
+    SendEIP712(String),
 }
 
 /// A ZKsync wallet
@@ -544,7 +544,7 @@ where
             .gas_limit(fee.gas_limit)
             .max_fee_per_gas(fee.max_fee_per_gas);
         let signable_data: Eip712Transaction = request.clone().try_into().map_err(|e| {
-            ZKWalletError::DeployError(format!("error converting deploy to eip 712 {e}"))
+            ZKWalletError::SendEIP712(format!("error converting deploy to eip 712 {e}"))
         })?;
 
         let signature: Signature = self
@@ -553,19 +553,19 @@ where
             .sign_typed_data(&signable_data)
             .await
             .map_err(|e| {
-                ZKWalletError::DeployError(format!("error signing deploy transaction: {e}"))
+                ZKWalletError::SendEIP712(format!("error signing deploy transaction: {e}"))
             })?;
 
         request = request.custom_data(custom_data.custom_signature(signature.to_vec()));
         let encoded_rlp = &*request
             .rlp_signed(signature)
-            .map_err(|e| ZKWalletError::DeployError(format!("Error in the rlp encoding {e}")))?;
+            .map_err(|e| ZKWalletError::SendEIP712(format!("Error in the rlp encoding {e}")))?;
 
         self.l2_provider()
             .send_raw_transaction([&[EIP_712_TX_TYPE], encoded_rlp].concat().into())
             .await?
             .await?
-            .ok_or(ZKWalletError::DeployError(
+            .ok_or(ZKWalletError::SendEIP712(
                 "Error sending the deploy transaction".to_string(),
             ))
     }
