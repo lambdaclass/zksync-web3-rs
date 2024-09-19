@@ -220,17 +220,6 @@ pub trait ZKMiddleware {
         tx: Bytes,
     ) -> Result<TransactionDetailedResult, Self::Error>;
 
-    async fn send_eip712<D>(
-        &self,
-        wallet: &Wallet<D>,
-        contract_address: Address,
-        function_signature: &str,
-        function_parameters: Option<Vec<String>>,
-        overrides: Option<L1TxOverrides>,
-    ) -> Result<PendingTransaction<Self::Provider>, Self::Error>
-    where
-        D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Send + Sync;
-
     async fn send<D>(
         &self,
         wallet: &Wallet<D>,
@@ -627,86 +616,6 @@ where
             .map_err(|e| ProviderError::CustomError(format!("Error in the rlp encoding {e}")))
             .map_err(M::convert_err)?;
 
-        self.send_raw_transaction([&[EIP_712_TX_TYPE], encoded_rlp].concat().into())
-            .await
-    }
-
-    async fn send_eip712<D>(
-        &self,
-        wallet: &Wallet<D>,
-        contract_address: Address,
-        function_signature: &str,
-        function_parameters: Option<Vec<String>>,
-        overrides: Option<L1TxOverrides>,
-    ) -> Result<PendingTransaction<Self::Provider>, Self::Error>
-    where
-        D: PrehashSigner<(RecoverableSignature, RecoveryId)> + Send + Sync,
-    {
-        // Note: We couldn't implement Self::Error::LexerError because ethers-rs's LexerError is not exposed.
-        // TODO check for ECADD precompile address to get the function signature.
-        let function = HumanReadableParser::parse_function(function_signature)
-            .map_err(|e| ProviderError::CustomError(e.to_string()))
-            .map_err(M::convert_err)?;
-
-        let mut send_request = if let Some(overrides) = overrides {
-            Eip712TransactionRequest::from_overrides(overrides)
-        } else {
-            Eip712TransactionRequest::new()
-        };
-
-        let function_args = if let Some(function_args) = function_parameters {
-            function
-                .decode_input(
-                    &utils::encode_args(&function, &function_args)
-                        .map_err(|e| ProviderError::CustomError(e.to_string()))
-                        .map_err(M::convert_err)?,
-                )
-                .map_err(|e| ProviderError::CustomError(e.to_string()))
-                .map_err(M::convert_err)?
-        } else {
-            vec![]
-        };
-
-        send_request = send_request
-            .r#type(EIP_712_TX_TYPE)
-            .from(wallet.address())
-            .to(contract_address)
-            .chain_id(wallet.chain_id())
-            .nonce(self.get_transaction_count(wallet.address(), None).await?)
-            .gas_price(self.get_gas_price().await?)
-            .max_fee_per_gas(self.get_gas_price().await?)
-            .data(if !function_args.is_empty() {
-                function
-                    .encode_input(&function_args)
-                    .map_err(|e| ProviderError::CustomError(e.to_string()))
-                    .map_err(M::convert_err)?
-            } else {
-                function.short_signature().into()
-            });
-
-        let fee = self.estimate_fee(send_request.clone()).await?;
-        send_request = send_request
-            .max_priority_fee_per_gas(fee.max_priority_fee_per_gas)
-            .max_fee_per_gas(fee.max_fee_per_gas)
-            .gas_limit(fee.gas_limit);
-
-        let signable_data: Eip712Transaction = send_request
-            .clone()
-            .try_into()
-            .map_err(|e: Eip712Error| ProviderError::CustomError(e.to_string()))
-            .map_err(M::convert_err)?;
-        let signature: Signature = wallet
-            .sign_typed_data(&signable_data)
-            .await
-            .map_err(|e| ProviderError::CustomError(format!("error signing transaction: {e}")))
-            .map_err(M::convert_err)?;
-        send_request =
-            send_request.custom_data(Eip712Meta::new().custom_signature(signature.to_vec()));
-
-        let encoded_rlp = &*send_request
-            .rlp_signed(signature)
-            .map_err(|e| ProviderError::CustomError(format!("error encoding transaction: {e}")))
-            .map_err(M::convert_err)?;
         self.send_raw_transaction([&[EIP_712_TX_TYPE], encoded_rlp].concat().into())
             .await
     }
