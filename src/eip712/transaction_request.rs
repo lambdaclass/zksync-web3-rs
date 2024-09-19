@@ -308,14 +308,15 @@ impl TryFrom<DeployRequest> for Eip712TransactionRequest {
         let mut contract_deployer_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         contract_deployer_path.push("abi/ContractDeployer.json");
 
-        let custom_data = Eip712Meta::new().factory_deps({
-            let mut factory_deps = Vec::new();
-            if let Some(factory_dependencies) = request.factory_deps {
-                factory_deps.extend(factory_dependencies);
-            }
-            factory_deps.push(request.contract_bytecode.clone());
-            factory_deps
-        });
+        let custom_data = Eip712Meta::new()
+            .factory_deps({
+                let mut factory_deps = Vec::new();
+                if let Some(factory_dependencies) = request.factory_deps {
+                    factory_deps.extend(factory_dependencies);
+                }
+                factory_deps.push(request.contract_bytecode.clone());
+                factory_deps
+            });
 
         let contract_deployer = Abi::load(BufReader::new(
             File::open(contract_deployer_path).map_err(|e| {
