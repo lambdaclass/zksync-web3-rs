@@ -79,7 +79,7 @@ where
         // overrides.
         if allowance < amount {
             erc20
-                .approve(l1_shared_bridge_address, amount * 2)
+                .approve(l1_shared_bridge_address, amount * 2_u8)
                 .send()
                 .await
                 .unwrap()

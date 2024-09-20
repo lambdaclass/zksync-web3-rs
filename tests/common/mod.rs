@@ -1,11 +1,11 @@
 use std::{str::FromStr, sync::Arc};
 
 use ethers::{
-    abi::{Address, Hash},
+    abi::{Abi, Address, Hash},
     prelude::SignerMiddleware,
     providers::{Http, Middleware, Provider, ProviderExt},
     signers::{LocalWallet, Signer},
-    types::{U256, U64},
+    types::{Bytes, U256, U64},
 };
 use zksync_ethers_rs::{
     utils::{L1_ETH_TOKEN_ADDRESS, L2_ETH_TOKEN_ADDRESS},
@@ -16,6 +16,12 @@ pub const L2_RPC_URL: &str = "http://127.0.0.1:3050";
 pub const L2_EXPLORER_URL: &str = "http://127.0.0.1:3010";
 pub const L1_EXPLORER_URL: &str = "";
 pub const L1_RPC_URL: &str = "http://127.0.0.1:8545";
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CompiledContract {
+    pub abi: Abi,
+    pub bin: Bytes,
+}
 
 pub fn l1_explorer_url() -> String {
     std::env::var("L1_EXPLORER_URL").unwrap_or(L1_EXPLORER_URL.to_owned())
@@ -40,7 +46,7 @@ pub async fn signer(
     Arc::new(SignerMiddleware::<Provider<Http>, LocalWallet>::new(
         provider,
         LocalWallet::from_str(&std::env::var("PRIVATE_KEY").unwrap_or(
-            "0x385c546456b6a603a1cfcaa9ec9494ba4832da08dd6bcf4de9a71e4a01b74924".to_owned(),
+            "0x850683b40d4a740aa6e745f889a6fdc8327be76e122f5aba645a5b02d0248db8".to_owned(),
         ))
         .unwrap()
         .with_chain_id(chain_id),

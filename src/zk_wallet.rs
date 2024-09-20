@@ -3,19 +3,26 @@ use ethers::{
     middleware::SignerMiddleware,
     providers::{Middleware, Provider},
     signers::Signer,
-    types::U256,
+    types::{Signature, TransactionReceipt, U256},
 };
 use std::sync::Arc;
-use zksync_types::L2_BASE_TOKEN_ADDRESS;
+use zksync_types::{EIP_712_TX_TYPE, L2_BASE_TOKEN_ADDRESS};
 
 use crate::{
-    deposit, transfer, types::L2TxOverrides, utils::L2_ETH_TOKEN_ADDRESS, withdraw, ZKMiddleware,
+    deposit,
+    eip712::{Eip712Transaction, Eip712TransactionRequest},
+    transfer,
+    types::L2TxOverrides,
+    utils::L2_ETH_TOKEN_ADDRESS,
+    withdraw, ZKMiddleware,
 };
 
 #[derive(thiserror::Error, Debug)]
 pub enum ZKWalletError {
     #[error("Provider error: {0}")]
     ProviderError(#[from] ethers::providers::ProviderError),
+    #[error("Deploy error: {0}")]
+    SendEIP712(String),
 }
 
 /// A ZKsync wallet
@@ -29,10 +36,13 @@ where
     M: Middleware,
     S: Signer,
 {
-    pub fn new(l1_signer: SignerMiddleware<M, S>, l2_signer: SignerMiddleware<M, S>) -> Self {
+    pub fn new(
+        l1_signer: Arc<SignerMiddleware<M, S>>,
+        l2_signer: Arc<SignerMiddleware<M, S>>,
+    ) -> Self {
         Self {
-            l1_signer: Arc::new(l1_signer),
-            l2_signer: Arc::new(l2_signer),
+            l1_signer,
+            l2_signer,
         }
     }
 
@@ -508,5 +518,56 @@ where
             .get_base_token_l1_address()
             .await
             .map_err(Into::into)
+    }
+
+    pub async fn send_transaction_eip712(
+        &self,
+        transaction: Eip712TransactionRequest,
+    ) -> Result<TransactionReceipt, ZKWalletError> {
+        let mut request: Eip712TransactionRequest = transaction;
+
+        request = request
+            .from(self.l2_address())
+            .chain_id(self.l2_provider().get_chainid().await?)
+            .nonce(
+                self.l2_provider()
+                    .get_transaction_count(self.l2_address(), None)
+                    .await?,
+            );
+
+        let custom_data = request.clone().custom_data;
+        let fee = self.l2_provider().estimate_fee(request.clone()).await?;
+        let gas = self.l2_provider().zk_estimate_gas(request.clone()).await?;
+        let gas_price = self.l2_provider().get_gas_price().await?;
+        request = request
+            .max_priority_fee_per_gas(fee.max_priority_fee_per_gas)
+            .gas_limit(gas)
+            .max_fee_per_gas(fee.max_fee_per_gas)
+            .gas_price(gas_price);
+        let signable_data: Eip712Transaction = request.clone().try_into().map_err(|e| {
+            ZKWalletError::SendEIP712(format!("error converting deploy to eip 712 {e}"))
+        })?;
+
+        let signature: Signature = self
+            .l2_signer()
+            .signer()
+            .sign_typed_data(&signable_data)
+            .await
+            .map_err(|e| {
+                ZKWalletError::SendEIP712(format!("error signing deploy transaction: {e}"))
+            })?;
+
+        request = request.custom_data(custom_data.custom_signature(signature.to_vec()));
+        let encoded_rlp = &*request
+            .rlp_signed(signature)
+            .map_err(|e| ZKWalletError::SendEIP712(format!("Error in the rlp encoding {e}")))?;
+
+        self.l2_provider()
+            .send_raw_transaction([&[EIP_712_TX_TYPE], encoded_rlp].concat().into())
+            .await?
+            .await?
+            .ok_or(ZKWalletError::SendEIP712(
+                "Error sending the deploy transaction".to_string(),
+            ))
     }
 }
