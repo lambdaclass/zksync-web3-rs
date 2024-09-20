@@ -1,11 +1,11 @@
 [package]
-name = "zksync-web3-rs"
+name = "zksync-ethers-rs"
 version = "0.2.1"
 edition = "2021"
 license = "MIT"
 description = "Rust SDK for zkSync Era"
-repository = "https://github.com/lambdaclass/zksync-web3-rs/"
-homepage = "https://github.com/lambdaclass/zksync-web3-rs/"
+repository = "https://github.com/lambdaclass/zksync-ethers-rs/"
+homepage = "https://github.com/lambdaclass/zksync-ethers-rs/"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -14,6 +14,13 @@ ethers = { version = "2.0.4", features = ["rustls"] }
 ethers-contract = "2.0.7"
 clap = { version = "4.2.7", features = ["derive"] }
 lazy_static = "1.4.0"
+
+# ZKsync
+zksync_types = { git = "https://github.com/matter-labs/zksync-era.git", package = "zksync_types" }
+zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era.git", package = "zksync_web3_decl" }
+zksync_system_constants = { git = "https://github.com/matter-labs/zksync-era.git", package = "zksync_system_constants" }
+zksync_contracts = { git = "https://github.com/matter-labs/zksync-era.git", package = "zksync_contracts" }
+zksync_prover_interface = { git = "https://github.com/matter-labs/zksync-era.git", package = "zksync_prover_interface" }
 
 # Async
 tokio = { version = "1", features = ["macros", "process"] }
@@ -29,20 +36,23 @@ thiserror = "1.0.40" # Library error handling
 
 # Logging
 log = "0.4"
-env_logger = "0.10"
+env_logger = "0.11.3"
 
 # Hash
-sha2 = "0.9.5"
+sha2 = "0.10.8"
 anyhow = "1.0.88"
 
 [features]
 ethers-solc = ["ethers/ethers-solc"]
 
+[dev-dependencies]
+colored = "2.1.0"
+
 # Examples
 
-[[example]]
-name = "simple_payment"
-path = "examples/simple_payment/main.rs"
+#[[example]]
+#name = "simple_payment"
+#path = "examples/simple_payment/main.rs"
 
 [profile.test]
 opt-level = 3

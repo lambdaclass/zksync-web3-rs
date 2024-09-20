@@ -10,7 +10,7 @@ use ethers::signers::Wallet;
 use ethers::types::{Address, Bytes, TransactionReceipt, U256};
 use ethers_contract::{abigen, ContractError};
 
-abigen!(MainContract, "./src/abi/IZkSync.json");
+abigen!(MainContract, "abi/IZkSyncHyperchain.json");
 
 // ╔══════════════════════════════════════════════════════════════════════════════════════════╗
 // ║ Error enum:                                                                              ║

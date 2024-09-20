@@ -20,6 +20,42 @@
       - [Run the Simple Transfer Example](#run-the-simple-transfer-example)
     - [Conclusion](#conclusion)
 
+## Features
+
+### Low-Level API
+
+| Feature | Status |
+| ------- | ------ |
+| Deposit ETH to ETH base chain | ✔️ |
+| Deposit ETH to ERC20 base chain | 🏗️ |
+| Deposit ERC20 to ETH base chain | 🏗️ |
+| Deposit ERC20 to other ERC20 base chain | 🏗️ |
+| Deposit ERC20 to same ERC20 base chain | 🏗️ |
+| Withdraw ETH from ETH base chain | ✔️ |
+| Withdraw ETH from ERC20 base chain | 🏗️ |
+| Withdraw ERC20 from ETH base chain | 🏗️ |
+| Withdraw ERC20 from other ERC20 base chain | 🏗️ |
+| Withdraw ERC20 from same ERC20 base chain | 🏗️ |
+| Transfer ETH | ❌ |
+| Transfer ERC20 | ❌ |
+
+### ZKwallet
+
+| Feature | Status |
+| ------- | ------ |
+| Deposit ETH to ETH base chain | ❌ |
+| Deposit ETH to ERC20 base chain | ❌ |
+| Deposit ERC20 to ETH base chain | ❌ |
+| Deposit ERC20 to other ERC20 base chain | ❌ |
+| Deposit ERC20 to same ERC20 base chain | ❌ |
+| Withdraw ETH from ETH base chain | ❌ |
+| Withdraw ETH from ERC20 base chain | ❌ |
+| Withdraw ERC20 from ETH base chain | ❌ |
+| Withdraw ERC20 from other ERC20 base chain | ❌ |
+| Withdraw ERC20 from same ERC20 base chain | ❌ |
+| Transfer ETH | ❌ |
+| Transfer ERC20 | ❌ |
+
 ## Getting Started with zkSync Web3 SDK
 
 While most of the existing SDKs should work out of the box, deploying smart contracts or using unique zkSync features, like account abstraction, requires providing additional fields to those that Ethereum transactions have by default.

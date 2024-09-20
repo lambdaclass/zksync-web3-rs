@@ -1,22 +1,19 @@
-use std::{fs::File, io::BufReader, path::PathBuf, str::FromStr};
-
 use super::{hash_bytecode, rlp_append_option, Eip712Meta};
 use crate::{
-    zks_utils::{
-        self, CONTRACT_DEPLOYER_ADDR, EIP712_TX_TYPE, ERA_CHAIN_ID, MAX_PRIORITY_FEE_PER_GAS,
-    },
-    zks_wallet::{DeployRequest, Overrides, TransferRequest, WithdrawRequest, ZKRequestError},
+    types::L1TxOverrides,
+    utils::{self, MAX_PRIORITY_FEE_PER_GAS},
 };
 use ethers::{
-    abi::{Abi, HumanReadableParser, ParseError},
+    abi::{Abi, Error, ParseError},
     types::{
         transaction::{eip2930::AccessList, eip712::Eip712Error},
         Address, Bytes, Signature, U256,
     },
     utils::rlp::{Encodable, RlpStream},
 };
-use ethers_contract::encode_function_data;
+use ethers_contract::{abigen, encode_function_data, AbiError};
 use serde::{Deserialize, Serialize};
+use zksync_types::{CONTRACT_DEPLOYER_ADDRESS, DEFAULT_ERA_CHAIN_ID, EIP_712_TX_TYPE};
 
 // TODO: Not all the fields are optional. This was copied from the JS implementation.
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -53,7 +50,7 @@ impl Eip712TransactionRequest {
         Self::default()
     }
 
-    pub fn from_overrides(overrides: Overrides) -> Self {
+    pub fn from_overrides(overrides: L1TxOverrides) -> Self {
         let mut tx = Self::default();
         if let Some(value) = overrides.value {
             tx.value = value;
@@ -210,8 +207,8 @@ impl Default for Eip712TransactionRequest {
             gas_price: Default::default(),
             data: Default::default(),
             value: Default::default(),
-            chain_id: ERA_CHAIN_ID.into(),
-            r#type: EIP712_TX_TYPE.into(),
+            chain_id: DEFAULT_ERA_CHAIN_ID.into(),
+            r#type: EIP_712_TX_TYPE.into(),
             access_list: Default::default(),
             max_priority_fee_per_gas: MAX_PRIORITY_FEE_PER_GAS.into(),
             max_fee_per_gas: Default::default(),
@@ -221,57 +218,108 @@ impl Default for Eip712TransactionRequest {
     }
 }
 
-impl TryFrom<WithdrawRequest> for Eip712TransactionRequest {
-    type Error = ZKRequestError;
+// impl TryFrom<WithdrawRequest> for Eip712TransactionRequest {
+//     type Error = ZKRequestError;
 
-    fn try_from(request: WithdrawRequest) -> Result<Self, Self::Error> {
-        let contract_address =
-            Address::from_str(zks_utils::CONTRACTS_L2_ETH_TOKEN_ADDR).map_err(|e| {
-                ZKRequestError::CustomError(format!("Error getting L2 ETH token address {e:?}"))
-            })?;
-        let function_signature = "function withdraw(address _l1Receiver) external payable override";
-        let function = HumanReadableParser::parse_function(function_signature)
-            .map_err(ParseError::LexerError)?;
-        let function_args = function.decode_input(&zks_utils::encode_args(
-            &function,
-            &[format!("{:?}", request.to)],
-        )?)?;
-        let data: Bytes = function.encode_input(&function_args)?.into();
+//     fn try_from(request: WithdrawRequest) -> Result<Self, Self::Error> {
+//         let function_signature = "function withdraw(address _l1Receiver) external payable override";
+//         let function = HumanReadableParser::parse_function(function_signature)
+//             .map_err(ParseError::LexerError)?;
+//         let function_args = function.decode_input(&zks_utils::encode_args(
+//             &function,
+//             &[format!("{:?}", request.to)],
+//         )?)?;
+//         let data: Bytes = function.encode_input(&function_args)?.into();
 
-        Ok(Eip712TransactionRequest::new()
-            .r#type(EIP712_TX_TYPE)
-            .to(contract_address)
-            .value(request.amount)
-            .from(request.from)
-            .data(data))
+//         Ok(Eip712TransactionRequest::new()
+//             .r#type(EIP_712_TX_TYPE)
+//             .to(utils::L2_ETH_TOKEN_ADDRESS)
+//             .value(request.amount)
+//             .from(request.from)
+//             .data(data))
+//     }
+// }
+
+// impl From<TransferRequest> for Eip712TransactionRequest {
+//     fn from(request: TransferRequest) -> Self {
+//         Eip712TransactionRequest::new()
+//             .r#type(EIP712_TX_TYPE)
+//             .to(request.to)
+//             .value(request.amount)
+//             .from(request.from)
+//     }
+// }
+
+use std::{fmt::Debug, fs::File, io::BufReader, path::PathBuf};
+
+#[derive(Clone, Debug)]
+pub struct DeployRequest {
+    pub contract_abi: Abi,
+    pub contract_bytecode: Vec<u8>,
+    pub constructor_parameters: Vec<String>,
+    pub from: Address,
+    pub factory_deps: Option<Vec<Vec<u8>>>,
+}
+
+impl DeployRequest {
+    pub fn with(
+        contract_abi: Abi,
+        contract_bytecode: Vec<u8>,
+        constructor_parameters: Vec<String>,
+    ) -> Self {
+        Self {
+            contract_abi,
+            contract_bytecode,
+            constructor_parameters,
+            from: Default::default(),
+            factory_deps: None,
+        }
+    }
+
+    pub fn from(mut self, from: Address) -> Self {
+        self.from = from;
+        self
+    }
+
+    pub fn factory_deps(mut self, factory_deps: Vec<Vec<u8>>) -> Self {
+        self.factory_deps = Some(factory_deps);
+        self
     }
 }
 
-impl From<TransferRequest> for Eip712TransactionRequest {
-    fn from(request: TransferRequest) -> Self {
-        Eip712TransactionRequest::new()
-            .r#type(EIP712_TX_TYPE)
-            .to(request.to)
-            .value(request.amount)
-            .from(request.from)
-    }
+#[derive(thiserror::Error, Debug)]
+pub enum ZKRequestError {
+    #[error("Error parsing function: {0}")]
+    ParseFunctionError(#[from] ParseError),
+    #[error("ABI error: {0}")]
+    AbiError(#[from] AbiError),
+    #[error("Encoding or decoding error: {0}")]
+    Error(#[from] Error),
+    #[error("{0}")]
+    CustomError(String),
 }
+
+abigen!(ContractDeployer, "abi/ContractDeployer.json");
 
 impl TryFrom<DeployRequest> for Eip712TransactionRequest {
     type Error = ZKRequestError;
 
     fn try_from(request: DeployRequest) -> Result<Self, Self::Error> {
         let mut contract_deployer_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        contract_deployer_path.push("src/abi/ContractDeployer.json");
+        contract_deployer_path.push("abi/ContractDeployer.json");
 
-        let custom_data = Eip712Meta::new().factory_deps({
-            let mut factory_deps = Vec::new();
-            if let Some(factory_dependencies) = request.factory_deps {
-                factory_deps.extend(factory_dependencies);
-            }
-            factory_deps.push(request.contract_bytecode.clone());
-            factory_deps
-        });
+        let custom_data = Eip712Meta::new()
+            .factory_deps({
+                let mut factory_deps = Vec::new();
+                if let Some(factory_dependencies) = request.factory_deps {
+                    factory_deps.extend(factory_dependencies);
+                }
+                factory_deps.push(request.contract_bytecode.clone());
+                factory_deps
+            })
+            // TODO CHECK THIS GAS_PER_PUBDATA
+            // IT IS NEEDED TO COMPLETE THE TX, but is not set dynamically
+            .gas_per_pubdata(U256::from(50000_u32));
 
         let contract_deployer = Abi::load(BufReader::new(
             File::open(contract_deployer_path).map_err(|e| {
@@ -298,19 +346,15 @@ impl TryFrom<DeployRequest> for Eip712TransactionRequest {
             }
             (None, true) | (Some(_), true) => Bytes::default(),
             (Some(constructor), false) => {
-                zks_utils::encode_constructor_args(constructor, &request.constructor_parameters)?
-                    .into()
+                utils::encode_constructor_args(constructor, &request.constructor_parameters)?.into()
             }
         };
 
         let data = encode_function_data(create, (salt, bytecode_hash, call_data))?;
 
-        let contract_deployer_address = Address::from_str(CONTRACT_DEPLOYER_ADDR).map_err(|e| {
-            ZKRequestError::CustomError(format!("Error getting contract deployer address {e:?}"))
-        })?;
         Ok(Eip712TransactionRequest::new()
-            .r#type(EIP712_TX_TYPE)
-            .to(contract_deployer_address)
+            .r#type(EIP_712_TX_TYPE)
+            .to(CONTRACT_DEPLOYER_ADDRESS)
             .custom_data(custom_data)
             .data(data))
     }
