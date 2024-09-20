@@ -46,7 +46,7 @@ pub async fn signer(
     Arc::new(SignerMiddleware::<Provider<Http>, LocalWallet>::new(
         provider,
         LocalWallet::from_str(&std::env::var("PRIVATE_KEY").unwrap_or(
-            "0x385c546456b6a603a1cfcaa9ec9494ba4832da08dd6bcf4de9a71e4a01b74924".to_owned(),
+            "0x850683b40d4a740aa6e745f889a6fdc8327be76e122f5aba645a5b02d0248db8".to_owned(),
         ))
         .unwrap()
         .with_chain_id(chain_id),

@@ -525,7 +525,7 @@ where
         transaction: Eip712TransactionRequest,
     ) -> Result<TransactionReceipt, ZKWalletError> {
         let mut request: Eip712TransactionRequest = transaction;
-        let gas_price = self.l2_provider().get_gas_price().await?;
+
         request = request
             .from(self.l2_address())
             .chain_id(self.l2_provider().get_chainid().await?)
@@ -533,16 +533,17 @@ where
                 self.l2_provider()
                     .get_transaction_count(self.l2_address(), None)
                     .await?,
-            )
-            .gas_price(gas_price)
-            .max_fee_per_gas(gas_price);
+            );
 
         let custom_data = request.clone().custom_data;
         let fee = self.l2_provider().estimate_fee(request.clone()).await?;
+        let gas = self.l2_provider().zk_estimate_gas(request.clone()).await?;
+        let gas_price = self.l2_provider().get_gas_price().await?;
         request = request
             .max_priority_fee_per_gas(fee.max_priority_fee_per_gas)
-            .gas_limit(fee.gas_limit)
-            .max_fee_per_gas(fee.max_fee_per_gas);
+            .gas_limit(gas)
+            .max_fee_per_gas(fee.max_fee_per_gas)
+            .gas_price(gas_price);
         let signable_data: Eip712Transaction = request.clone().try_into().map_err(|e| {
             ZKWalletError::SendEIP712(format!("error converting deploy to eip 712 {e}"))
         })?;

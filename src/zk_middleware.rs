@@ -31,7 +31,7 @@ use ethers::{
 };
 
 use crate::{
-    eip712::{Eip712Meta, Eip712Transaction, Eip712TransactionRequest},
+    eip712::{Eip712Transaction, Eip712TransactionRequest},
     types::L1TxOverrides,
     utils,
 };

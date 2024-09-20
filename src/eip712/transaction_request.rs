@@ -316,7 +316,8 @@ impl TryFrom<DeployRequest> for Eip712TransactionRequest {
                 }
                 factory_deps.push(request.contract_bytecode.clone());
                 factory_deps
-            });
+            })
+            .gas_per_pubdata(U256::from(50000_u32));
 
         let contract_deployer = Abi::load(BufReader::new(
             File::open(contract_deployer_path).map_err(|e| {
