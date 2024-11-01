@@ -3593,6 +3593,7 @@ dependencies = [
  "hex",
  "lazy_static",
  "log",
+ "rand",
  "serde",
  "serde_json",
  "sha2 0.9.9",
