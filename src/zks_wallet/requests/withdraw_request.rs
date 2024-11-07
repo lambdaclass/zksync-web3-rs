@@ -2,10 +2,14 @@ use std::fmt::Debug;
 
 use ethers::types::{Address, U256};
 
+/// Parameters for an L2 -> L1 withdraw.
 #[derive(Clone, Debug)]
 pub struct WithdrawRequest {
+    /// The amount to transfer.
     pub amount: U256,
+    /// The L1 recipient address.
     pub to: Address,
+    /// The L2 sender address.
     pub from: Address,
 }
 
